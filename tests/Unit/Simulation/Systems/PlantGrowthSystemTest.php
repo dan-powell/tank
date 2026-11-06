@@ -44,7 +44,7 @@ class PlantGrowthSystemTest extends TestCase
 
     public function test_established_plants_spread_a_new_shoot_nearby(): void
     {
-        $plant = $this->plant(overrides: ['id' => 7, 'size' => 6.0]);
+        $plant = $this->plant(overrides: ['id' => 7, 'size' => 6.0, 'layer' => 0]);
         $state = $this->tankState([
             'species' => $this->catalogue(['vallisneria' => ['spread' => ['chance_per_day' => 10_000]]]),
             'plants' => [$plant],
@@ -58,6 +58,7 @@ class PlantGrowthSystemTest extends TestCase
         $this->assertNull($offshoot->id);
         $this->assertSame(7, $offshoot->parentId);
         $this->assertEqualsWithDelta(0.5, $offshoot->rootX, 0.12);
+        $this->assertContains($offshoot->layer, [0, 1]);
         $this->assertSame(TankEventType::PlantSpread, $context->events()[0]->type);
     }
 }

@@ -1,4 +1,5 @@
-export type Vector3Tuple = [number, number, number];
+/** Normalised (0..1) x/y within a depth layer; y is height above the substrate. */
+export type PlanePoint = [number, number];
 
 export type WaterParameters = {
     temperature: number;
@@ -17,7 +18,9 @@ export type WaterParameters = {
 export type PlantSnapshot = {
     id: number;
     species_id: number;
-    root: Vector3Tuple;
+    root: PlanePoint;
+    /** Depth layer, 0 = back glass. */
+    layer: number;
     size: number;
     segments: number;
     health: number;
@@ -35,7 +38,9 @@ export type CreatureSnapshot = {
     is_pregnant: boolean;
     generation: number;
     zone: {
-        center: Vector3Tuple;
+        center: PlanePoint;
+        /** Home depth layer, 0 = back glass. */
+        layer: number;
         radius: number;
     };
 };
@@ -54,6 +59,8 @@ export type TankSnapshot = {
     id: number;
     name: string;
     volume_litres: number;
+    /** Number of depth layers the tank is divided into. */
+    layer_count: number;
     water: WaterParameters;
     light_on: boolean;
     is_lit: boolean;
@@ -80,6 +87,10 @@ export type SpeciesRender = {
     colorful_tail?: boolean;
     schooling?: number;
     speed?: number;
+    /** 0..1 tendency to visit neighbouring depth layers. */
+    layer_roam?: number;
+    /** Maximum voxel thickness when a sprite has a depth map. */
+    voxel_depth?: number;
     shell?: string;
     stripe?: string;
 };

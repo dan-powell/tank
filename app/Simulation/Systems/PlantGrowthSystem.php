@@ -110,6 +110,9 @@ final class PlantGrowthSystem implements SimulationSystem
         $angle = $context->between(0, 2 * M_PI);
         $distance = $context->between($radius * 0.3, $radius);
 
+        $depthOffset = sin($angle) * $distance;
+        $layerShift = abs($depthOffset) > $radius * 0.7 ? ($depthOffset > 0 ? 1 : -1) : 0;
+
         $plant->size -= $offshootSize;
         $state->plants[] = new PlantState(
             id: null,
@@ -117,7 +120,7 @@ final class PlantGrowthSystem implements SimulationSystem
             parentId: $plant->id,
             rootX: min(0.95, max(0.05, $plant->rootX + cos($angle) * $distance)),
             rootY: $plant->rootY,
-            rootZ: min(0.9, max(0.05, $plant->rootZ + sin($angle) * $distance)),
+            layer: min($state->layerCount - 1, max(0, $plant->layer + $layerShift)),
             size: $offshootSize,
             segments: 1,
             health: 1.0,

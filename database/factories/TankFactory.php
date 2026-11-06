@@ -22,6 +22,7 @@ class TankFactory extends Factory
             'user_id' => User::factory(),
             'name' => fake()->firstName()."'s Tank",
             'volume_litres' => 60,
+            'layer_count' => 5,
             'temperature' => 25,
             'target_temperature' => 25,
             'ph' => 7.4,

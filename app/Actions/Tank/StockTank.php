@@ -55,7 +55,7 @@ class StockTank
             'species_id' => $species->id,
             'root_x' => $this->random->getFloat(0.08, 0.92),
             'root_y' => 0.0,
-            'root_z' => $this->random->getFloat(0.08, 0.55),
+            'layer' => $this->random->getInt(0, $this->backLayerLimit($tank)),
             'size' => $size,
             'segments' => max(1, (int) ceil($size * ($species->params['segments_per_size'] ?? 2))),
             'health' => 1.0,
@@ -76,9 +76,18 @@ class StockTank
             'age_seconds' => (int) ($params['maturity_days'] * 86400 * $this->random->getFloat(0.6, 1.2)),
             'zone_x' => $this->random->getFloat(0.2, 0.8),
             'zone_y' => $this->random->getFloat($zoneYMin, $zoneYMax),
-            'zone_z' => $this->random->getFloat(0.25, 0.75),
+            'layer' => $this->random->getInt(0, $tank->layer_count - 1),
             'zone_radius' => $params['zone']['radius'],
             'generation' => 1,
         ]);
+    }
+
+    /**
+     * The front-most layer plants may be planted in, keeping them in the back
+     * ~60% of the tank so the foreground stays open for viewing.
+     */
+    private function backLayerLimit(Tank $tank): int
+    {
+        return max(0, (int) ceil($tank->layer_count * 0.6) - 1);
     }
 }

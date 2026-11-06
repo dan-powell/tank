@@ -24,7 +24,7 @@ class PlantFactory extends Factory
             'species_id' => Species::factory()->plant(),
             'root_x' => fake()->randomFloat(3, 0.1, 0.9),
             'root_y' => 0,
-            'root_z' => fake()->randomFloat(3, 0.1, 0.5),
+            'layer' => fake()->numberBetween(0, 2),
             'size' => 2,
             'segments' => 4,
             'health' => 1,

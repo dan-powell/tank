@@ -30,6 +30,7 @@ class CreateStarterTank
             $tank = $user->tanks()->create([
                 'name' => Str::of($user->name)->before(' ')->append("'s Tank")->toString(),
                 'volume_litres' => 60,
+                'layer_count' => 5,
                 'temperature' => 25,
                 'target_temperature' => 25,
                 'ph' => 7.4,

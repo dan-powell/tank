@@ -15,7 +15,7 @@ final class PlantState
         public ?int $parentId,
         public float $rootX,
         public float $rootY,
-        public float $rootZ,
+        public int $layer,
         public float $size,
         public int $segments,
         public float $health,

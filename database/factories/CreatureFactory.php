@@ -30,7 +30,7 @@ class CreatureFactory extends Factory
             'age_seconds' => 60 * 86400,
             'zone_x' => 0.5,
             'zone_y' => 0.6,
-            'zone_z' => 0.5,
+            'layer' => 2,
             'zone_radius' => 0.25,
             'generation' => 1,
         ];

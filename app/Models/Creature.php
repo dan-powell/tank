@@ -13,8 +13,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
- * A fish or invertebrate. It has no fixed position, only a preferred zone
- * (centre and radius, normalised to 0..1) that the frontend steers it around.
+ * A fish or invertebrate. It has no fixed position, only a home depth layer and
+ * a preferred zone within it (x/y centre and radius, normalised to 0..1) that
+ * the frontend steers it around.
  *
  * Hunger and health are both in the range 0..1 (hunger 1 = starving).
  *
@@ -32,7 +33,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $gestation_seconds
  * @property float $zone_x
  * @property float $zone_y
- * @property float $zone_z
+ * @property int $layer Home depth layer (0 = back glass).
  * @property float $zone_radius
  * @property int $generation
  * @property Carbon|null $died_at
@@ -42,7 +43,7 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'species_id', 'mother_id', 'father_id', 'nickname', 'sex', 'size', 'hunger', 'health',
-    'age_seconds', 'gestation_seconds', 'zone_x', 'zone_y', 'zone_z', 'zone_radius', 'generation',
+    'age_seconds', 'gestation_seconds', 'zone_x', 'zone_y', 'layer', 'zone_radius', 'generation',
     'died_at', 'death_cause',
 ])]
 class Creature extends Model
@@ -109,7 +110,7 @@ class Creature extends Model
             'gestation_seconds' => 'integer',
             'zone_x' => 'float',
             'zone_y' => 'float',
-            'zone_z' => 'float',
+            'layer' => 'integer',
             'zone_radius' => 'float',
             'generation' => 'integer',
             'died_at' => 'datetime',

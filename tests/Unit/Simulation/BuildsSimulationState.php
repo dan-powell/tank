@@ -54,6 +54,7 @@ trait BuildsSimulationState
 
         $state = new TankState(...[
             'volumeLitres' => 60,
+            'layerCount' => 5,
             'temperature' => 25.0,
             'targetTemperature' => 25.0,
             'ph' => 7.4,
@@ -89,7 +90,7 @@ trait BuildsSimulationState
             'parentId' => null,
             'rootX' => 0.5,
             'rootY' => 0.0,
-            'rootZ' => 0.3,
+            'layer' => 1,
             'size' => 2.0,
             'segments' => 4,
             'health' => 1.0,
@@ -121,7 +122,7 @@ trait BuildsSimulationState
             'gestationSeconds' => null,
             'zoneX' => 0.5,
             'zoneY' => 0.5,
-            'zoneZ' => 0.5,
+            'layer' => 2,
             'zoneRadius' => 0.25,
             'generation' => 1,
             ...$overrides,

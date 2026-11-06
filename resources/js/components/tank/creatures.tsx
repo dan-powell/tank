@@ -1,17 +1,25 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Mesh } from 'three';
-import { Color, Group, Quaternion, Vector3 } from 'three';
-import { CM, toWorld, TANK, zoneRadiusToWorld } from '@/lib/tank/space';
-import { steer } from '@/lib/tank/steering';
+import { Color, Group, Vector3 } from 'three';
+import { useVoxelModel } from '@/hooks/use-voxel-model';
+import {
+    CM,
+    layerToZ,
+    TANK,
+    toWorld,
+    zoneRadiusToWorld,
+} from '@/lib/tank/space';
+import { createWanderState, steer } from '@/lib/tank/steering';
 import type { SteeringProfile, WanderState } from '@/lib/tank/steering';
 import type { CreatureBody, TankWorld } from '@/lib/tank/world';
 import type { CreatureSnapshot, Species } from '@/types';
+import { createVoxelMaterial } from './voxel-material';
 
 type Props = {
     creatures: CreatureSnapshot[];
     species: Map<number, Species>;
     world: TankWorld;
+    layerCount: number;
     isLit: boolean;
     lowOxygen: boolean;
 };
@@ -21,6 +29,7 @@ type Departed = {
     species: Species;
     size: number;
     position: Vector3;
+    facing: 1 | -1;
 };
 
 /**
@@ -31,6 +40,7 @@ export function Creatures({
     creatures,
     species,
     world,
+    layerCount,
     isLit,
     lowOxygen,
 }: Props) {
@@ -55,6 +65,7 @@ export function Creatures({
                     species: definition,
                     size: creature.size,
                     position: body.position.clone(),
+                    facing: body.facing,
                 });
                 world.creatures.delete(creature.id);
             }
@@ -82,6 +93,7 @@ export function Creatures({
                         creature={creature}
                         species={definition}
                         world={world}
+                        layerCount={layerCount}
                         isLit={isLit}
                         lowOxygen={lowOxygen}
                     />
@@ -106,29 +118,28 @@ type CreatureProps = {
     creature: CreatureSnapshot;
     species: Species;
     world: TankWorld;
+    layerCount: number;
     isLit: boolean;
     lowOxygen: boolean;
 };
 
-const lookTarget = new Vector3();
-const targetQuaternion = new Quaternion();
-const helper = new Group();
+/** Seconds a creature takes to turn round (the sprite faces right). */
+const TURN_SECONDS = 0.4;
 
 function Creature({
     creature,
     species,
     world,
+    layerCount,
     isLit,
     lowOxygen,
 }: CreatureProps) {
     const group = useRef<Group>(null);
-    const tail = useRef<Mesh>(null);
-    const wander = useRef<WanderState>({
-        heading: Math.random() * Math.PI * 2,
-        pitch: 0,
-    });
+    const yaw = useRef<Group>(null);
+    const wander = useRef<WanderState | null>(null);
+    const homeLayer = Math.min(layerCount - 1, creature.zone.layer);
     const zoneCenter = useMemo(
-        () => toWorld(...creature.zone.center),
+        () => toWorld(creature.zone.center[0], creature.zone.center[1], 0.5),
         [creature.zone.center],
     );
 
@@ -141,21 +152,31 @@ function Creature({
 
         const spawn: CreatureBody = {
             speciesId: creature.species_id,
-            position: zoneCenter
-                .clone()
-                .add(
-                    new Vector3(
-                        (Math.random() - 0.5) * 0.3,
-                        (Math.random() - 0.5) * 0.1,
-                        (Math.random() - 0.5) * 0.3,
-                    ),
-                ),
+            position: new Vector3(
+                zoneCenter.x + (Math.random() - 0.5) * 0.3,
+                zoneCenter.y + (Math.random() - 0.5) * 0.1,
+                layerToZ(homeLayer, layerCount),
+            ),
             velocity: new Vector3(),
+            homeLayer,
+            layer: homeLayer,
+            facing: Math.random() < 0.5 ? 1 : -1,
         };
         world.creatures.set(creature.id, spawn);
 
         return spawn;
-    }, [creature.id, creature.species_id, world, zoneCenter]);
+    }, [
+        creature.id,
+        creature.species_id,
+        world,
+        zoneCenter,
+        homeLayer,
+        layerCount,
+    ]);
+
+    useEffect(() => {
+        body.homeLayer = homeLayer;
+    }, [body, homeLayer]);
 
     useEffect(
         () => () => {
@@ -171,6 +192,8 @@ function Creature({
             (species.render.speed ?? 0.25) *
             (creature.size < (species.adult_size ?? 1) * 0.35 ? 0.7 : 1),
         schooling: species.render.schooling ?? 0,
+        layerRoam: species.render.layer_roam ?? 0,
+        layerCount,
         zoneCenter,
         zoneRadius: zoneRadiusToWorld(creature.zone.radius),
         hunger: creature.hunger,
@@ -181,175 +204,115 @@ function Creature({
 
     useFrame((state, delta) => {
         const object = group.current;
+        const turn = yaw.current;
 
-        if (object === null) {
+        if (object === null || turn === null) {
             return;
+        }
+
+        const targetYaw = body.facing > 0 ? 0 : Math.PI;
+
+        if (wander.current === null) {
+            wander.current = { ...createWanderState(), direction: body.facing };
+            turn.rotation.y = targetYaw;
         }
 
         steer(body, wander.current, profile, world, delta);
         object.position.copy(body.position);
 
-        if (body.velocity.lengthSq() > 1e-6) {
-            helper.position.copy(body.position);
-            helper.lookAt(lookTarget.copy(body.position).add(body.velocity));
-            targetQuaternion.copy(helper.quaternion);
-            object.quaternion.slerp(targetQuaternion, Math.min(1, delta * 6));
-        }
+        const step = (Math.PI / TURN_SECONDS) * Math.min(delta, 0.1);
+        const remaining = targetYaw - turn.rotation.y;
+        turn.rotation.y +=
+            Math.abs(remaining) <= step
+                ? remaining
+                : Math.sign(remaining) * step;
 
-        if (tail.current !== null) {
-            const beat = 6 + body.velocity.length() * 40;
-            tail.current.rotation.y =
-                Math.sin(state.clock.elapsedTime * beat + creature.id) * 0.4;
-        }
+        const speed = Math.abs(body.velocity.x) + 1e-4;
+        const pitch = Math.atan2(body.velocity.y, speed) * 0.6;
+        turn.rotation.z += (pitch - turn.rotation.z) * Math.min(1, delta * 5);
+
+        const beat = 6 + body.velocity.length() * 40;
+        object.rotation.y =
+            Math.sin(state.clock.elapsedTime * beat + creature.id) *
+            (species.behaviour === 'crawler' ? 0 : 0.12);
     });
-
-    const length = Math.max(creature.size, 0.3) * CM;
 
     return (
         <group ref={group} position={body.position}>
-            {species.behaviour === 'crawler' ? (
-                <SnailModel length={length} species={species} />
-            ) : (
-                <FishModel
-                    length={length}
+            <group ref={yaw}>
+                <VoxelCreature
                     species={species}
-                    creatureId={creature.id}
+                    length={Math.max(creature.size, 0.3) * CM}
+                    tint={tailColour(species, creature.id)}
                     health={creature.health}
-                    tailRef={tail}
                 />
-            )}
+            </group>
         </group>
     );
 }
 
-type FishModelProps = {
-    length: number;
+/** Per-individual colour for tint-keyed sprite pixels (e.g. guppy tails). */
+function tailColour(species: Species, creatureId: number): Color {
+    if (!species.render.colorful_tail) {
+        return new Color(species.render.body ?? '#b8c2cc');
+    }
+
+    return new Color().setHSL((((creatureId * 0.618) % 1) + 1) % 1, 0.8, 0.55);
+}
+
+type VoxelCreatureProps = {
     species: Species;
-    creatureId: number;
+    /** Nose-to-tail length in world units. */
+    length: number;
+    tint: Color;
     health: number;
-    tailRef: React.RefObject<Mesh | null>;
+    /** Overall colour multiplier override (e.g. for the dead). */
+    shade?: Color;
+    opacity?: number;
 };
 
-function FishModel({
-    length,
+/**
+ * The species sprite as a voxel mesh, scaled to the creature's length and
+ * centred on its body (crawlers sit on their base instead).
+ */
+function VoxelCreature({
     species,
-    creatureId,
+    length,
+    tint,
     health,
-    tailRef,
-}: FishModelProps) {
-    const bodyColour = useMemo(
-        () =>
-            new Color(species.render.body ?? '#b8c2cc').lerp(
-                new Color('#6b6b6b'),
-                (1 - health) * 0.6,
-            ),
-        [species.render.body, health],
-    );
-    const tailColour = useMemo(() => {
-        if (!species.render.colorful_tail) {
-            return bodyColour;
-        }
+    shade,
+    opacity = 1,
+}: VoxelCreatureProps) {
+    const model = useVoxelModel(species);
+    const tintHex = tint.getHexString();
+    const shadeHex = shade?.getHexString();
+    const material = useMemo(() => {
+        const colour =
+            shadeHex === undefined
+                ? new Color('#ffffff').lerp(
+                      new Color('#7a7a7a'),
+                      (1 - health) * 0.6,
+                  )
+                : new Color(`#${shadeHex}`);
+        const created = createVoxelMaterial(new Color(`#${tintHex}`), colour);
+        created.transparent = opacity < 1;
+        created.opacity = opacity;
 
-        return new Color().setHSL(
-            (((creatureId * 0.618) % 1) + 1) % 1,
-            0.8,
-            0.55,
-        );
-    }, [species.render.colorful_tail, creatureId, bodyColour]);
-    const isBottom = species.behaviour === 'bottom_dweller';
+        return created;
+    }, [tintHex, shadeHex, health, opacity]);
+
+    useEffect(() => () => material.dispose(), [material]);
+
+    const scale = length / model.width;
+    const lift = species.behaviour === 'crawler' ? 0 : -model.height / 2;
 
     return (
-        <group>
-            <mesh
-                scale={[
-                    length * 0.22,
-                    length * (isBottom ? 0.28 : 0.32),
-                    length * 0.5,
-                ]}
-            >
-                <sphereGeometry args={[1, 12, 10]} />
-                <meshStandardMaterial
-                    color={bodyColour}
-                    roughness={0.5}
-                    metalness={0.15}
-                />
-            </mesh>
-            {isBottom && (
-                <mesh
-                    position={[0, length * 0.18, length * 0.05]}
-                    scale={[length * 0.04, length * 0.16, length * 0.12]}
-                >
-                    <sphereGeometry args={[1, 6, 6]} />
-                    <meshStandardMaterial color="#3a3226" />
-                </mesh>
-            )}
-            <mesh
-                ref={tailRef}
-                position={[0, 0, -length * 0.5]}
-                rotation={[Math.PI / 2, 0, 0]}
-                scale={[
-                    length * 0.02,
-                    length * (species.render.colorful_tail ? 0.45 : 0.25),
-                    length * 0.32,
-                ]}
-            >
-                <coneGeometry args={[1, 1, 3]} />
-                <meshStandardMaterial
-                    color={tailColour}
-                    roughness={0.6}
-                    transparent
-                    opacity={0.9}
-                />
-            </mesh>
-            <mesh
-                position={[length * 0.12, length * 0.06, length * 0.32]}
-                scale={length * 0.05}
-            >
-                <sphereGeometry args={[1, 6, 6]} />
-                <meshStandardMaterial color="#111111" />
-            </mesh>
-            <mesh
-                position={[-length * 0.12, length * 0.06, length * 0.32]}
-                scale={length * 0.05}
-            >
-                <sphereGeometry args={[1, 6, 6]} />
-                <meshStandardMaterial color="#111111" />
-            </mesh>
-        </group>
-    );
-}
-
-function SnailModel({ length, species }: { length: number; species: Species }) {
-    return (
-        <group>
-            <mesh
-                position={[0, length * 0.25, 0]}
-                scale={[length * 0.4, length * 0.32, length * 0.42]}
-            >
-                <sphereGeometry args={[1, 14, 10]} />
-                <meshStandardMaterial
-                    color={species.render.shell ?? '#6b4f2a'}
-                    roughness={0.4}
-                />
-            </mesh>
-            <mesh
-                position={[0, length * 0.3, 0]}
-                rotation={[0, 0, Math.PI / 2]}
-                scale={length * 0.36}
-            >
-                <torusGeometry args={[0.9, 0.08, 6, 16]} />
-                <meshStandardMaterial
-                    color={species.render.stripe ?? '#e0b84a'}
-                />
-            </mesh>
-            <mesh
-                position={[0, length * 0.05, length * 0.15]}
-                scale={[length * 0.22, length * 0.08, length * 0.5]}
-            >
-                <sphereGeometry args={[1, 8, 6]} />
-                <meshStandardMaterial color="#9a8f7a" />
-            </mesh>
-        </group>
+        <mesh
+            geometry={model.geometry}
+            material={material}
+            scale={scale}
+            position={[0, lift * scale, 0]}
+        />
     );
 }
 
@@ -379,7 +342,7 @@ function DepartedCreature({
             TANK.waterLine - 0.02,
             object.position.y + delta * 0.08,
         );
-        object.rotation.z = Math.min(Math.PI, object.rotation.z + delta * 1.5);
+        object.rotation.x = Math.min(Math.PI, object.rotation.x + delta * 1.5);
         object.scale.setScalar(
             Math.max(0.01, 1 - elapsed.current / FLOAT_SECONDS),
         );
@@ -392,18 +355,16 @@ function DepartedCreature({
 
     return (
         <group ref={group} position={ghost.position}>
-            {ghost.species.behaviour === 'crawler' ? (
-                <SnailModel length={length} species={ghost.species} />
-            ) : (
-                <mesh scale={[length * 0.22, length * 0.3, length * 0.5]}>
-                    <sphereGeometry args={[1, 10, 8]} />
-                    <meshStandardMaterial
-                        color="#9a9a9a"
-                        transparent
-                        opacity={0.8}
-                    />
-                </mesh>
-            )}
+            <group rotation={[0, ghost.facing > 0 ? 0 : Math.PI, 0]}>
+                <VoxelCreature
+                    species={ghost.species}
+                    length={length}
+                    tint={new Color('#9a9a9a')}
+                    health={0}
+                    shade={new Color('#9a9a9a')}
+                    opacity={0.8}
+                />
+            </group>
         </group>
     );
 }

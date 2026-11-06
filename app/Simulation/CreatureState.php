@@ -30,7 +30,7 @@ final class CreatureState
         public ?int $gestationSeconds,
         public float $zoneX,
         public float $zoneY,
-        public float $zoneZ,
+        public int $layer,
         public float $zoneRadius,
         public int $generation,
     ) {}

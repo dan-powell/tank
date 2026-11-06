@@ -15,8 +15,8 @@ class ReproductionSystemTest extends TestCase
 
     public function test_pregnant_livebearer_gives_birth_when_gestation_completes(): void
     {
-        $mother = $this->creature('guppy', ['id' => 1, 'sex' => Sex::Female, 'gestationSeconds' => 21 * 86400 - 60]);
-        $father = $this->creature('guppy', ['id' => 2, 'sex' => Sex::Male]);
+        $mother = $this->creature('guppy', ['id' => 1, 'sex' => Sex::Female, 'gestationSeconds' => 21 * 86400 - 60, 'layer' => 3]);
+        $father = $this->creature('guppy', ['id' => 2, 'sex' => Sex::Male, 'layer' => 1]);
         $state = $this->tankState(['creatures' => [$mother, $father]]);
         $context = $this->context($state);
 
@@ -29,6 +29,7 @@ class ReproductionSystemTest extends TestCase
         $this->assertSame(2, $fry[0]->fatherId);
         $this->assertSame(2, $fry[0]->generation);
         $this->assertSame(0.6, $fry[0]->size);
+        $this->assertSame(3, $fry[0]->layer);
         $this->assertSame(TankEventType::Birth, $context->events()[0]->type);
     }
 

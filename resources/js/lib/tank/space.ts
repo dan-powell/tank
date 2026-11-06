@@ -50,6 +50,25 @@ export function zoneRadiusToWorld(radius: number): number {
     return radius * TANK.width * 0.6;
 }
 
+/** Depth (world units) of one layer of a tank divided into `layerCount` layers. */
+export function layerDepth(layerCount: number): number {
+    return (TANK.depth - 2 * MARGIN) / Math.max(1, layerCount);
+}
+
+/** World-space z of the centre of a depth layer (layer 0 = back glass). */
+export function layerToZ(layer: number, layerCount: number): number {
+    return -TANK.depth / 2 + MARGIN + (layer + 0.5) * layerDepth(layerCount);
+}
+
+/** The depth layer containing a world-space z. */
+export function zToLayer(z: number, layerCount: number): number {
+    const layer = Math.floor(
+        (z + TANK.depth / 2 - MARGIN) / layerDepth(layerCount),
+    );
+
+    return Math.min(layerCount - 1, Math.max(0, layer));
+}
+
 export const bounds = {
     minX: -TANK.width / 2 + MARGIN,
     maxX: TANK.width / 2 - MARGIN,

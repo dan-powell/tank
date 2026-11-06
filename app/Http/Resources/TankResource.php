@@ -25,6 +25,7 @@ class TankResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'volume_litres' => $this->volume_litres,
+            'layer_count' => $this->layer_count,
             'water' => [
                 'temperature' => round($this->temperature, 1),
                 'target_temperature' => round($this->target_temperature, 1),

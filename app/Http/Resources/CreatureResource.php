@@ -30,7 +30,8 @@ class CreatureResource extends JsonResource
             'is_pregnant' => $this->gestation_seconds !== null,
             'generation' => $this->generation,
             'zone' => [
-                'center' => [round($this->zone_x, 3), round($this->zone_y, 3), round($this->zone_z, 3)],
+                'center' => [round($this->zone_x, 3), round($this->zone_y, 3)],
+                'layer' => $this->layer,
                 'radius' => round($this->zone_radius, 3),
             ],
         ];

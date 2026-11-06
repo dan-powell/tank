@@ -93,7 +93,7 @@ final class SpeciesCatalogue
                         'brood' => [3, 8],
                     ],
                     'zone' => ['y' => [0.45, 0.9], 'radius' => 0.25],
-                    'render' => ['body' => '#b8c2cc', 'colorful_tail' => true, 'schooling' => 0.3, 'speed' => 0.35],
+                    'render' => ['body' => '#b8c2cc', 'colorful_tail' => true, 'schooling' => 0.3, 'speed' => 0.35, 'layer_roam' => 0.25],
                 ],
             ],
             'corydoras' => [
@@ -124,7 +124,7 @@ final class SpeciesCatalogue
                         'brood' => [2, 6],
                     ],
                     'zone' => ['y' => [0.02, 0.08], 'radius' => 0.35],
-                    'render' => ['body' => '#c9b28f', 'schooling' => 0.6, 'speed' => 0.2],
+                    'render' => ['body' => '#c9b28f', 'schooling' => 0.6, 'speed' => 0.2, 'layer_roam' => 0.1],
                 ],
             ],
             'nerite-snail' => [
@@ -151,7 +151,7 @@ final class SpeciesCatalogue
                     'max_per_100l' => 10,
                     'breeding' => ['mode' => BreedingMode::None->value],
                     'zone' => ['y' => [0.0, 0.03], 'radius' => 0.5],
-                    'render' => ['shell' => '#6b4f2a', 'stripe' => '#e0b84a', 'speed' => 0.03],
+                    'render' => ['shell' => '#6b4f2a', 'stripe' => '#e0b84a', 'speed' => 0.03, 'layer_roam' => 0.05],
                 ],
             ],
         ];

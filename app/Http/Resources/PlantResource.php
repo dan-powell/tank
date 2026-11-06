@@ -21,7 +21,8 @@ class PlantResource extends JsonResource
         return [
             'id' => $this->id,
             'species_id' => $this->species_id,
-            'root' => [round($this->root_x, 3), round($this->root_y, 3), round($this->root_z, 3)],
+            'root' => [round($this->root_x, 3), round($this->root_y, 3)],
+            'layer' => $this->layer,
             'size' => round($this->size, 2),
             'segments' => $this->segments,
             'health' => round($this->health, 2),

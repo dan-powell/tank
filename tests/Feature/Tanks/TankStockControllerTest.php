@@ -52,6 +52,19 @@ class TankStockControllerTest extends TestCase
         $this->assertSame(0, $tank->creatures()->count());
     }
 
+    public function test_new_stock_is_placed_within_the_tanks_depth_layers(): void
+    {
+        $tank = Tank::factory()->create(['layer_count' => 5]);
+        $fish = Species::factory()->create();
+        $plant = Species::factory()->plant()->create();
+
+        $this->actingAs($tank->user)->post(route('tanks.stock', $tank), ['species_id' => $fish->id, 'quantity' => 5]);
+        $this->actingAs($tank->user)->post(route('tanks.stock', $tank), ['species_id' => $plant->id, 'quantity' => 5]);
+
+        $tank->creatures()->pluck('layer')->each(fn (int $layer) => $this->assertContains($layer, range(0, 4)));
+        $tank->plants()->pluck('layer')->each(fn (int $layer) => $this->assertContains($layer, range(0, 2)));
+    }
+
     public function test_rejects_stock_beyond_the_tank_limit(): void
     {
         config(['simulation.max_creatures_per_tank' => 4]);

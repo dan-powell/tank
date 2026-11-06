@@ -20,6 +20,7 @@ final class TankState
      */
     public function __construct(
         public int $volumeLitres,
+        public int $layerCount,
         public float $temperature,
         public float $targetTemperature,
         public float $ph,

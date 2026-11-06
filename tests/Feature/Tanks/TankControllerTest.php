@@ -34,8 +34,13 @@ class TankControllerTest extends TestCase
             ->assertInertia(fn (AssertableInertia $page) => $page
                 ->component('tanks/show')
                 ->where('tank.id', $tank->id)
+                ->where('tank.layer_count', 5)
                 ->has('tank.creatures', 2)
+                ->where('tank.creatures.0.zone.layer', 2)
+                ->has('tank.creatures.0.zone.center', 2)
                 ->has('tank.plants', 1)
+                ->has('tank.plants.0.layer')
+                ->has('tank.plants.0.root', 2)
                 ->has('species')
                 ->has('events'));
     }

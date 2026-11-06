@@ -1,7 +1,8 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
-import { useEffect, useMemo } from 'react';
+import { Suspense, useEffect, useMemo, useRef } from 'react';
+import type { ComponentRef } from 'react';
 import { TANK } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import type { Species, TankSnapshot } from '@/types';
@@ -10,6 +11,7 @@ import { Creatures } from './creatures';
 import { FoodParticles } from './food-particles';
 import { Plants } from './plants';
 import { swayClock } from './sway-material';
+import { TankPanControls } from './tank-pan-controls';
 import { TankEnvironment } from './tank-environment';
 
 type Props = {
@@ -22,7 +24,11 @@ type Props = {
 /** Low-oxygen threshold (mg/L) below which fish gasp at the surface. */
 const LOW_OXYGEN = 4;
 
+/** Initial orbit pivot. A stable reference, so re-renders never reset a pan. */
+const ORBIT_TARGET: [number, number, number] = [0, TANK.height * 0.45, 0];
+
 export function TankScene({ tank, species, world, onFeed }: Props) {
+    const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
     const speciesById = useMemo(
         () => new Map(species.map((definition) => [definition.id, definition])),
         [species],
@@ -57,26 +63,35 @@ export function TankScene({ tank, species, world, onFeed }: Props) {
                 isLit={tank.is_lit}
                 onSurfaceClick={handleSurfaceClick}
             />
-            <Plants plants={tank.plants} species={speciesById} />
-            <Creatures
-                creatures={tank.creatures}
-                species={speciesById}
-                world={world}
-                isLit={tank.is_lit}
-                lowOxygen={tank.water.oxygen < LOW_OXYGEN}
-            />
+            <Suspense fallback={null}>
+                <Plants
+                    plants={tank.plants}
+                    species={speciesById}
+                    layerCount={tank.layer_count}
+                />
+                <Creatures
+                    creatures={tank.creatures}
+                    species={speciesById}
+                    world={world}
+                    layerCount={tank.layer_count}
+                    isLit={tank.is_lit}
+                    lowOxygen={tank.water.oxygen < LOW_OXYGEN}
+                />
+            </Suspense>
             <FoodParticles world={world} />
             {tank.auto_feeder !== null && (
                 <AutoFeederModel feeder={tank.auto_feeder} />
             )}
             <OrbitControls
-                target={[0, TANK.height * 0.45, 0]}
+                ref={controls}
+                target={ORBIT_TARGET}
                 enablePan={false}
                 minDistance={1.2}
                 maxDistance={4.5}
                 minPolarAngle={0.3}
                 maxPolarAngle={Math.PI / 2}
             />
+            <TankPanControls controls={controls} />
         </Canvas>
     );
 }

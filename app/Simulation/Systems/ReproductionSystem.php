@@ -128,7 +128,7 @@ final class ReproductionSystem implements SimulationSystem
                 gestationSeconds: null,
                 zoneX: $this->jitter($mother->zoneX, 0.1, $context),
                 zoneY: $this->jitter($mother->zoneY, 0.05, $context),
-                zoneZ: $this->jitter($mother->zoneZ, 0.1, $context),
+                layer: $mother->layer,
                 zoneRadius: $mother->zoneRadius,
                 generation: $mother->generation + 1,
             );

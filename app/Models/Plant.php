@@ -20,7 +20,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $parent_id
  * @property float $root_x
  * @property float $root_y
- * @property float $root_z
+ * @property int $layer Depth layer the plant is rooted in (0 = back glass).
  * @property float $size
  * @property int $segments
  * @property float $health
@@ -30,7 +30,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'species_id', 'parent_id', 'root_x', 'root_y', 'root_z', 'size', 'segments', 'health',
+    'species_id', 'parent_id', 'root_x', 'root_y', 'layer', 'size', 'segments', 'health',
     'age_seconds', 'died_at',
 ])]
 class Plant extends Model
@@ -83,7 +83,7 @@ class Plant extends Model
         return [
             'root_x' => 'float',
             'root_y' => 'float',
-            'root_z' => 'float',
+            'layer' => 'integer',
             'size' => 'float',
             'segments' => 'integer',
             'health' => 'float',
