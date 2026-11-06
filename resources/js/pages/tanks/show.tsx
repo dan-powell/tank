@@ -1,12 +1,14 @@
 import { Head, router } from '@inertiajs/react';
-import { Moon, Sun } from 'lucide-react';
-import { useMemo } from 'react';
+import { Box, Moon, Square, Sun } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { AutoFeederPanel } from '@/components/tank/auto-feeder-panel';
 import { EventLog } from '@/components/tank/event-log';
 import { MaintenancePanel } from '@/components/tank/maintenance-panel';
+import type { TankViewMode } from '@/components/tank/tank-camera-rig';
 import { PopulationPanel } from '@/components/tank/population-panel';
 import { TankScene } from '@/components/tank/tank-scene';
 import { WaterPanel } from '@/components/tank/water-panel';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useTankChannel } from '@/hooks/use-tank-channel';
 import {
     AUTO_FEEDER_SPOT,
@@ -29,6 +31,7 @@ type Props = {
 
 export default function ShowTank({ tank, species, events }: Props) {
     const world = useMemo(() => new TankWorld(), []);
+    const [viewMode, setViewMode] = useState<TankViewMode>('flat');
 
     useTankChannel(tank.id, () => {
         const drop = toWorld(AUTO_FEEDER_SPOT.x, 1, AUTO_FEEDER_SPOT.z);
@@ -60,8 +63,36 @@ export default function ShowTank({ tank, species, events }: Props) {
                         tank={tank}
                         species={species}
                         world={world}
+                        viewMode={viewMode}
                         onFeed={feedAt}
                     />
+                    <ToggleGroup
+                        type="single"
+                        size="sm"
+                        value={viewMode}
+                        onValueChange={(value) =>
+                            value && setViewMode(value as TankViewMode)
+                        }
+                        aria-label="Tank view"
+                        className="absolute top-3 right-3 bg-black/50 text-white"
+                    >
+                        <ToggleGroupItem
+                            value="orbit"
+                            aria-label="3D view"
+                            className="gap-1.5 px-2.5 hover:bg-white/15 hover:text-white data-[state=on]:bg-white/25 data-[state=on]:text-white"
+                        >
+                            <Box className="size-4" />
+                            3D
+                        </ToggleGroupItem>
+                        <ToggleGroupItem
+                            value="flat"
+                            aria-label="Front 2D view"
+                            className="gap-1.5 px-2.5 hover:bg-white/15 hover:text-white data-[state=on]:bg-white/25 data-[state=on]:text-white"
+                        >
+                            <Square className="size-4" />
+                            2D
+                        </ToggleGroupItem>
+                    </ToggleGroup>
                     <div className="pointer-events-none absolute top-3 left-3 rounded-md bg-black/50 px-3 py-1.5 text-sm text-white">
                         <h1 className="font-semibold">{tank.name}</h1>
                         <p className="flex items-center gap-1.5 text-xs text-white/80">

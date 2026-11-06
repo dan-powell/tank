@@ -23,7 +23,7 @@ const DEFAULT_Y_RANGE: [number, number] = [
 const MIN_ALIGNMENT = 0.35;
 
 /**
- * Right-drag pans the view along the tank's own x axis (its length) and y axis
+ * Left-drag (mouse or pen) pans the view along the tank's own x axis (its length) and y axis
  * (its height), never in depth, clamped so the tank can never be dragged out
  * of view. The camera and orbit target move together, so rotating still
  * pivots around a point inside the tank.
@@ -45,7 +45,7 @@ export function TankPanControls({
         let lastY = 0;
 
         const onPointerDown = (event: PointerEvent) => {
-            if (event.button !== 2) {
+            if (event.button !== 0 || event.pointerType === 'touch') {
                 return;
             }
 
@@ -58,7 +58,11 @@ export function TankPanControls({
         const onPointerMove = (event: PointerEvent) => {
             const orbit = controls.current;
 
-            if (event.pointerId !== pointerId || orbit === null) {
+            if (
+                event.pointerId !== pointerId ||
+                orbit === null ||
+                !orbit.enabled
+            ) {
                 return;
             }
 

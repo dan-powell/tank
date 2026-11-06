@@ -3,6 +3,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import type { ComponentRef } from 'react';
+import { MOUSE } from 'three';
 import { TANK } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import type { Species, TankSnapshot } from '@/types';
@@ -11,6 +12,8 @@ import { Creatures } from './creatures';
 import { FoodParticles } from './food-particles';
 import { Plants } from './plants';
 import { swayClock } from './sway-material';
+import { ORBIT_START, TankCameraRig } from './tank-camera-rig';
+import type { TankViewMode } from './tank-camera-rig';
 import { TankPanControls } from './tank-pan-controls';
 import { TankEnvironment } from './tank-environment';
 
@@ -18,16 +21,23 @@ type Props = {
     tank: TankSnapshot;
     species: Species[];
     world: TankWorld;
+    viewMode: TankViewMode;
     onFeed: (worldX: number, worldZ: number) => void;
 };
 
 /** Low-oxygen threshold (mg/L) below which fish gasp at the surface. */
 const LOW_OXYGEN = 4;
 
-/** Initial orbit pivot. A stable reference, so re-renders never reset a pan. */
-const ORBIT_TARGET: [number, number, number] = [0, TANK.height * 0.45, 0];
+/**
+ * Right-drag rotates and the wheel zooms; left-drag pans (handled by
+ * TankPanControls). A stable reference, so re-renders never reset it.
+ */
+const MOUSE_BUTTONS = { MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE };
 
-export function TankScene({ tank, species, world, onFeed }: Props) {
+/** Pointer travel (px) beyond which a press is a drag, not a feeding click. */
+const CLICK_TOLERANCE = 5;
+
+export function TankScene({ tank, species, world, viewMode, onFeed }: Props) {
     const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
     const speciesById = useMemo(
         () => new Map(species.map((definition) => [definition.id, definition])),
@@ -44,12 +54,24 @@ export function TankScene({ tank, species, world, onFeed }: Props) {
 
     const handleSurfaceClick = (event: ThreeEvent<MouseEvent>) => {
         event.stopPropagation();
-        onFeed(event.point.x, event.point.z);
+
+        if (event.delta <= CLICK_TOLERANCE) {
+            onFeed(event.point.x, event.point.z);
+        }
+    };
+
+    /** In the flat view the surface is edge-on, so clicking the water feeds. */
+    const handleFrontClick = (event: ThreeEvent<MouseEvent>) => {
+        event.stopPropagation();
+
+        if (event.delta <= CLICK_TOLERANCE) {
+            onFeed(event.point.x, (Math.random() - 0.5) * TANK.depth * 0.6);
+        }
     };
 
     return (
         <Canvas
-            camera={{ position: [0, TANK.height * 0.6, 2.6], fov: 45 }}
+            camera={{ position: ORBIT_START.position, fov: ORBIT_START.fov }}
             dpr={[1, 2]}
             gl={{ antialias: true }}
         >
@@ -78,19 +100,36 @@ export function TankScene({ tank, species, world, onFeed }: Props) {
                     lowOxygen={tank.water.oxygen < LOW_OXYGEN}
                 />
             </Suspense>
+            {viewMode === 'flat' && (
+                <mesh
+                    position={[
+                        0,
+                        (TANK.substrate + TANK.waterLine) / 2,
+                        TANK.depth / 2 - 0.01,
+                    ]}
+                    onClick={handleFrontClick}
+                >
+                    <planeGeometry
+                        args={[TANK.width, TANK.waterLine - TANK.substrate]}
+                    />
+                    <meshBasicMaterial
+                        transparent
+                        opacity={0}
+                        depthWrite={false}
+                    />
+                </mesh>
+            )}
             <FoodParticles world={world} />
             {tank.auto_feeder !== null && (
                 <AutoFeederModel feeder={tank.auto_feeder} />
             )}
             <OrbitControls
                 ref={controls}
-                target={ORBIT_TARGET}
+                target={ORBIT_START.target}
                 enablePan={false}
-                minDistance={1.2}
-                maxDistance={4.5}
-                minPolarAngle={0.3}
-                maxPolarAngle={Math.PI / 2}
+                mouseButtons={MOUSE_BUTTONS}
             />
+            <TankCameraRig mode={viewMode} controls={controls} />
             <TankPanControls controls={controls} />
         </Canvas>
     );
