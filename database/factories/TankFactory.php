@@ -74,4 +74,17 @@ class TankFactory extends Factory
             'is_active' => false,
         ]);
     }
+
+    /**
+     * A tank with an auto-feeder installed and its hopper full.
+     */
+    public function withAutoFeeder(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'auto_feeder_installed' => true,
+            'auto_feeder_feeds_per_day' => 2,
+            'auto_feeder_unlimited' => false,
+            'auto_feeder_portions' => config('simulation.auto_feeder.hopper_capacity'),
+        ]);
+    }
 }

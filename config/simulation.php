@@ -7,13 +7,14 @@ return [
     | Time Scale
     |--------------------------------------------------------------------------
     |
-    | How many simulated seconds pass for every real second. 1 keeps the tank
-    | in step with the real world; raise it locally (e.g. 60 = one simulated
-    | hour per real minute) to watch the ecosystem evolve quickly.
+    | How many simulated seconds pass for every real second. The default of
+    | 60 runs one simulated hour per real minute (a simulated day every 24
+    | minutes), so tanks need looking after like a virtual pet. Set it to 1
+    | to keep tanks in step with the real world.
     |
     */
 
-    'time_scale' => (float) env('SIMULATION_TIME_SCALE', 1),
+    'time_scale' => (float) env('SIMULATION_TIME_SCALE', 60),
 
     /*
     |--------------------------------------------------------------------------
@@ -46,6 +47,26 @@ return [
         'ph' => 7.4,
         'oxygen' => 9.0,
         'co2' => 2.0,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Auto-feeder
+    |--------------------------------------------------------------------------
+    |
+    | An installed auto-feeder drops one pinch of food at each scheduled hour
+    | (simulated time). In hopper mode each feed uses one portion and the
+    | user refills the hopper; in unlimited mode it never runs out.
+    |
+    */
+
+    'auto_feeder' => [
+        'hopper_capacity' => 28,
+        'schedules' => [
+            1 => [9],
+            2 => [9, 18],
+            3 => [8, 13, 18],
+        ],
     ],
 
     'max_creatures_per_tank' => 150,

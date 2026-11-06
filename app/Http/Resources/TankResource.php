@@ -40,6 +40,13 @@ class TankResource extends JsonResource
             ],
             'light_on' => $this->light_on,
             'is_lit' => $this->light_on && LightingSystem::isDaytime($this->sim_seconds),
+            'auto_feeder' => $this->auto_feeder_installed ? [
+                'feeds_per_day' => $this->auto_feeder_feeds_per_day,
+                'feed_hours' => config("simulation.auto_feeder.schedules.{$this->auto_feeder_feeds_per_day}", []),
+                'unlimited' => $this->auto_feeder_unlimited,
+                'portions' => $this->auto_feeder_portions,
+                'capacity' => config('simulation.auto_feeder.hopper_capacity'),
+            ] : null,
             'sim_tick' => $this->sim_tick,
             'sim_seconds' => $this->sim_seconds,
             'last_simulated_at' => $this->last_simulated_at?->toIso8601String(),

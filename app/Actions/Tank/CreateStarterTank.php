@@ -39,7 +39,7 @@ class CreateStarterTank
                 'algae' => 2,
                 'bacteria' => 0.3,
                 'rng_seed' => random_int(1, 2_147_483_647),
-                'sim_seconds' => (int) now()->secondsSinceMidnight(),
+                'sim_seconds' => 8 * 3600,
                 'last_simulated_at' => now(),
             ]);
 

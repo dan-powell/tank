@@ -37,6 +37,10 @@ use Illuminate\Support\Carbon;
  * @property float $algae
  * @property float $bacteria
  * @property bool $light_on
+ * @property bool $auto_feeder_installed
+ * @property int $auto_feeder_feeds_per_day
+ * @property bool $auto_feeder_unlimited
+ * @property int $auto_feeder_portions
  * @property bool $is_active
  * @property int $sim_tick
  * @property int $sim_seconds
@@ -48,6 +52,7 @@ use Illuminate\Support\Carbon;
 #[Fillable([
     'name', 'volume_litres', 'temperature', 'target_temperature', 'ph', 'ammonia', 'nitrite',
     'nitrate', 'oxygen', 'co2', 'detritus', 'uneaten_food', 'algae', 'bacteria', 'light_on',
+    'auto_feeder_installed', 'auto_feeder_feeds_per_day', 'auto_feeder_unlimited', 'auto_feeder_portions',
     'is_active', 'sim_tick', 'sim_seconds', 'rng_seed', 'last_simulated_at',
 ])]
 class Tank extends Model
@@ -135,6 +140,10 @@ class Tank extends Model
             'algae' => 'float',
             'bacteria' => 'float',
             'light_on' => 'boolean',
+            'auto_feeder_installed' => 'boolean',
+            'auto_feeder_feeds_per_day' => 'integer',
+            'auto_feeder_unlimited' => 'boolean',
+            'auto_feeder_portions' => 'integer',
             'is_active' => 'boolean',
             'sim_tick' => 'integer',
             'sim_seconds' => 'integer',

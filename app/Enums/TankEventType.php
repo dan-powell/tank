@@ -9,6 +9,8 @@ enum TankEventType: string
     case PlantSpread = 'plant_spread';
     case PlantDied = 'plant_died';
     case Feeding = 'feeding';
+    case AutoFeeding = 'auto_feeding';
+    case AutoFeederChanged = 'auto_feeder_changed';
     case WaterChange = 'water_change';
     case Vacuum = 'vacuum';
     case AlgaeScrub = 'algae_scrub';

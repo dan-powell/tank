@@ -5,6 +5,7 @@ import { useEffect, useMemo } from 'react';
 import { TANK } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import type { Species, TankSnapshot } from '@/types';
+import { AutoFeederModel } from './auto-feeder-model';
 import { Creatures } from './creatures';
 import { FoodParticles } from './food-particles';
 import { Plants } from './plants';
@@ -48,7 +49,7 @@ export function TankScene({ tank, species, world, onFeed }: Props) {
         >
             <color
                 attach="background"
-                args={[tank.is_lit ? '#1b2a3a' : '#070b14']}
+                args={[tank.is_lit ? '#2c3e52' : '#0e1626']}
             />
             <SwayClock />
             <TankEnvironment
@@ -65,15 +66,16 @@ export function TankScene({ tank, species, world, onFeed }: Props) {
                 lowOxygen={tank.water.oxygen < LOW_OXYGEN}
             />
             <FoodParticles world={world} />
+            {tank.auto_feeder !== null && (
+                <AutoFeederModel feeder={tank.auto_feeder} />
+            )}
             <OrbitControls
                 target={[0, TANK.height * 0.45, 0]}
                 enablePan={false}
                 minDistance={1.2}
-                maxDistance={4}
+                maxDistance={4.5}
                 minPolarAngle={0.3}
                 maxPolarAngle={Math.PI / 2}
-                minAzimuthAngle={-Math.PI / 3}
-                maxAzimuthAngle={Math.PI / 3}
             />
         </Canvas>
     );

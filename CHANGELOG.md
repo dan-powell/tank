@@ -39,8 +39,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Dashboard:** lists the user's tanks.
 - **Tests:** unit tests for every simulation system and for the simulator, plus feature tests for the tank page, interactions, stocking, the policy, starter tanks, the simulation job and the tick command.
 
+- **Auto-feeder:** owners can add an auto-feeder to a tank. It feeds 1, 2 or 3 times a simulated day and runs either from a 28-portion hopper (with a refill button and a warning when it runs empty) or in unlimited mode. The 3D view shows the feeder on the back glass with its hopper level, and fish chase the food it drops.
+- **Tank lighting:** three spotlights hang on a rail above the tank. They are warm by day and dimmer and moonlit at night, so the tank stays visible.
+
 ### Changed
 
+- **Simulation speed:** the default `SIMULATION_TIME_SCALE` is now `60` (one simulated hour per real minute), so tanks play like a virtual pet rather than following real time. New tanks start at 08:00 on day 1 instead of the current time of day.
+- **Camera:** the tank view can now be orbited a full 360°.
 - Replaced the default Laravel README and changelog with project-specific documents.
 - Excluded tooling and agent configuration files from the frontend formatter, so `npm run check:fix` no longer rewrites them.
 

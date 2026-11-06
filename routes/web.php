@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\TankAutoFeederController;
 use App\Http\Controllers\TankController;
 use App\Http\Controllers\TankMaintenanceController;
 use App\Http\Controllers\TankStockController;
@@ -24,6 +25,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('scrub', [TankMaintenanceController::class, 'scrub'])->name('scrub');
             Route::post('light', [TankMaintenanceController::class, 'toggleLight'])->name('light');
             Route::post('stock', [TankStockController::class, 'store'])->name('stock');
+            Route::put('auto-feeder', [TankAutoFeederController::class, 'update'])->name('auto-feeder.update');
+            Route::delete('auto-feeder', [TankAutoFeederController::class, 'destroy'])->name('auto-feeder.destroy');
+            Route::post('auto-feeder/refill', [TankAutoFeederController::class, 'refill'])->name('auto-feeder.refill');
         });
 });
 

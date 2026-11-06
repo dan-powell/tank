@@ -74,6 +74,12 @@ final class TankStateRepository
             species: $species,
             plants: $plants,
             creatures: $creatures,
+            autoFeeder: $tank->auto_feeder_installed ? new AutoFeederState(
+                feedHours: config("simulation.auto_feeder.schedules.{$tank->auto_feeder_feeds_per_day}", []),
+                portionGrams: (float) config('simulation.feed_pinch_grams'),
+                unlimited: $tank->auto_feeder_unlimited,
+                portions: $tank->auto_feeder_portions,
+            ) : null,
         );
     }
 
@@ -98,6 +104,7 @@ final class TankStateRepository
             'bacteria' => $state->bacteria,
             'sim_tick' => $state->simTick,
             'sim_seconds' => $state->simSeconds,
+            'auto_feeder_portions' => $state->autoFeeder->portions ?? $tank->auto_feeder_portions,
             'last_simulated_at' => $now,
         ])->save();
 

@@ -6,6 +6,7 @@ import type { TankEventType, TankUpdatedPayload } from '@/types';
 /** Events caused by the viewer themselves; no need to toast them back. */
 const OWN_ACTIONS: TankEventType[] = [
     'feeding',
+    'auto_feeder_changed',
     'water_change',
     'vacuum',
     'algae_scrub',
@@ -16,8 +17,9 @@ const OWN_ACTIONS: TankEventType[] = [
 /**
  * Listen for server-side updates to a tank. Each update triggers a partial
  * reload of the snapshot, and notable happenings are shown as toasts.
+ * `onAutoFeed` runs once for every portion the auto-feeder dropped.
  */
-export function useTankChannel(tankId: number): void {
+export function useTankChannel(tankId: number, onAutoFeed?: () => void): void {
     useEcho<TankUpdatedPayload>(
         `tank.${tankId}`,
         '.tank.updated',
@@ -25,6 +27,12 @@ export function useTankChannel(tankId: number): void {
             router.reload({ only: ['tank', 'events'] });
 
             for (const event of payload.events) {
+                if (event.type === 'auto_feeding') {
+                    onAutoFeed?.();
+
+                    continue;
+                }
+
                 if (OWN_ACTIONS.includes(event.type)) {
                     continue;
                 }

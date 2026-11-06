@@ -34,6 +34,7 @@ The engine in `app/Simulation` is plain PHP with no Eloquent or facades. `TankSi
 | Plant growth | Plants grow on nitrogen, sicken in poor conditions and spread new shoots |
 | Algae | Algae bloom on light and nutrients unless plants out-compete them |
 | Metabolism | Animals get hungry, use oxygen, excrete waste and grow |
+| Auto-feeder | An installed feeder drops a pinch of food at each scheduled hour, from its hopper or in unlimited mode |
 | Feeding | Mid-water fish reach food first; bottom feeders get what sinks; snails graze algae |
 | Health | Ammonia (worse at high pH), nitrite, nitrate, low oxygen, wrong temperature or pH, and starvation all damage health |
 | Reproduction | Livebearers and egg-layers breed when healthy, fed and paired, up to a population cap |
@@ -56,7 +57,7 @@ Species and their tuned parameters are defined in `App\Simulation\SpeciesCatalog
 
 ### User interactions
 
-Owners can feed (click the water surface to choose where food lands), vacuum the gravel, scrub algae, change 10–75% of the water, toggle the lamp, and add plants or animals. Each interaction is an action class in `app/Actions/Tank`. It takes the same row lock as the simulation job, logs a `TankEvent` and broadcasts `TankUpdated`. Interactions are rate-limited to 30 per minute per user.
+Owners can feed (click the water surface to choose where food lands), vacuum the gravel, scrub algae, change 10–75% of the water, toggle the lamp, and add plants or animals. They can also add an auto-feeder that feeds 1–3 times a simulated day. It runs either from a 28-portion hopper they refill or in unlimited mode. Each interaction is an action class in `app/Actions/Tank`. It takes the same row lock as the simulation job, logs a `TankEvent` and broadcasts `TankUpdated`. Interactions are rate-limited to 30 per minute per user.
 
 New users get a cycled, planted and stocked 60 litre starter tank when they register.
 
@@ -98,9 +99,9 @@ Simulation settings are in `config/simulation.php`:
 
 | Env variable | Default | Purpose |
 | --- | --- | --- |
-| `SIMULATION_TIME_SCALE` | `1` | Simulated seconds per real second. Set to `60` to watch a simulated hour pass every minute. |
+| `SIMULATION_TIME_SCALE` | `60` | Simulated seconds per real second. The default runs one simulated hour per real minute (a day every 24 minutes). Set it to `1` to follow real time. |
 | `SIMULATION_MAX_STEP_SECONDS` | `300` | Longest single simulation step |
-| `SIMULATION_MAX_STEPS` | `1440` | Catch-up limit per job (5 simulated days by default); any time beyond it is skipped |
+| `SIMULATION_MAX_STEPS` | `1440` | Catch-up limit per job (5 simulated days, about 2 real hours at the default time scale); any time beyond it is skipped |
 | `SIMULATION_MIN_INTERVAL_SECONDS` | `30` | Ticks closer together than this are ignored |
 
 Reverb needs `REVERB_HOST="tank.ddev.site"`, `REVERB_PORT=8080` and `REVERB_SCHEME=https`, as shown in `.env.example`.

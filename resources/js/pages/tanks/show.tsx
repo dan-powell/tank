@@ -1,13 +1,20 @@
 import { Head, router } from '@inertiajs/react';
 import { Moon, Sun } from 'lucide-react';
 import { useMemo } from 'react';
+import { AutoFeederPanel } from '@/components/tank/auto-feeder-panel';
 import { EventLog } from '@/components/tank/event-log';
 import { MaintenancePanel } from '@/components/tank/maintenance-panel';
 import { PopulationPanel } from '@/components/tank/population-panel';
 import { TankScene } from '@/components/tank/tank-scene';
 import { WaterPanel } from '@/components/tank/water-panel';
 import { useTankChannel } from '@/hooks/use-tank-channel';
-import { formatSimClock, TANK, toNormalisedSurface } from '@/lib/tank/space';
+import {
+    AUTO_FEEDER_SPOT,
+    formatSimClock,
+    TANK,
+    toNormalisedSurface,
+    toWorld,
+} from '@/lib/tank/space';
 import { TankWorld } from '@/lib/tank/world';
 import { dashboard } from '@/routes';
 import { feed } from '@/routes/tanks';
@@ -23,7 +30,10 @@ type Props = {
 export default function ShowTank({ tank, species, events }: Props) {
     const world = useMemo(() => new TankWorld(), []);
 
-    useTankChannel(tank.id);
+    useTankChannel(tank.id, () => {
+        const drop = toWorld(AUTO_FEEDER_SPOT.x, 1, AUTO_FEEDER_SPOT.z);
+        world.sprinkle(drop.x, drop.z, 10);
+    });
 
     const feedAt = (worldX: number, worldZ: number) => {
         world.sprinkle(worldX, worldZ);
@@ -77,6 +87,10 @@ export default function ShowTank({ tank, species, events }: Props) {
                         lightOn={tank.light_on}
                         species={species}
                         onFeedRandomly={feedRandomly}
+                    />
+                    <AutoFeederPanel
+                        tankId={tank.id}
+                        feeder={tank.auto_feeder}
                     />
                     <EventLog events={events} />
                 </aside>

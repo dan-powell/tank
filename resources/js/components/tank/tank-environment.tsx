@@ -1,9 +1,10 @@
 import { Edges } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
 import { useMemo } from 'react';
-import { BackSide, Color, InstancedMesh, Object3D } from 'three';
+import { BackSide, Color, DoubleSide, InstancedMesh, Object3D } from 'three';
 import { TANK } from '@/lib/tank/space';
 import type { WaterParameters } from '@/types';
+import { TankLighting } from './tank-lighting';
 
 type Props = {
     water: WaterParameters;
@@ -29,31 +30,7 @@ export function TankEnvironment({ water, isLit, onSurfaceClick }: Props) {
 
     return (
         <group>
-            {isLit ? (
-                <>
-                    <ambientLight intensity={0.55} />
-                    <directionalLight
-                        position={[0.5, 4, 1.5]}
-                        intensity={2.2}
-                        castShadow={false}
-                    />
-                    <pointLight
-                        position={[0, TANK.height + 0.3, 0]}
-                        intensity={4}
-                        distance={4}
-                        color="#fff6e0"
-                    />
-                </>
-            ) : (
-                <>
-                    <ambientLight intensity={0.12} color="#4060a0" />
-                    <directionalLight
-                        position={[-1, 3, 2]}
-                        intensity={0.35}
-                        color="#7090ff"
-                    />
-                </>
-            )}
+            <TankLighting isLit={isLit} />
 
             {/* Substrate */}
             <mesh position={[0, TANK.substrate / 2, 0]}>
@@ -85,6 +62,7 @@ export function TankEnvironment({ water, isLit, onSurfaceClick }: Props) {
                         transparent
                         opacity={algae * 0.7}
                         depthWrite={false}
+                        side={DoubleSide}
                     />
                 </mesh>
             )}

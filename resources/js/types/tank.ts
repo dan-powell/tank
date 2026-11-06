@@ -40,6 +40,16 @@ export type CreatureSnapshot = {
     };
 };
 
+export type AutoFeeder = {
+    feeds_per_day: 1 | 2 | 3;
+    /** Simulated hours of the day (0-23) at which it feeds. */
+    feed_hours: number[];
+    unlimited: boolean;
+    /** Portions left in the hopper (ignored in unlimited mode). */
+    portions: number;
+    capacity: number;
+};
+
 export type TankSnapshot = {
     id: number;
     name: string;
@@ -47,6 +57,7 @@ export type TankSnapshot = {
     water: WaterParameters;
     light_on: boolean;
     is_lit: boolean;
+    auto_feeder: AutoFeeder | null;
     sim_tick: number;
     sim_seconds: number;
     last_simulated_at: string | null;
@@ -92,6 +103,8 @@ export type TankEventType =
     | 'plant_spread'
     | 'plant_died'
     | 'feeding'
+    | 'auto_feeding'
+    | 'auto_feeder_changed'
     | 'water_change'
     | 'vacuum'
     | 'algae_scrub'

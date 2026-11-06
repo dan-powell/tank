@@ -23,6 +23,7 @@ class SimulateTankTest extends TestCase
 
         Event::fake([TankUpdated::class]);
         $this->freezeSecond();
+        config(['simulation.time_scale' => 1]);
     }
 
     public function test_advances_the_tank_by_the_elapsed_time_and_notifies_viewers(): void
@@ -49,6 +50,23 @@ class SimulateTankTest extends TestCase
         SimulateTank::dispatchSync($tank);
 
         $this->assertSame(3600, $tank->fresh()->sim_seconds);
+    }
+
+    public function test_the_auto_feeder_feeds_on_schedule_and_saves_its_hopper_level(): void
+    {
+        config(['simulation.time_scale' => 60]);
+        $tank = Tank::factory()->withAutoFeeder()->create([
+            'last_simulated_at' => now()->subMinutes(2),
+            'sim_seconds' => 8 * 3600,
+            'uneaten_food' => 0,
+        ]);
+
+        SimulateTank::dispatchSync($tank);
+
+        $tank->refresh();
+        $this->assertSame(27, $tank->auto_feeder_portions);
+        $this->assertGreaterThan(0.0, $tank->uneaten_food);
+        $this->assertSame(TankEventType::AutoFeeding, $tank->events()->sole()->type);
     }
 
     public function test_records_deaths_and_keeps_the_body_for_history(): void

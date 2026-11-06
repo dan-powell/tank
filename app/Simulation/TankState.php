@@ -39,6 +39,7 @@ final class TankState
         public array $species,
         public array $plants = [],
         public array $creatures = [],
+        public ?AutoFeederState $autoFeeder = null,
     ) {}
 
     /**
@@ -49,6 +50,7 @@ final class TankState
         $copy = clone $this;
         $copy->plants = array_map(fn (PlantState $plant): PlantState => clone $plant, $this->plants);
         $copy->creatures = array_map(fn (CreatureState $creature): CreatureState => clone $creature, $this->creatures);
+        $copy->autoFeeder = $this->autoFeeder === null ? null : clone $this->autoFeeder;
 
         return $copy;
     }

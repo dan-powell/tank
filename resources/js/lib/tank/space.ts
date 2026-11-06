@@ -9,6 +9,9 @@ export const TANK = {
     waterLine: 1.22,
 } as const;
 
+/** Where the auto-feeder sits on the rim, in normalised x/z (back right). */
+export const AUTO_FEEDER_SPOT = { x: 0.82, z: 0.2 } as const;
+
 /** World units per centimetre of animal length. */
 export const CM = 0.04;
 
