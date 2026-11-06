@@ -1,0 +1,23 @@
+# Project-specific DDEV additions for the tank simulation.
+# Merged automatically with config.yaml by DDEV.
+
+# Expose Laravel Reverb (websockets) through the DDEV router.
+# Browser connects to wss://tank.ddev.site:8080
+web_extra_exposed_ports:
+  - name: reverb
+    container_port: 8080
+    http_port: 8081
+    https_port: 8080
+
+# Long-running processes started with the web container.
+web_extra_daemons:
+  - name: reverb
+    command: "php artisan reverb:start --host=0.0.0.0 --port=8080"
+    directory: /var/www/html
+  # queue:listen reloads code on every job, which suits development.
+  - name: queue
+    command: "php artisan queue:listen --queue=simulation,default --tries=3 --timeout=50"
+    directory: /var/www/html
+  - name: scheduler
+    command: "php artisan schedule:work"
+    directory: /var/www/html

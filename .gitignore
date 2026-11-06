@@ -25,3 +25,10 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+/bootstrap/ssr
+/resources/js/actions
+/resources/js/routes
+/resources/js/wayfinder
+npm-debug.log
+yarn-error.log
+/.fleet

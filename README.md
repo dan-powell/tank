@@ -1,58 +1,143 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Tank
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+An experimental website where every user owns a persistent virtual aquarium. The server runs a simple ecosystem simulation: water chemistry, plant growth, hunger, health, breeding and death. The simulation keeps running whether or not anyone is watching. In the browser, a 3D scene shows a rough, animated picture of what the simulation says is happening.
 
-## About Laravel
+## How it works
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+The project is split into two halves.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+**Backend: the persistent simulation (Laravel).** Each tank's state lives in MySQL. Every minute the scheduler queues one `SimulateTank` job per active tank. The job advances the tank by however much time has passed since it last ran, saves the result and broadcasts a notification. The simulation is coarse on purpose: it tracks *what* is in the tank and *how it is doing*, not exact positions.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+**Frontend: the visualisation (React + three.js).** The tank page renders the latest snapshot with react-three-fiber. Fish have no stored position, only a preferred *zone*. Their moment-to-moment movement (wandering, schooling, chasing food, gasping at the surface when oxygen is low) is local steering that runs in the browser. When the server broadcasts an update over websockets (Laravel Reverb), the page re-fetches the snapshot and reconciles it: new fish fade in, dead ones float up, and plants grow.
 
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```
+Browser (Inertia + React + R3F)            Laravel
+ ├─ tanks/show page  ◄── snapshot props ── TankController@show
+ ├─ local steering, sway, food particles
+ ├─ POST /tanks/{tank}/feed, … ───────────► Actions (row-locked transaction)
+ └─ private channel tank.{id} ◄── Reverb ◄── TankUpdated event
+                                                  ▲
+ Scheduler (every minute) → tank:tick → SimulateTank job (queue: simulation)
+                                          └─ TankSimulator (pure PHP)
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+### The simulation engine
 
-## Contributing
+The engine in `app/Simulation` is plain PHP with no Eloquent or facades. `TankSimulator::advance()` takes a `TankState` and a number of seconds, splits the time into steps of at most 5 simulated minutes, and runs a pipeline of systems in order:
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+| System | What it does |
+| --- | --- |
+| Lighting | The lamp follows an 08:00–20:00 timer while the user's switch is on |
+| Water quality | Heater, surface gas exchange (oxygen and CO₂) and pH buffering |
+| Nitrogen cycle | Food and detritus rot into ammonia; bacteria convert ammonia → nitrite → nitrate and grow with the load |
+| Photosynthesis | Plants and algae produce oxygen in light and respire in the dark |
+| Plant growth | Plants grow on nitrogen, sicken in poor conditions and spread new shoots |
+| Algae | Algae bloom on light and nutrients unless plants out-compete them |
+| Metabolism | Animals get hungry, use oxygen, excrete waste and grow |
+| Feeding | Mid-water fish reach food first; bottom feeders get what sinks; snails graze algae |
+| Health | Ammonia (worse at high pH), nitrite, nitrate, low oxygen, wrong temperature or pH, and starvation all damage health |
+| Reproduction | Livebearers and egg-layers breed when healthy, fed and paired, up to a population cap |
+| Mortality | Deaths from poor health, old age, or fry being eaten (less often in planted tanks) |
+| Warnings | Logs an event when a water parameter crosses into a harmful range |
 
-## Code of Conduct
+Each step's random numbers are seeded from the tank's seed and tick number, so a run is deterministic and the systems can be unit-tested directly. `TankStateRepository` is the only part that touches the database.
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Species and their tuned parameters are defined in `App\Simulation\SpeciesCatalogue`. To add a species, add an entry there and run the species seeder. There are five at the moment:
 
-## Security Vulnerabilities
+- **Plants:** Vallisneria and Hornwort
+- **Fauna:** Guppy (livebearer, eats fry), Corydoras (egg-layer, bottom feeder) and Nerite snail (algae grazer, doesn't breed)
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Units and conventions
 
-## License
+- **Concentrations:** ammonia, nitrite, nitrate, oxygen and CO₂ are in mg/L (ppm).
+- **Other tank quantities:** detritus and uneaten food in grams, algae as percentage coverage, bacteria as nitrifying capacity in ppm per hour.
+- **Positions:** normalised to 0..1 within the tank. `y` is height above the substrate, and `z = 0` is the back glass.
+- **Animal sizes:** centimetres. Plant sizes are abstract biomass units, and `segments` is derived from size for rendering.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### User interactions
+
+Owners can feed (click the water surface to choose where food lands), vacuum the gravel, scrub algae, change 10–75% of the water, toggle the lamp, and add plants or animals. Each interaction is an action class in `app/Actions/Tank`. It takes the same row lock as the simulation job, logs a `TankEvent` and broadcasts `TankUpdated`. Interactions are rate-limited to 30 per minute per user.
+
+New users get a cycled, planted and stocked 60 litre starter tank when they register.
+
+## Tech stack
+
+- PHP 8.5, Laravel 13, MySQL 8.4
+- Laravel React starter kit: Inertia v3, React 19, Fortify auth, Wayfinder, Tailwind 4
+- Laravel Reverb and `@laravel/echo-react` for websockets
+- three.js, @react-three/fiber and @react-three/drei for the 3D scene
+- DDEV for local development
+
+## Local development
+
+The project runs in [DDEV](https://ddev.com). Run every PHP, Composer and npm command through it, never directly on the host.
+
+```bash
+ddev start
+ddev composer install
+ddev npm install
+ddev artisan migrate --seed   # creates test@example.com / password with a starter tank
+ddev npm run build            # or `ddev npm run dev` while working on the frontend
+```
+
+Then open <https://tank.ddev.site>.
+
+`.ddev/config.tank.yaml` starts three background processes with the web container:
+
+| Daemon | Command |
+| --- | --- |
+| `reverb` | `php artisan reverb:start` on port 8080 (exposed as `wss://tank.ddev.site:8080`) |
+| `queue` | `php artisan queue:listen --queue=simulation,default` |
+| `scheduler` | `php artisan schedule:work` (runs `tank:tick` every minute) |
+
+After changing PHP code that the queue worker runs, `queue:listen` picks it up automatically. Restart DDEV after changing the daemon configuration.
+
+### Configuration
+
+Simulation settings are in `config/simulation.php`:
+
+| Env variable | Default | Purpose |
+| --- | --- | --- |
+| `SIMULATION_TIME_SCALE` | `1` | Simulated seconds per real second. Set to `60` to watch a simulated hour pass every minute. |
+| `SIMULATION_MAX_STEP_SECONDS` | `300` | Longest single simulation step |
+| `SIMULATION_MAX_STEPS` | `1440` | Catch-up limit per job (5 simulated days by default); any time beyond it is skipped |
+| `SIMULATION_MIN_INTERVAL_SECONDS` | `30` | Ticks closer together than this are ignored |
+
+Reverb needs `REVERB_HOST="tank.ddev.site"`, `REVERB_PORT=8080` and `REVERB_SCHEME=https`, as shown in `.env.example`.
+
+### Useful commands
+
+```bash
+ddev artisan tank:tick                         # queue a simulation step for every active tank now
+ddev artisan db:seed --class=SpeciesSeeder     # sync catalogue changes to the database
+ddev artisan test --compact                    # run the test suite
+ddev exec vendor/bin/pint --dirty --format agent
+ddev npm run check                             # frontend lint + format
+ddev npm run types:check
+```
+
+## Project layout
+
+| Path | Contents |
+| --- | --- |
+| `app/Simulation` | Simulation engine, state classes, species catalogue, repository |
+| `app/Simulation/Systems` | One class per ecosystem system |
+| `app/Actions/Tank` | User interactions and starter tank creation |
+| `app/Jobs/SimulateTank.php`, `app/Console/Commands/TickTanks.php` | Scheduled simulation |
+| `app/Events/TankUpdated.php` | Broadcast on `private-tank.{id}` (a small payload; clients re-fetch the snapshot) |
+| `app/Http/Resources` | Snapshot shape sent to the browser |
+| `resources/js/pages/tanks/show.tsx` | Tank page |
+| `resources/js/components/tank` | 3D scene, models, and HUD panels |
+| `resources/js/lib/tank` | Coordinate mapping, client-side world (food and positions), steering |
+| `tests/Unit/Simulation` | Unit tests for each system and the simulator |
+| `tests/Feature/Tanks`, `tests/Feature/Simulation` | HTTP, job and command tests |
+
+## Roadmap ideas
+
+- More species: cherry shrimp (eat detritus, breed in planted tanks), pea puffers (eat snails), neon tetras, duckweed (blocks light), Java fern
+- Pest snail booms when the tank is overfed
+- Disease outbreaks such as ich, triggered by temperature swings
+- Heaters and filters as equipment the user manages
+- Inherited guppy colour genetics
+- Multiple tanks per user, and a terrarium mode built on the same engine
+- Splitting the three.js bundle out of the main tank page chunk

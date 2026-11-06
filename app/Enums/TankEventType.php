@@ -1,0 +1,18 @@
+<?php
+
+namespace App\Enums;
+
+enum TankEventType: string
+{
+    case Birth = 'birth';
+    case Death = 'death';
+    case PlantSpread = 'plant_spread';
+    case PlantDied = 'plant_died';
+    case Feeding = 'feeding';
+    case WaterChange = 'water_change';
+    case Vacuum = 'vacuum';
+    case AlgaeScrub = 'algae_scrub';
+    case LightToggled = 'light_toggled';
+    case LivestockAdded = 'livestock_added';
+    case Warning = 'warning';
+}
