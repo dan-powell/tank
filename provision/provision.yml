@@ -1,0 +1,21 @@
+---
+- name: Provision containers
+  hosts: all
+  vars_files: config.yml
+  roles:
+      - role: autumnrain.docker.common
+      - role: autumnrain.docker.laravel
+  tasks:
+      - name: Run base provision tasks
+        ansible.builtin.include_role:
+            name: autumnrain.docker.laravel
+            tasks_from: base
+        tags:
+            - docker
+      - name: Run Database provision tasks
+        ansible.builtin.include_role:
+            name: autumnrain.docker.laravel
+            tasks_from: database
+        tags:
+            - never
+            - database

@@ -1,0 +1,9 @@
+all:
+    hosts:
+        tank_production:
+            ansible_host: # example.com
+            ansible_port: # port
+            ansible_user: # user
+            domain: 'tank.autumnrain.co.uk'
+            # Add any additional domains here including www, comment out if no other domains required
+            other_domains: []

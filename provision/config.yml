@@ -1,0 +1,16 @@
+id: tank
+php_extensions:
+    - intl
+    - bcmath
+    - imagick
+http_server: frankenphp
+php_version: '8.5'
+redis_version: '7'
+# php_memory_limit: "512M"
+laravel_scheduler: true
+laravel_horizon: true
+laravel_octane: true
+# nginx_custom_http: nginx/http.conf.j2
+# nginx_custom_vhost: nginx/vhost.conf.j2
+server_port: 8080
+server_protocol: http

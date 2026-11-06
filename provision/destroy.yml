@@ -1,0 +1,14 @@
+- name: Destroy website on host
+  hosts: all
+  roles:
+      - role: autumnrain.docker.common
+      - role: autumnrain.docker.laravel
+  tasks:
+      - name: Destroy the entire site
+        ansible.builtin.include_role:
+            name: autumnrain.docker.laravel
+            tasks_from: destroy
+        tags:
+            - docker
+            - files
+            - database
