@@ -6,9 +6,9 @@ An experimental website where every user owns a persistent virtual aquarium. The
 
 The project is split into two halves.
 
-**Backend: the persistent simulation (Laravel).** Each tank's state lives in MySQL. Every minute the scheduler queues one `SimulateTank` job per active tank. The job advances the tank by however much time has passed since it last ran, saves the result and broadcasts a notification. The simulation is coarse on purpose: it tracks *what* is in the tank and *how it is doing*, not exact positions.
+**Backend: the persistent simulation (Laravel).** Each tank's state lives in MySQL. Every minute the scheduler queues one `SimulateTank` job per active tank. The job advances the tank by however much time has passed since it last ran, saves the result and broadcasts a notification. The simulation is coarse on purpose: it tracks _what_ is in the tank and _how it is doing_, not exact positions.
 
-**Frontend: the visualisation (React + three.js).** The tank page renders the latest snapshot with react-three-fiber. Fish have no stored position, only a preferred *zone*. Their moment-to-moment movement (wandering, schooling, chasing food, gasping at the surface when oxygen is low) is local steering that runs in the browser. When the server broadcasts an update over websockets (Laravel Reverb), the page re-fetches the snapshot and reconciles it: new fish fade in, dead ones float up, and plants grow.
+**Frontend: the visualisation (React + three.js).** The tank page renders the latest snapshot with react-three-fiber. Fish have no stored position, only a preferred _zone_. Their moment-to-moment movement (wandering, schooling, chasing food, gasping at the surface when oxygen is low) is local steering that runs in the browser. When the server broadcasts an update over websockets (Laravel Reverb), the page re-fetches the snapshot and reconciles it: new fish fade in, dead ones float up, and plants grow.
 
 ```
 Browser (Inertia + React + R3F)            Laravel
@@ -25,21 +25,21 @@ Browser (Inertia + React + R3F)            Laravel
 
 The engine in `app/Simulation` is plain PHP with no Eloquent or facades. `TankSimulator::advance()` takes a `TankState` and a number of seconds, splits the time into steps of at most 5 simulated minutes, and runs a pipeline of systems in order:
 
-| System | What it does |
-| --- | --- |
-| Lighting | The lamp follows an 08:00–20:00 timer while the user's switch is on |
-| Water quality | Heater, surface gas exchange (oxygen and CO₂) and pH buffering |
-| Nitrogen cycle | Food and detritus rot into ammonia; bacteria convert ammonia → nitrite → nitrate and grow with the load |
-| Photosynthesis | Plants and algae produce oxygen in light and respire in the dark |
-| Plant growth | Plants grow on nitrogen, sicken in poor conditions and spread new shoots |
-| Algae | Algae bloom on light and nutrients unless plants out-compete them |
-| Metabolism | Animals get hungry, use oxygen, excrete waste and grow |
-| Auto-feeder | An installed feeder drops a pinch of food at each scheduled hour, from its hopper or in unlimited mode |
-| Feeding | Mid-water fish reach food first; bottom feeders get what sinks; snails graze algae |
-| Health | Ammonia (worse at high pH), nitrite, nitrate, low oxygen, wrong temperature or pH, and starvation all damage health |
-| Reproduction | Livebearers and egg-layers breed when healthy, fed and paired, up to a population cap |
-| Mortality | Deaths from poor health, old age, or fry being eaten (less often in planted tanks) |
-| Warnings | Logs an event when a water parameter crosses into a harmful range |
+| System         | What it does                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Lighting       | The lamp follows an 08:00–20:00 timer while the user's switch is on                                                 |
+| Water quality  | Heater, surface gas exchange (oxygen and CO₂) and pH buffering                                                      |
+| Nitrogen cycle | Food and detritus rot into ammonia; bacteria convert ammonia → nitrite → nitrate and grow with the load             |
+| Photosynthesis | Plants and algae produce oxygen in light and respire in the dark                                                    |
+| Plant growth   | Plants grow on nitrogen, sicken in poor conditions and spread new shoots                                            |
+| Algae          | Algae bloom on light and nutrients unless plants out-compete them                                                   |
+| Metabolism     | Animals get hungry, use oxygen, excrete waste and grow                                                              |
+| Auto-feeder    | An installed feeder drops a pinch of food at each scheduled hour, from its hopper or in unlimited mode              |
+| Feeding        | Mid-water fish reach food first; bottom feeders get what sinks; snails graze algae                                  |
+| Health         | Ammonia (worse at high pH), nitrite, nitrate, low oxygen, wrong temperature or pH, and starvation all damage health |
+| Reproduction   | Livebearers and egg-layers breed when healthy, fed and paired, up to a population cap                               |
+| Mortality      | Deaths from poor health, old age, or fry being eaten (less often in planted tanks)                                  |
+| Warnings       | Logs an event when a water parameter crosses into a harmful range                                                   |
 
 Each step's random numbers are seeded from the tank's seed and tick number, so a run is deterministic and the systems can be unit-tested directly. `TankStateRepository` is the only part that touches the database.
 
@@ -87,11 +87,11 @@ Then open <https://tank.ddev.site>.
 
 `.ddev/config.tank.yaml` starts three background processes with the web container:
 
-| Daemon | Command |
-| --- | --- |
-| `reverb` | `php artisan reverb:start` on port 8080 (exposed as `wss://tank.ddev.site:8080`) |
-| `horizon` | `php artisan horizon:listen --poll` (queues `simulation` and `default`, dashboard at `/horizon`) |
-| `scheduler` | `php artisan schedule:work` (runs `tank:tick` every minute and `horizon:snapshot` every five) |
+| Daemon      | Command                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| `reverb`    | `php artisan reverb:start` on port 8080 (exposed as `wss://tank.ddev.site:8080`)                 |
+| `horizon`   | `php artisan horizon:listen --poll` (queues `simulation` and `default`, dashboard at `/horizon`) |
+| `scheduler` | `php artisan schedule:work` (runs `tank:tick` every minute and `horizon:snapshot` every five)    |
 
 Redis runs as a DDEV service (`ddev/ddev-redis` add-on). `horizon:listen` restarts Horizon when PHP files change. Restart DDEV after changing the daemon configuration.
 
@@ -99,12 +99,12 @@ Redis runs as a DDEV service (`ddev/ddev-redis` add-on). `horizon:listen` restar
 
 Simulation settings are in `config/simulation.php`:
 
-| Env variable | Default | Purpose |
-| --- | --- | --- |
-| `SIMULATION_TIME_SCALE` | `60` | Simulated seconds per real second. The default runs one simulated hour per real minute (a day every 24 minutes). Set it to `1` to follow real time. |
-| `SIMULATION_MAX_STEP_SECONDS` | `300` | Longest single simulation step |
-| `SIMULATION_MAX_STEPS` | `1440` | Catch-up limit per job (5 simulated days, about 2 real hours at the default time scale); any time beyond it is skipped |
-| `SIMULATION_MIN_INTERVAL_SECONDS` | `30` | Ticks closer together than this are ignored |
+| Env variable                      | Default | Purpose                                                                                                                                             |
+| --------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SIMULATION_TIME_SCALE`           | `60`    | Simulated seconds per real second. The default runs one simulated hour per real minute (a day every 24 minutes). Set it to `1` to follow real time. |
+| `SIMULATION_MAX_STEP_SECONDS`     | `300`   | Longest single simulation step                                                                                                                      |
+| `SIMULATION_MAX_STEPS`            | `1440`  | Catch-up limit per job (5 simulated days, about 2 real hours at the default time scale); any time beyond it is skipped                              |
+| `SIMULATION_MIN_INTERVAL_SECONDS` | `30`    | Ticks closer together than this are ignored                                                                                                         |
 
 Reverb needs `REVERB_HOST="tank.ddev.site"`, `REVERB_PORT=8080` and `REVERB_SCHEME=https`, as shown in `.env.example`.
 
@@ -129,19 +129,19 @@ In production the app runs on Laravel Octane (FrankenPHP) over plain HTTP on por
 
 ## Project layout
 
-| Path | Contents |
-| --- | --- |
-| `app/Simulation` | Simulation engine, state classes, species catalogue, repository |
-| `app/Simulation/Systems` | One class per ecosystem system |
-| `app/Actions/Tank` | User interactions and starter tank creation |
-| `app/Jobs/SimulateTank.php`, `app/Console/Commands/TickTanks.php` | Scheduled simulation |
-| `app/Events/TankUpdated.php` | Broadcast on `private-tank.{id}` (a small payload; clients re-fetch the snapshot) |
-| `app/Http/Resources` | Snapshot shape sent to the browser |
-| `resources/js/pages/tanks/show.tsx` | Tank page |
-| `resources/js/components/tank` | 3D scene, models, and HUD panels |
-| `resources/js/lib/tank` | Coordinate mapping, client-side world (food and positions), steering |
-| `tests/Unit/Simulation` | Unit tests for each system and the simulator |
-| `tests/Feature/Tanks`, `tests/Feature/Simulation` | HTTP, job and command tests |
+| Path                                                              | Contents                                                                          |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `app/Simulation`                                                  | Simulation engine, state classes, species catalogue, repository                   |
+| `app/Simulation/Systems`                                          | One class per ecosystem system                                                    |
+| `app/Actions/Tank`                                                | User interactions and starter tank creation                                       |
+| `app/Jobs/SimulateTank.php`, `app/Console/Commands/TickTanks.php` | Scheduled simulation                                                              |
+| `app/Events/TankUpdated.php`                                      | Broadcast on `private-tank.{id}` (a small payload; clients re-fetch the snapshot) |
+| `app/Http/Resources`                                              | Snapshot shape sent to the browser                                                |
+| `resources/js/pages/tanks/show.tsx`                               | Tank page                                                                         |
+| `resources/js/components/tank`                                    | 3D scene, models, and HUD panels                                                  |
+| `resources/js/lib/tank`                                           | Coordinate mapping, client-side world (food and positions), steering              |
+| `tests/Unit/Simulation`                                           | Unit tests for each system and the simulator                                      |
+| `tests/Feature/Tanks`, `tests/Feature/Simulation`                 | HTTP, job and command tests                                                       |
 
 ## Roadmap ideas
 

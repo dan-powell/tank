@@ -73,8 +73,8 @@ final class TankStateRepository
             simSeconds: $tank->sim_seconds,
             rngSeed: $tank->rng_seed,
             species: $species,
-            plants: $plants,
-            creatures: $creatures,
+            plants: array_values($plants),
+            creatures: array_values($creatures),
             autoFeeder: $tank->auto_feeder_installed ? new AutoFeederState(
                 feedHours: config("simulation.auto_feeder.schedules.{$tank->auto_feeder_feeds_per_day}", []),
                 portionGrams: (float) config('simulation.feed_pinch_grams'),

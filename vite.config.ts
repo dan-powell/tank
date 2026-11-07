@@ -76,6 +76,7 @@ export default defineConfig({
             'boost.json',
             'provision/**',
             'composer.json',
+            'public/build/**',
             'resources/js/components/ui/*',
             'resources/views/mail/*',
         ],

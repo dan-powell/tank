@@ -9,6 +9,7 @@ use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
+use LogicException;
 
 class StockTankRequest extends FormRequest
 {
@@ -63,6 +64,12 @@ class StockTankRequest extends FormRequest
 
     public function tank(): Tank
     {
-        return $this->route('tank');
+        $tank = $this->route('tank');
+
+        if (! $tank instanceof Tank) {
+            throw new LogicException('StockTankRequest requires a bound {tank} route parameter.');
+        }
+
+        return $tank;
     }
 }
