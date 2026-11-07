@@ -1,10 +1,8 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame } from '@react-three/fiber';
-import type { ThreeEvent } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import type { ComponentRef } from 'react';
 import { MOUSE } from 'three';
-import { TANK } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import type { Species, TankSnapshot } from '@/types';
 import { AutoFeederModel } from './auto-feeder-model';
@@ -23,7 +21,6 @@ type Props = {
     species: Species[];
     world: TankWorld;
     viewMode: TankViewMode;
-    onFeed: (worldX: number, worldZ: number) => void;
 };
 
 /** Low-oxygen threshold (mg/L) below which fish gasp at the surface. */
@@ -35,10 +32,7 @@ const LOW_OXYGEN = 4;
  */
 const MOUSE_BUTTONS = { MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE };
 
-/** Pointer travel (px) beyond which a press is a drag, not a feeding click. */
-const CLICK_TOLERANCE = 5;
-
-export function TankScene({ tank, species, world, viewMode, onFeed }: Props) {
+export function TankScene({ tank, species, world, viewMode }: Props) {
     const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
     const speciesById = useMemo(
         () => new Map(species.map((definition) => [definition.id, definition])),
@@ -52,23 +46,6 @@ export function TankScene({ tank, species, world, viewMode, onFeed }: Props) {
         // Only on first load: later food comes from the user's own feeding.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [world]);
-
-    const handleSurfaceClick = (event: ThreeEvent<MouseEvent>) => {
-        event.stopPropagation();
-
-        if (event.delta <= CLICK_TOLERANCE) {
-            onFeed(event.point.x, event.point.z);
-        }
-    };
-
-    /** In the flat view the surface is edge-on, so clicking the water feeds. */
-    const handleFrontClick = (event: ThreeEvent<MouseEvent>) => {
-        event.stopPropagation();
-
-        if (event.delta <= CLICK_TOLERANCE) {
-            onFeed(event.point.x, (Math.random() - 0.5) * TANK.depth * 0.6);
-        }
-    };
 
     return (
         <Canvas
@@ -84,7 +61,6 @@ export function TankScene({ tank, species, world, viewMode, onFeed }: Props) {
             <TankEnvironment
                 water={tank.water}
                 isLit={tank.is_lit}
-                onSurfaceClick={handleSurfaceClick}
                 showEdges={viewMode === 'orbit'}
             />
             <Suspense fallback={null}>
@@ -102,25 +78,6 @@ export function TankScene({ tank, species, world, viewMode, onFeed }: Props) {
                     lowOxygen={tank.water.oxygen < LOW_OXYGEN}
                 />
             </Suspense>
-            {viewMode === 'flat' && (
-                <mesh
-                    position={[
-                        0,
-                        (TANK.substrate + TANK.waterLine) / 2,
-                        TANK.depth / 2 - 0.01,
-                    ]}
-                    onClick={handleFrontClick}
-                >
-                    <planeGeometry
-                        args={[TANK.width, TANK.waterLine - TANK.substrate]}
-                    />
-                    <meshBasicMaterial
-                        transparent
-                        opacity={0}
-                        depthWrite={false}
-                    />
-                </mesh>
-            )}
             <FoodParticles world={world} />
             {tank.auto_feeder !== null && (
                 <AutoFeederModel feeder={tank.auto_feeder} />

@@ -35,9 +35,6 @@ export function MaintenancePanel({
             <h2 id="care-heading" className="text-sm font-semibold">
                 Care
             </h2>
-            <p className="text-xs text-muted-foreground">
-                Tip: click the water surface to drop food where you like.
-            </p>
             <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={onFeedRandomly}>
                     <Fish /> Feed

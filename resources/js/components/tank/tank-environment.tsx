@@ -1,5 +1,4 @@
 import { Edges } from '@react-three/drei';
-import type { ThreeEvent } from '@react-three/fiber';
 import { useEffect, useMemo } from 'react';
 import { Color, DoubleSide, InstancedMesh, Object3D } from 'three';
 import { TANK } from '@/lib/tank/space';
@@ -11,17 +10,11 @@ import { TankLighting } from './tank-lighting';
 type Props = {
     water: WaterParameters;
     isLit: boolean;
-    onSurfaceClick: (event: ThreeEvent<MouseEvent>) => void;
     /** Outline the glass edges (hidden in the flat 2D view). */
     showEdges?: boolean;
 };
 
-export function TankEnvironment({
-    water,
-    isLit,
-    onSurfaceClick,
-    showEdges = true,
-}: Props) {
+export function TankEnvironment({ water, isLit, showEdges = true }: Props) {
     const algae = Math.min(1, water.algae / 100);
     const substrateMaterial = useMemo(
         () => createCausticMaterial(new Color('#b49a72')),
@@ -57,16 +50,6 @@ export function TankEnvironment({
                     />
                 </mesh>
             )}
-
-            {/* Clickable water surface for feeding (drawn by WaterVolume) */}
-            <mesh
-                position={[0, TANK.waterLine, 0]}
-                rotation={[-Math.PI / 2, 0, 0]}
-                onClick={onSurfaceClick}
-            >
-                <planeGeometry args={[TANK.width, TANK.depth]} />
-                <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-            </mesh>
 
             {/* Glass */}
             <mesh position={[0, TANK.height / 2, 0]} raycast={() => null}>
