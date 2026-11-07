@@ -14,9 +14,9 @@ web_extra_daemons:
   - name: reverb
     command: "php artisan reverb:start --host=0.0.0.0 --port=8080"
     directory: /var/www/html
-  # queue:listen reloads code on every job, which suits development.
-  - name: queue
-    command: "php artisan queue:listen --queue=simulation,default --tries=3 --timeout=50"
+  # Horizon runs the queue workers (Redis); horizon:listen restarts it when PHP files change.
+  - name: horizon
+    command: "php artisan horizon:listen --poll"
     directory: /var/www/html
   - name: scheduler
     command: "php artisan schedule:work"

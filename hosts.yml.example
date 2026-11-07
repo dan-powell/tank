@@ -1,0 +1,9 @@
+hosts:
+  production:
+    hostname: example.com
+    port: 11922
+    remote_user: web
+    stage: production
+    branch: production
+    deploy_path: /home/web/sites/tank
+    docker_path: /home/webmaster/docker/sites/tank

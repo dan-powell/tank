@@ -34,3 +34,4 @@ yarn-error.log
 /.fleet
 credentials
 provision/inventory.yml
+hosts.yml

@@ -9,3 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('tank:tick')->everyMinute()->withoutOverlapping(5)->onOneServer();
+
+Schedule::command('horizon:snapshot')->everyFiveMinutes();

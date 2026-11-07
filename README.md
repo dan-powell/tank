@@ -66,6 +66,8 @@ New users get a cycled, planted and stocked 60 litre starter tank when they regi
 - PHP 8.5, Laravel 13, MySQL 8.4
 - Laravel React starter kit: Inertia v3, React 19, Fortify auth, Wayfinder, Tailwind 4
 - Laravel Reverb and `@laravel/echo-react` for websockets
+- Redis for queue, cache and sessions; Laravel Horizon runs the queue workers
+- Laravel Octane (FrankenPHP) in production
 - three.js, @react-three/fiber and @react-three/drei for the 3D scene
 - DDEV for local development
 
@@ -88,10 +90,10 @@ Then open <https://tank.ddev.site>.
 | Daemon | Command |
 | --- | --- |
 | `reverb` | `php artisan reverb:start` on port 8080 (exposed as `wss://tank.ddev.site:8080`) |
-| `queue` | `php artisan queue:listen --queue=simulation,default` |
-| `scheduler` | `php artisan schedule:work` (runs `tank:tick` every minute) |
+| `horizon` | `php artisan horizon:listen --poll` (queues `simulation` and `default`, dashboard at `/horizon`) |
+| `scheduler` | `php artisan schedule:work` (runs `tank:tick` every minute and `horizon:snapshot` every five) |
 
-After changing PHP code that the queue worker runs, `queue:listen` picks it up automatically. Restart DDEV after changing the daemon configuration.
+Redis runs as a DDEV service (`ddev/ddev-redis` add-on). `horizon:listen` restarts Horizon when PHP files change. Restart DDEV after changing the daemon configuration.
 
 ### Configuration
 

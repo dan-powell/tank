@@ -1,0 +1,6 @@
+#!/bin/bash
+
+## DDEV Custom Command: dep
+## Description: Run Deployer (vendor/bin/dep)
+
+php vendor/bin/dep "$@"
