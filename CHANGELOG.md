@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tank simulation: species catalogue, deterministic simulator, scheduled ticks and live updates.
 - Tank care: feeding, water changes, gravel vacuum, algae scrub, lamp, stocking and an auto-feeder.
 - Starter tank for every new user, and a dashboard listing their tanks.
-- Tank view: 2.5D depth layers with voxel artwork from PNG sprites, and spotlights.
+- Tank view: 2.5D depth layers with voxel artwork from PNG sprites (detailed placeholder art included), and spotlights.
 - 2D (default) and 3D view toggle; left-drag pans, right-drag rotates. The 2D view hides the glass edge lines.
 - Tank page panels: water, inhabitants, care, activity log.
 - Unit and feature tests.

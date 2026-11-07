@@ -60,7 +60,7 @@ async function loadModel(species: Species): Promise<VoxelModel> {
 /** A plain silhouette: an upright strip for plants, an ellipse for animals. */
 function placeholderSprite(species: Species): ImageData {
     const isPlant = species.kind === 'plant';
-    const [width, height] = isPlant ? [5, 32] : [14, 7];
+    const [width, height] = isPlant ? [10, 64] : [28, 14];
     const hex =
         species.render.color ??
         species.render.body ??
