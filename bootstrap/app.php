@@ -16,6 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // The app runs behind a TLS-terminating reverse proxy (FrankenPHP is
+        // served over plain HTTP), so honour its X-Forwarded-* headers to
+        // generate https:// URLs. The app port must only be reachable via it.
+        $middleware->trustProxies(at: '*');
+
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
         $middleware->web(append: [

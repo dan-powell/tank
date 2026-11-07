@@ -52,7 +52,7 @@ Species and their tuned parameters are defined in `App\Simulation\SpeciesCatalog
 
 - **Concentrations:** ammonia, nitrite, nitrate, oxygen and CO₂ are in mg/L (ppm).
 - **Other tank quantities:** detritus and uneaten food in grams, algae as percentage coverage, bacteria as nitrifying capacity in ppm per hour.
-- **Positions:** normalised to 0..1 within the tank. `y` is height above the substrate, and `z = 0` is the back glass.
+- **Positions:** `x` and `y` are normalised to 0..1 within the tank, with `y` as height above the substrate. Depth is a whole-number layer from `0` (the back glass) to `layer_count - 1`.
 - **Animal sizes:** centimetres. Plant sizes are abstract biomass units, and `segments` is derived from size for rendering.
 
 ### User interactions
@@ -118,6 +118,14 @@ ddev exec vendor/bin/pint --dirty --format agent
 ddev npm run check                             # frontend lint + format
 ddev npm run types:check
 ```
+
+## Production
+
+In production the app runs on Laravel Octane (FrankenPHP) over plain HTTP on port 8080, behind a reverse proxy that terminates TLS. `bootstrap/app.php` trusts every proxy (`trustProxies(at: '*')`), so Laravel uses the `X-Forwarded-*` headers to generate `https://` URLs. Without that, the browser blocks asset URLs as mixed content.
+
+- **Port 8080 must only be reachable through the proxy.** Otherwise clients could forge the forwarded headers. If it has to be exposed, restrict `trustProxies` to the proxy's IP range.
+- **Set `APP_URL` to the public `https://` URL.** Queued jobs and the scheduler build URLs from it outside web requests.
+- **Build the frontend with the public Reverb settings** (`VITE_REVERB_HOST`, `VITE_REVERB_PORT`, `VITE_REVERB_SCHEME=https`). They are compiled into the assets, and getting them wrong blocks websockets as mixed content too.
 
 ## Project layout
 

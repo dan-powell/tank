@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - Z-fighting between creatures and plants sharing a depth layer.
+- Assets blocked as mixed content behind an HTTPS reverse proxy (proxies are now trusted).
 
 ## 2026-11-06: Initial commits
 
