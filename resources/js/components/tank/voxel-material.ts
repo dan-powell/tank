@@ -1,5 +1,6 @@
 import { Color, MeshStandardMaterial } from 'three';
 import type { WebGLProgramParametersWithUniforms } from 'three';
+import { applyCaustics } from './caustics';
 
 /**
  * Replace the colour of tint-keyed sprite pixels (the `aTint` attribute
@@ -20,7 +21,8 @@ export function applyVoxelTint(
 
 /**
  * A material for voxel creatures: sprite colours, with tint-keyed pixels
- * recoloured per individual, multiplied by `color` (white = unchanged).
+ * recoloured per individual, multiplied by `color` (white = unchanged), lit
+ * by the water's caustics.
  */
 export function createVoxelMaterial(
     tint: Color,
@@ -33,7 +35,10 @@ export function createVoxelMaterial(
         metalness: 0.1,
     });
 
-    material.onBeforeCompile = (shader) => applyVoxelTint(shader, tint);
+    material.onBeforeCompile = (shader) => {
+        applyVoxelTint(shader, tint);
+        applyCaustics(shader);
+    };
     material.customProgramCacheKey = () => 'voxel-tint';
 
     return material;

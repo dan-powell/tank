@@ -7,10 +7,10 @@ type Props = {
 };
 
 /** Height of the lamp hood's underside above the tank floor. */
-const HOOD_HEIGHT = TANK.height + 0.35;
+export const HOOD_HEIGHT = TANK.height + 0.35;
 
 /** Horizontal positions of the spotlights along the hood. */
-const SPOT_POSITIONS = [-TANK.width / 3, 0, TANK.width / 3];
+export const SPOT_POSITIONS = [-TANK.width / 3, 0, TANK.width / 3];
 
 /**
  * Lighting presets. The spotlights are room lighting so the tank is always

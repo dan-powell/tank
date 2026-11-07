@@ -1,8 +1,7 @@
 import { Color, MeshStandardMaterial } from 'three';
+import { applyCaustics } from './caustics';
+import { sceneClock } from './scene-clock';
 import { applyVoxelTint } from './voxel-material';
-
-/** Shared clock for every swaying plant; advanced once per frame by the scene. */
-export const swayClock = { value: 0 };
 
 /**
  * A vertex-coloured voxel material whose vertices bend with a gentle current.
@@ -26,7 +25,8 @@ export function createSwayMaterial(
 
     material.onBeforeCompile = (shader) => {
         applyVoxelTint(shader, new Color('#ffffff'));
-        shader.uniforms.uSwayTime = swayClock;
+        applyCaustics(shader);
+        shader.uniforms.uSwayTime = sceneClock;
         shader.vertexShader =
             `uniform float uSwayTime;\n${shader.vertexShader}`.replace(
                 '#include <begin_vertex>',

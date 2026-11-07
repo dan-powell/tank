@@ -1,9 +1,11 @@
 import { Edges } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
-import { useMemo } from 'react';
-import { BackSide, Color, DoubleSide, InstancedMesh, Object3D } from 'three';
+import { useEffect, useMemo } from 'react';
+import { Color, DoubleSide, InstancedMesh, Object3D } from 'three';
 import { TANK } from '@/lib/tank/space';
 import type { WaterParameters } from '@/types';
+import { Bubbles } from './bubbles';
+import { createCausticMaterial } from './caustics';
 import { TankLighting } from './tank-lighting';
 
 type Props = {
@@ -14,10 +16,6 @@ type Props = {
     showEdges?: boolean;
 };
 
-const CLEAN_WATER = new Color('#7cc4e4');
-const GREEN_WATER = new Color('#6f9f4a');
-const MURKY_WATER = new Color('#8a7a50');
-
 export function TankEnvironment({
     water,
     isLit,
@@ -25,40 +23,26 @@ export function TankEnvironment({
     showEdges = true,
 }: Props) {
     const algae = Math.min(1, water.algae / 100);
-    const murk = Math.min(1, water.detritus / 4);
-    const waterColour = useMemo(
-        () =>
-            CLEAN_WATER.clone()
-                .lerp(GREEN_WATER, algae * 0.7)
-                .lerp(MURKY_WATER, murk * 0.5),
-        [algae, murk],
+    const substrateMaterial = useMemo(
+        () => createCausticMaterial(new Color('#b49a72')),
+        [],
     );
-    const waterHeight = TANK.waterLine - TANK.substrate;
+
+    useEffect(() => () => substrateMaterial.dispose(), [substrateMaterial]);
 
     return (
         <group>
             <TankLighting isLit={isLit} />
 
             {/* Substrate */}
-            <mesh position={[0, TANK.substrate / 2, 0]}>
+            <mesh
+                position={[0, TANK.substrate / 2, 0]}
+                material={substrateMaterial}
+            >
                 <boxGeometry args={[TANK.width, TANK.substrate, TANK.depth]} />
-                <meshStandardMaterial color="#b49a72" roughness={1} />
             </mesh>
             <Detritus amount={water.detritus} />
-
-            {/* Water volume */}
-            <mesh position={[0, TANK.substrate + waterHeight / 2, 0]}>
-                <boxGeometry
-                    args={[TANK.width - 0.01, waterHeight, TANK.depth - 0.01]}
-                />
-                <meshStandardMaterial
-                    color={waterColour}
-                    transparent
-                    opacity={0.12 + algae * 0.25 + murk * 0.2}
-                    depthWrite={false}
-                    side={BackSide}
-                />
-            </mesh>
+            <Bubbles isLit={isLit} />
 
             {/* Algae film on the back and side glass */}
             {algae > 0.02 && (
@@ -74,19 +58,14 @@ export function TankEnvironment({
                 </mesh>
             )}
 
-            {/* Clickable water surface for feeding */}
+            {/* Clickable water surface for feeding (drawn by WaterVolume) */}
             <mesh
                 position={[0, TANK.waterLine, 0]}
                 rotation={[-Math.PI / 2, 0, 0]}
                 onClick={onSurfaceClick}
             >
                 <planeGeometry args={[TANK.width, TANK.depth]} />
-                <meshStandardMaterial
-                    color="#bfe6ff"
-                    transparent
-                    opacity={isLit ? 0.12 : 0.05}
-                    depthWrite={false}
-                />
+                <meshBasicMaterial transparent opacity={0} depthWrite={false} />
             </mesh>
 
             {/* Glass */}

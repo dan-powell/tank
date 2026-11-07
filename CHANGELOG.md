@@ -18,6 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Unit and feature tests.
 - Redis (DDEV add-on) for queue, cache and sessions; Horizon runs the queue workers.
 - Octane (FrankenPHP) for production, installed on deploy by Deployer 8.
+- Volumetric water: rippling surface (food drops send out rings), refraction, depth-tinted absorption, light shafts and total internal reflection from below.
+- Caustics on the substrate, plants and creatures.
+- Air stone with a rising bubble stream.
 
 ### Changed
 

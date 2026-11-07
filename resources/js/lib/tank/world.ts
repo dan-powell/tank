@@ -20,6 +20,20 @@ export type CreatureBody = {
     facing: 1 | -1;
 };
 
+/** A ring spreading across the water surface from where something landed. */
+export type SurfaceRipple = {
+    x: number;
+    z: number;
+    /** Seconds since the ripple started. */
+    age: number;
+};
+
+/** Ripples fade out after this many seconds. */
+export const RIPPLE_LIFETIME = 4;
+
+/** At most this many ripples are kept (the water shader has fixed slots). */
+export const MAX_RIPPLES = 8;
+
 /** Food stays on the substrate this many seconds before it is cleared visually. */
 const SETTLED_LIFETIME = 90;
 
@@ -33,12 +47,16 @@ const MAX_FOOD = 300;
 export class TankWorld {
     food: FoodParticle[] = [];
 
+    ripples: SurfaceRipple[] = [];
+
     creatures = new Map<number, CreatureBody>();
 
     private nextFoodId = 1;
 
     /** Sprinkle food at a point on the surface (world coordinates). */
     sprinkle(x: number, z: number, count = 14): void {
+        this.ripples = [...this.ripples, { x, z, age: 0 }].slice(-MAX_RIPPLES);
+
         for (let i = 0; i < count && this.food.length < MAX_FOOD; i++) {
             this.food.push({
                 id: this.nextFoodId++,
@@ -73,8 +91,16 @@ export class TankWorld {
         }
     }
 
-    /** Advance sinking food and drop particles that have lain too long. */
+    /** Advance sinking food and surface ripples, and drop particles that have lain too long. */
     update(delta: number): void {
+        for (const ripple of this.ripples) {
+            ripple.age += delta;
+        }
+
+        this.ripples = this.ripples.filter(
+            (ripple) => ripple.age < RIPPLE_LIFETIME,
+        );
+
         for (const particle of this.food) {
             if (particle.position.y > TANK.substrate + 0.005) {
                 particle.position.addScaledVector(particle.drift, delta);

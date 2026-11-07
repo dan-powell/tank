@@ -11,11 +11,12 @@ import { AutoFeederModel } from './auto-feeder-model';
 import { Creatures } from './creatures';
 import { FoodParticles } from './food-particles';
 import { Plants } from './plants';
-import { swayClock } from './sway-material';
+import { sceneClock } from './scene-clock';
 import { ORBIT_START, TankCameraRig } from './tank-camera-rig';
 import type { TankViewMode } from './tank-camera-rig';
 import { TankPanControls } from './tank-pan-controls';
 import { TankEnvironment } from './tank-environment';
+import { WaterVolume } from './water-volume';
 
 type Props = {
     tank: TankSnapshot;
@@ -79,7 +80,7 @@ export function TankScene({ tank, species, world, viewMode, onFeed }: Props) {
                 attach="background"
                 args={[tank.is_lit ? '#2c3e52' : '#0e1626']}
             />
-            <SwayClock />
+            <SceneClock />
             <TankEnvironment
                 water={tank.water}
                 isLit={tank.is_lit}
@@ -132,13 +133,15 @@ export function TankScene({ tank, species, world, viewMode, onFeed }: Props) {
             />
             <TankCameraRig mode={viewMode} controls={controls} />
             <TankPanControls controls={controls} />
+            {/* Last, so its refraction pass sees this frame's camera. */}
+            <WaterVolume water={tank.water} isLit={tank.is_lit} world={world} />
         </Canvas>
     );
 }
 
-function SwayClock() {
+function SceneClock() {
     useFrame((_, delta) => {
-        swayClock.value += delta;
+        sceneClock.value += delta;
     });
 
     return null;
