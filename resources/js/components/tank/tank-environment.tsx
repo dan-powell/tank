@@ -10,13 +10,20 @@ type Props = {
     water: WaterParameters;
     isLit: boolean;
     onSurfaceClick: (event: ThreeEvent<MouseEvent>) => void;
+    /** Outline the glass edges (hidden in the flat 2D view). */
+    showEdges?: boolean;
 };
 
 const CLEAN_WATER = new Color('#7cc4e4');
 const GREEN_WATER = new Color('#6f9f4a');
 const MURKY_WATER = new Color('#8a7a50');
 
-export function TankEnvironment({ water, isLit, onSurfaceClick }: Props) {
+export function TankEnvironment({
+    water,
+    isLit,
+    onSurfaceClick,
+    showEdges = true,
+}: Props) {
     const algae = Math.min(1, water.algae / 100);
     const murk = Math.min(1, water.detritus / 4);
     const waterColour = useMemo(
@@ -92,7 +99,7 @@ export function TankEnvironment({ water, isLit, onSurfaceClick }: Props) {
                     roughness={0.05}
                     depthWrite={false}
                 />
-                <Edges color="#a8c8d8" />
+                {showEdges && <Edges color="#a8c8d8" />}
             </mesh>
         </group>
     );

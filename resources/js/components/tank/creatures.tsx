@@ -4,6 +4,7 @@ import { Color, Group, Vector3 } from 'three';
 import { useVoxelModel } from '@/hooks/use-voxel-model';
 import {
     CM,
+    laneOffset,
     layerToZ,
     TANK,
     toWorld,
@@ -155,7 +156,8 @@ function Creature({
             position: new Vector3(
                 zoneCenter.x + (Math.random() - 0.5) * 0.3,
                 zoneCenter.y + (Math.random() - 0.5) * 0.1,
-                layerToZ(homeLayer, layerCount),
+                layerToZ(homeLayer, layerCount) +
+                    laneOffset(creature.id, layerCount),
             ),
             velocity: new Vector3(),
             homeLayer,

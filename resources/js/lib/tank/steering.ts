@@ -1,6 +1,13 @@
 import { Vector3 } from 'three';
 import type { SpeciesBehaviour } from '@/types';
-import { bounds, layerDepth, layerToZ, TANK, zToLayer } from './space';
+import {
+    bounds,
+    laneOffset,
+    layerDepth,
+    layerToZ,
+    TANK,
+    zToLayer,
+} from './space';
 import type { CreatureBody, TankWorld } from './world';
 
 export type SteeringProfile = {
@@ -100,7 +107,10 @@ export function steer(
     velocity.x = scratch.x;
     velocity.y = scratch.y;
 
-    const targetZ = foodZ ?? layerToZ(body.layer, profile.layerCount);
+    const targetZ =
+        foodZ ??
+        layerToZ(body.layer, profile.layerCount) +
+            laneOffset(profile.id, profile.layerCount);
     velocity.z = Math.max(
         -maxSpeed * 0.6,
         Math.min(maxSpeed * 0.6, (targetZ - position.z) * 1.5),

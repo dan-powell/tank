@@ -60,6 +60,20 @@ export function layerToZ(layer: number, layerCount: number): number {
     return -TANK.depth / 2 + MARGIN + (layer + 0.5) * layerDepth(layerCount);
 }
 
+/** Share of a layer's depth that per-entity lanes are spread across. */
+const LANE_SPREAD = 0.7;
+
+/**
+ * A fixed depth offset within a layer for one entity, so entities sharing a
+ * layer sit at slightly different depths instead of z-fighting. Golden-ratio
+ * spacing keeps consecutive ids well apart; `salt` decorrelates entity kinds.
+ */
+export function laneOffset(id: number, layerCount: number, salt = 0): number {
+    const fraction = (((id * 0.618034 + salt) % 1) + 1) % 1;
+
+    return (fraction - 0.5) * LANE_SPREAD * layerDepth(layerCount);
+}
+
 /** The depth layer containing a world-space z. */
 export function zToLayer(z: number, layerCount: number): number {
     const layer = Math.floor(

@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import type { Group } from 'three';
 import { useVoxelModel } from '@/hooks/use-voxel-model';
-import { layerDepth, layerToZ, TANK, toWorld } from '@/lib/tank/space';
+import { laneOffset, layerToZ, TANK, toWorld } from '@/lib/tank/space';
 import type { PlantSnapshot, Species } from '@/types';
 import { createSwayMaterial, healthTint } from './sway-material';
 
@@ -35,6 +35,9 @@ export function Plants({ plants, species, layerCount }: Props) {
     );
 }
 
+/** Offsets plant lanes from creature lanes, whose ids come from another table. */
+const PLANT_LANE_SALT = 0.31;
+
 type PlantProps = {
     plant: PlantSnapshot;
     species: Species;
@@ -54,14 +57,16 @@ function Plant({ plant, species, layerCount }: PlantProps) {
         plant.segments * (species.render.segment_height ?? 0.06) * TANK.height;
     const scale = height / model.height;
     const layer = Math.min(layerCount - 1, plant.layer);
-    const position = useMemo(() => {
-        const jitter =
-            (((plant.id * 0.618) % 1) - 0.5) * layerDepth(layerCount) * 0.5;
-
-        return toWorld(plant.root[0], 0, 0.5)
-            .setY(TANK.substrate)
-            .setZ(layerToZ(layer, layerCount) + jitter);
-    }, [plant.id, plant.root, layer, layerCount]);
+    const position = useMemo(
+        () =>
+            toWorld(plant.root[0], 0, 0.5)
+                .setY(TANK.substrate)
+                .setZ(
+                    layerToZ(layer, layerCount) +
+                        laneOffset(plant.id, layerCount, PLANT_LANE_SALT),
+                ),
+        [plant.id, plant.root, layer, layerCount],
+    );
 
     const material = useMemo(
         () =>

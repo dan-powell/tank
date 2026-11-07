@@ -84,6 +84,7 @@ export function TankScene({ tank, species, world, viewMode, onFeed }: Props) {
                 water={tank.water}
                 isLit={tank.is_lit}
                 onSurfaceClick={handleSurfaceClick}
+                showEdges={viewMode === 'orbit'}
             />
             <Suspense fallback={null}>
                 <Plants
