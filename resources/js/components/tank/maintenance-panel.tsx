@@ -9,6 +9,14 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { light, scrub, vacuum, waterChange } from '@/routes/tanks';
 import type { Species } from '@/types';
 import { StockDialog } from './stock-dialog';
@@ -70,24 +78,31 @@ export function MaintenancePanel({
                 <StockDialog tankId={tankId} species={species} />
             </div>
             <div className="flex items-center gap-2">
-                <label
+                <Label
                     htmlFor="water-change"
-                    className="text-sm text-muted-foreground"
+                    className="font-normal text-muted-foreground"
                 >
                     Water change
-                </label>
-                <select
-                    id="water-change"
-                    value={percent}
-                    onChange={(event) => setPercent(Number(event.target.value))}
-                    className="h-8 rounded-md border bg-background px-2 text-sm"
+                </Label>
+                <Select
+                    value={String(percent)}
+                    onValueChange={(value) => setPercent(Number(value))}
                 >
-                    {[10, 25, 50, 75].map((option) => (
-                        <option key={option} value={option}>
-                            {option}%
-                        </option>
-                    ))}
-                </select>
+                    <SelectTrigger
+                        id="water-change"
+                        size="sm"
+                        className="w-20 bg-background"
+                    >
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {[10, 25, 50, 75].map((option) => (
+                            <SelectItem key={option} value={String(option)}>
+                                {option}%
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
                 <Button
                     size="sm"
                     variant="outline"

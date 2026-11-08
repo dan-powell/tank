@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { PackagePlus, RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 import autoFeeder from '@/routes/tanks/auto-feeder';
@@ -129,26 +130,18 @@ export function AutoFeederPanel({ tankId, feeder }: Props) {
                             {feeder.portions} / {feeder.capacity} portions
                         </span>
                     </div>
-                    <div
-                        role="meter"
+                    <Progress
+                        value={fill * 100}
                         aria-label="Hopper level"
-                        aria-valuemin={0}
-                        aria-valuemax={feeder.capacity}
-                        aria-valuenow={feeder.portions}
-                        className="h-2 overflow-hidden rounded-full bg-muted"
-                    >
-                        <div
-                            className={cn(
-                                'h-full rounded-full transition-[width]',
-                                fill > 0.25
-                                    ? 'bg-emerald-500'
-                                    : fill > 0
-                                      ? 'bg-amber-500'
-                                      : 'bg-red-500',
-                            )}
-                            style={{ width: `${fill * 100}%` }}
-                        />
-                    </div>
+                        className="bg-muted"
+                        indicatorClassName={
+                            fill > 0.25
+                                ? 'bg-emerald-500'
+                                : fill > 0
+                                  ? 'bg-amber-500'
+                                  : 'bg-red-500'
+                        }
+                    />
                     <Button
                         size="sm"
                         variant="outline"

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { stock } from '@/routes/tanks';
 import type { Species } from '@/types';
@@ -69,24 +70,25 @@ export function StockDialog({
                         </DialogDescription>
                     </DialogHeader>
 
-                    <fieldset className="grid gap-2">
-                        <legend className="sr-only">Species</legend>
+                    <RadioGroup
+                        aria-label="Species"
+                        name="species_id"
+                        value={speciesId === null ? '' : String(speciesId)}
+                        onValueChange={(value) => setSpeciesId(Number(value))}
+                        className="gap-2"
+                    >
                         {species.map((definition) => (
-                            <label
+                            <Label
                                 key={definition.id}
                                 className={cn(
-                                    'flex cursor-pointer gap-3 rounded-lg border p-3 text-sm',
+                                    'flex cursor-pointer items-start gap-3 rounded-lg border p-3 leading-normal font-normal',
                                     speciesId === definition.id &&
                                         'border-primary bg-accent',
                                 )}
                             >
-                                <input
-                                    type="radio"
-                                    name="species_id"
-                                    value={definition.id}
-                                    checked={speciesId === definition.id}
-                                    onChange={() => setSpeciesId(definition.id)}
-                                    className="mt-1"
+                                <RadioGroupItem
+                                    value={String(definition.id)}
+                                    className="mt-0.5"
                                 />
                                 <span>
                                     <span className="font-medium">
@@ -99,9 +101,9 @@ export function StockDialog({
                                         {definition.description}
                                     </span>
                                 </span>
-                            </label>
+                            </Label>
                         ))}
-                    </fieldset>
+                    </RadioGroup>
                     <InputError message={errors.species_id} />
 
                     <div className="grid gap-2">

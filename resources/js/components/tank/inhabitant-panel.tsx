@@ -3,9 +3,21 @@ import { ArrowLeft, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import InputError from '@/components/input-error';
-import { Button } from '@/components/ui/button';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
 import { CM, TANK } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import creatureRoutes from '@/routes/tanks/creatures';
@@ -137,10 +149,18 @@ function CreatureStats({
             <Stat label="Length">{creature.size.toFixed(1)} cm</Stat>
             <Stat label="Generation">{creature.generation}</Stat>
             <Stat label="Health">
-                <Meter value={creature.health} className="bg-emerald-500" />
+                <Meter
+                    label="Health"
+                    value={creature.health}
+                    className="bg-emerald-500"
+                />
             </Stat>
             <Stat label="Hunger">
-                <Meter value={creature.hunger} className="bg-amber-500" />
+                <Meter
+                    label="Hunger"
+                    value={creature.hunger}
+                    className="bg-amber-500"
+                />
             </Stat>
         </>
     );
@@ -164,7 +184,11 @@ function PlantStats({
             <Stat label="Age">{formatDays(plant.age_days)}</Stat>
             <Stat label="Height">{heightCm.toFixed(1)} cm</Stat>
             <Stat label="Health">
-                <Meter value={plant.health} className="bg-emerald-500" />
+                <Meter
+                    label="Health"
+                    value={plant.health}
+                    className="bg-emerald-500"
+                />
             </Stat>
         </>
     );
@@ -180,17 +204,25 @@ function Stat({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** A 0..1 value as a small bar with its percentage. */
-function Meter({ value, className }: { value: number; className: string }) {
+function Meter({
+    label,
+    value,
+    className,
+}: {
+    label: string;
+    value: number;
+    className: string;
+}) {
     const percent = Math.round(Math.min(1, Math.max(0, value)) * 100);
 
     return (
         <span className="inline-flex items-center gap-2">
-            <span className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-                <span
-                    className={`block h-full rounded-full ${className}`}
-                    style={{ width: `${percent}%` }}
-                />
-            </span>
+            <Progress
+                value={percent}
+                aria-label={label}
+                className="h-1.5 w-16 bg-muted"
+                indicatorClassName={className}
+            />
             <span className="w-9 text-right">{percent}%</span>
         </span>
     );
@@ -271,35 +303,30 @@ function RemoveButton({
     name: string;
     onConfirm: () => void;
 }) {
-    const [isConfirming, setIsConfirming] = useState(false);
-
-    if (!isConfirming) {
-        return (
-            <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsConfirming(true)}
-            >
-                <Trash2 /> Remove from tank
-            </Button>
-        );
-    }
-
     return (
-        <div className="space-y-2 rounded-md border border-destructive/40 p-2">
-            <p className="text-sm">Remove {name} from the tank for good?</p>
-            <div className="flex gap-2">
-                <Button size="sm" variant="destructive" onClick={onConfirm}>
-                    <Trash2 /> Remove
+        <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                    <Trash2 /> Remove from tank
                 </Button>
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setIsConfirming(false)}
-                >
-                    Cancel
-                </Button>
-            </div>
-        </div>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Remove {name}?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {name} will be taken out of the tank for good.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                        className={buttonVariants({ variant: 'destructive' })}
+                        onClick={onConfirm}
+                    >
+                        <Trash2 /> Remove
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     );
 }

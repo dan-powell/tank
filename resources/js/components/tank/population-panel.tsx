@@ -1,3 +1,4 @@
+import { Progress } from '@/components/ui/progress';
 import type { CreatureSnapshot, PlantSnapshot, Species } from '@/types';
 
 type Props = {
@@ -84,17 +85,13 @@ export function PopulationPanel({ creatures, plants, species }: Props) {
                                     )}
                                 </span>
                                 <span className="flex items-center gap-2 tabular-nums">
-                                    <span
-                                        className="h-1.5 w-12 overflow-hidden rounded-full bg-muted"
+                                    <Progress
+                                        value={Math.round(averageHealth * 100)}
+                                        aria-label={`${definition.name} average health`}
                                         title={`Average health ${Math.round(averageHealth * 100)}%`}
-                                    >
-                                        <span
-                                            className="block h-full rounded-full bg-emerald-500"
-                                            style={{
-                                                width: `${Math.round(averageHealth * 100)}%`,
-                                            }}
-                                        />
-                                    </span>
+                                        className="h-1.5 w-12 bg-muted"
+                                        indicatorClassName="bg-emerald-500"
+                                    />
                                     <span className="w-6 text-right font-medium">
                                         {count}
                                     </span>

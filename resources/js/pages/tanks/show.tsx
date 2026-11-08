@@ -18,6 +18,8 @@ import type { TankViewMode } from '@/components/tank/tank-camera-rig';
 import { PopulationPanel } from '@/components/tank/population-panel';
 import { TankScene } from '@/components/tank/tank-scene';
 import { WaterPanel } from '@/components/tank/water-panel';
+import { Button } from '@/components/ui/button';
+import { Kbd } from '@/components/ui/kbd';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
     Tooltip,
@@ -53,7 +55,7 @@ const PANEL_SHORTCUT = 'p';
 const hudSurface = 'rounded-md bg-black/50 text-white backdrop-blur-sm';
 const hudButton = cn(
     hudSurface,
-    'inline-flex size-9 items-center justify-center transition-colors hover:bg-black/70 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none',
+    'hover:bg-black/70 hover:text-white focus-visible:ring-white/70',
 );
 
 /**
@@ -116,7 +118,14 @@ export default function ShowTank({ tank, species, events }: Props) {
                 (target.isContentEditable ||
                     ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
-            if (isTyping || event.metaKey || event.ctrlKey || event.altKey) {
+            // Already handled, e.g. Escape closing a dialog.
+            if (
+                event.defaultPrevented ||
+                isTyping ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.altKey
+            ) {
                 return;
             }
 
@@ -171,16 +180,22 @@ export default function ShowTank({ tank, species, events }: Props) {
                         <div className="flex items-start gap-2">
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Link
-                                        href={dashboard()}
+                                    <Button
+                                        asChild
+                                        variant="ghost"
+                                        size="icon"
                                         className={cn(
                                             hudButton,
                                             'pointer-events-auto',
                                         )}
-                                        aria-label="Back to dashboard"
                                     >
-                                        <ArrowLeft className="size-4" />
-                                    </Link>
+                                        <Link
+                                            href={dashboard()}
+                                            aria-label="Back to dashboard"
+                                        >
+                                            <ArrowLeft />
+                                        </Link>
+                                    </Button>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">
                                     Dashboard
@@ -232,8 +247,9 @@ export default function ShowTank({ tank, species, events }: Props) {
                             </ToggleGroup>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button
-                                        type="button"
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
                                         onClick={togglePanel}
                                         className={hudButton}
                                         aria-label={
@@ -245,17 +261,17 @@ export default function ShowTank({ tank, species, events }: Props) {
                                         aria-controls="tank-panel"
                                     >
                                         {isPanelOpen ? (
-                                            <PanelRightClose className="size-4" />
+                                            <PanelRightClose />
                                         ) : (
-                                            <PanelRightOpen className="size-4" />
+                                            <PanelRightOpen />
                                         )}
-                                    </button>
+                                    </Button>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom">
                                     {isPanelOpen ? 'Hide panel' : 'Show panel'}{' '}
-                                    <kbd className="ml-1 rounded border border-current/30 px-1 font-mono text-[10px] uppercase">
+                                    <Kbd className="ml-1 uppercase">
                                         {PANEL_SHORTCUT}
-                                    </kbd>
+                                    </Kbd>
                                 </TooltipContent>
                             </Tooltip>
                         </div>
