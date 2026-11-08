@@ -48,6 +48,8 @@ use Illuminate\Support\Carbon;
  * @property float $air_co2 CO2 in the air above the water, ppm.
  * @property bool $light_on
  * @property bool $is_sealed Whether the lid is sealed, cutting the tank off from the room.
+ * @property string $background_colour Backdrop behind the tank as #rrggbb (the top of a gradient).
+ * @property string|null $background_gradient_colour Bottom of the backdrop's gradient as #rrggbb (null = solid).
  * @property bool $auto_feeder_installed
  * @property int $auto_feeder_feeds_per_day
  * @property bool $auto_feeder_unlimited
@@ -63,7 +65,7 @@ use Illuminate\Support\Carbon;
 #[Fillable([
     'name', 'volume_litres', 'grid_width', 'grid_height', 'grid_depth', 'water_level', 'layer_count', 'substrate_heights', 'temperature', 'target_temperature', 'ph', 'ammonia', 'nitrite',
     'nitrate', 'oxygen', 'co2', 'detritus', 'uneaten_food', 'algae', 'bacteria', 'humidity', 'air_oxygen',
-    'air_co2', 'light_on', 'is_sealed',
+    'air_co2', 'light_on', 'is_sealed', 'background_colour', 'background_gradient_colour',
     'auto_feeder_installed', 'auto_feeder_feeds_per_day', 'auto_feeder_unlimited', 'auto_feeder_portions',
     'is_active', 'sim_tick', 'sim_seconds', 'rng_seed', 'last_simulated_at',
 ])]

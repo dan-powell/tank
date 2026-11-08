@@ -27,6 +27,10 @@ class DashboardController extends Controller
                 'name' => $tank->name,
                 'volume_litres' => $tank->volume_litres,
                 'dimensions_cm' => [$tank->grid_width / 2, $tank->grid_height / 2, $tank->grid_depth / 2],
+                'background' => [
+                    'colour' => $tank->background_colour,
+                    'gradient_colour' => $tank->background_gradient_colour,
+                ],
                 'creatures_count' => $tank->creatures_count,
                 'plants_count' => $tank->plants_count,
                 'temperature' => round($tank->temperature, 1),

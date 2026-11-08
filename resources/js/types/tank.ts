@@ -108,6 +108,14 @@ export type AutoFeeder = {
     capacity: number;
 };
 
+/** The backdrop behind the tank, as #rrggbb colours. */
+export type TankBackground = {
+    /** The whole backdrop, or the top of a gradient. */
+    colour: string;
+    /** The bottom of a gradient; null for a solid colour. */
+    gradient_colour: string | null;
+};
+
 export type TankSnapshot = {
     id: number;
     name: string;
@@ -121,6 +129,7 @@ export type TankSnapshot = {
     land_area_cm2: number;
     /** Whether the lid is sealed: the tank runs as its own ecosystem, hands off. */
     is_sealed: boolean;
+    background: TankBackground;
     /** The air above the water: humidity %, oxygen % by volume, CO2 ppm. */
     air: { humidity: number; oxygen: number; co2: number };
     /** Substrate height in cells per heightmap column, row by row from the back glass. */
@@ -221,6 +230,7 @@ export type DashboardTank = {
     volume_litres: number;
     /** Interior width, height and depth in centimetres. */
     dimensions_cm: [number, number, number];
+    background: TankBackground;
     creatures_count: number;
     plants_count: number;
     temperature: number;

@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { AutoFeederPanel } from '@/components/tank/auto-feeder-panel';
+import { BackgroundPanel } from '@/components/tank/background-panel';
 import { DecorCatalogue } from '@/components/tank/decor-catalogue';
 import { DecorationPanel } from '@/components/tank/decoration-panel';
 import { SubstratePanel } from '@/components/tank/substrate-panel';
@@ -65,6 +66,7 @@ import type {
     DecorationDefinition,
     GridCell,
     Species,
+    TankBackground,
     TankEvent,
     TankSelection,
     TankSnapshot,
@@ -177,6 +179,8 @@ export default function ShowTank({
     /** Earlier substrate shapes, most recent last, for Undo. */
     const [substrateHistory, setSubstrateHistory] = useState<number[][]>([]);
     const [tab, setTab] = useState<PanelTab>('summary');
+    const [previewBackground, setPreviewBackground] =
+        useState<TankBackground | null>(null);
     const [tabDirection, setTabDirection] = useState<TabDirection>('right');
 
     const changeTab = (next: PanelTab) => {
@@ -495,6 +499,7 @@ export default function ShowTank({
                         onSculpt={saveSubstrate}
                         placement={placement}
                         onPlace={placeMoving}
+                        previewBackground={previewBackground}
                     />
 
                     {movingInhabitant !== null && (
@@ -771,6 +776,11 @@ export default function ShowTank({
                                 <LidPanel
                                     tankId={tank.id}
                                     isSealed={tank.is_sealed}
+                                />
+                                <BackgroundPanel
+                                    tankId={tank.id}
+                                    background={tank.background}
+                                    onPreview={setPreviewBackground}
                                 />
                                 <SealedGuard isSealed={tank.is_sealed}>
                                     <AutoFeederPanel

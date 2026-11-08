@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tabbed tank side panel with animated transitions: Summary (tank name and clock, water, inhabitants, latest activity that fits without scrolling), Activity (full log), Inhabitants, Management and Equipment (auto-feeder); icon tabs with tooltips.
 - Searchable, sortable list of every inhabitant; choosing one selects it, as clicking it in the tank does.
 - Full-window tank view with a frosted side panel that slides over the tank (pull tab on its edge or `P`); the choice is remembered.
+- Per-tank backdrop (Equipment): a solid colour or top-to-bottom gradient, with presets and a live preview; dims with the light, and colours the tank's dashboard card.
 - Unit and feature tests.
 - Redis (DDEV add-on) for queue, cache and sessions; Horizon runs the queue workers.
 - Octane (FrankenPHP) for production, installed on deploy by Deployer 8.

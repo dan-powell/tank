@@ -31,6 +31,10 @@ class TankResource extends JsonResource
             'has_water' => ! TankGeometry::isDry($this->resource),
             'land_area_cm2' => round(TankGeometry::landAreaCm2($this->resource, $this->decorations), 1),
             'is_sealed' => $this->is_sealed,
+            'background' => [
+                'colour' => $this->background_colour,
+                'gradient_colour' => $this->background_gradient_colour,
+            ],
             'air' => [
                 'humidity' => round($this->humidity, 1),
                 'oxygen' => round($this->air_oxygen, 2),

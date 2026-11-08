@@ -28,6 +28,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             // Things done from outside the glass work whether or not the lid is sealed.
             Route::post('light', [TankMaintenanceController::class, 'toggleLight'])->name('light');
             Route::post('lid', [TankMaintenanceController::class, 'toggleLid'])->name('lid');
+            Route::put('background', [TankMaintenanceController::class, 'setBackground'])->name('background');
             Route::patch('creatures/{creature}', [TankCreatureController::class, 'update'])->name('creatures.update');
             Route::patch('plants/{plant}', [TankPlantController::class, 'update'])->name('plants.update');
 

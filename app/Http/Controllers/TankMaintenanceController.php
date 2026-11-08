@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Actions\Tank\ChangeWater;
 use App\Actions\Tank\FeedTank;
 use App\Actions\Tank\ScrubAlgae;
+use App\Actions\Tank\SetBackground;
 use App\Actions\Tank\SetWaterLevel;
 use App\Actions\Tank\ToggleLid;
 use App\Actions\Tank\ToggleLight;
 use App\Actions\Tank\VacuumGravel;
 use App\Http\Requests\Tank\ChangeWaterRequest;
 use App\Http\Requests\Tank\FeedTankRequest;
+use App\Http\Requests\Tank\SetBackgroundRequest;
 use App\Http\Requests\Tank\SetWaterLevelRequest;
 use App\Models\Tank;
 use Illuminate\Http\RedirectResponse;
@@ -62,6 +64,13 @@ class TankMaintenanceController extends Controller
     public function toggleLight(Tank $tank, ToggleLight $toggleLight): RedirectResponse
     {
         $toggleLight->handle($tank);
+
+        return back();
+    }
+
+    public function setBackground(SetBackgroundRequest $request, Tank $tank, SetBackground $setBackground): RedirectResponse
+    {
+        $setBackground->handle($tank, $request->string('colour')->value(), $request->input('gradient_colour'));
 
         return back();
     }

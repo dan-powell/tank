@@ -9,6 +9,7 @@ import {
     CardTitle,
 } from '@/components/ui/card';
 import { NewTankDialog } from '@/components/tank/new-tank-dialog';
+import { backgroundStyle } from '@/lib/tank/background';
 import { dashboard } from '@/routes';
 import { show } from '@/routes/tanks';
 import type { DashboardTank, TankSizeLimits } from '@/types';
@@ -63,7 +64,8 @@ export default function Dashboard({ tanks, sizeLimits }: Props) {
                                 href={show(tank.id)}
                                 className="block"
                             >
-                                <Card className="transition-colors hover:bg-accent">
+                                <Card className="pt-0 transition-colors hover:bg-accent">
+                                    <TankPreview tank={tank} />
                                     <CardHeader>
                                         <CardTitle>{tank.name}</CardTitle>
                                         <CardDescription>
@@ -85,6 +87,34 @@ export default function Dashboard({ tanks, sizeLimits }: Props) {
                 )}
             </div>
         </>
+    );
+}
+
+/** Room the glass outline may take up in a card's banner, in pixels. */
+const PREVIEW_WIDTH = 160;
+const PREVIEW_HEIGHT = 80;
+
+/**
+ * The tank as seen from the front: its glass drawn to scale against the
+ * backdrop chosen for it.
+ */
+function TankPreview({ tank }: { tank: DashboardTank }) {
+    const [width, height] = tank.dimensions_cm;
+    const scale = Math.min(PREVIEW_WIDTH / width, PREVIEW_HEIGHT / height);
+
+    return (
+        <div
+            aria-hidden
+            className="flex h-28 items-end justify-center pb-4"
+            style={backgroundStyle(tank.background)}
+        >
+            <div
+                className="flex flex-col justify-end border border-white/50 bg-white/10 shadow-sm"
+                style={{ width: width * scale, height: height * scale }}
+            >
+                <div className="h-[12%] bg-amber-200/50" />
+            </div>
+        </div>
     );
 }
 

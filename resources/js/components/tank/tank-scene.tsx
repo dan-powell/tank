@@ -11,6 +11,7 @@ import type {
     DecorationDefinition,
     GridCell,
     Species,
+    TankBackground,
     TankSelection,
     TankSnapshot,
 } from '@/types';
@@ -25,6 +26,7 @@ import { FoodParticles } from './food-particles';
 import { haloUniforms } from './halo-material';
 import { Plants } from './plants';
 import { sceneClock } from './scene-clock';
+import { TankBackdrop } from './tank-backdrop';
 import { orbitStart, TankCameraRig } from './tank-camera-rig';
 import type { TankViewMode } from './tank-camera-rig';
 import { TankPanControls } from './tank-pan-controls';
@@ -48,6 +50,8 @@ type Props = {
     /** While an inhabitant is being moved: how to read the click, and where it landed. */
     placement: PlacementMode | null;
     onPlace: (point: Vector3) => void;
+    /** An unsaved backdrop being tried out, shown instead of the tank's own. */
+    previewBackground?: TankBackground | null;
 };
 
 /** Clicks this soon (ms) after a gizmo drag ends belong to the gizmo, not the empty water. */
@@ -76,6 +80,7 @@ export function TankScene({
     onSculpt,
     placement,
     onPlace,
+    previewBackground = null,
 }: Props) {
     const isSculpting = sculptBrush !== null || placement !== null;
     const onSelect = (next: TankSelection | null) => {
@@ -158,9 +163,9 @@ export function TankScene({
                 }
             }}
         >
-            <color
-                attach="background"
-                args={[tank.is_lit ? '#2c3e52' : '#0e1626']}
+            <TankBackdrop
+                background={previewBackground ?? tank.background}
+                isLit={tank.is_lit}
             />
             <SceneClock />
             <HaloResolution />

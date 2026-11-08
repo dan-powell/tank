@@ -50,4 +50,14 @@ class DashboardTest extends TestCase
                 ->where('tanks.0.dimensions_cm', [90, 45, 40.5])
                 ->where('sizeLimits', ['width' => [20, 120], 'height' => [20, 60], 'depth' => [15, 50]]));
     }
+
+    public function test_dashboard_shows_each_tanks_backdrop(): void
+    {
+        $tank = Tank::factory()->create(['background_colour' => '#3a7bb8', 'background_gradient_colour' => '#0b1a33']);
+
+        $this->actingAs($tank->user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('tanks.0.background', ['colour' => '#3a7bb8', 'gradient_colour' => '#0b1a33']));
+    }
 }

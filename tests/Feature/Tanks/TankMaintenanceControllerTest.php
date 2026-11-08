@@ -293,4 +293,55 @@ class TankMaintenanceControllerTest extends TestCase
 
         $this->assertSame(4, $tank->fresh()->water_level);
     }
+
+    public function test_setting_a_gradient_background_stores_both_colours_without_logging(): void
+    {
+        $tank = Tank::factory()->sealed()->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.background', $tank), ['colour' => '#1A2B3C', 'gradient_colour' => '#000000'])
+            ->assertRedirect();
+
+        $tank->refresh();
+        $this->assertSame('#1a2b3c', $tank->background_colour);
+        $this->assertSame('#000000', $tank->background_gradient_colour);
+        $this->assertSame(0, $tank->events()->count());
+        Event::assertDispatched(TankUpdated::class, fn (TankUpdated $update): bool => $update->tank->is($tank));
+    }
+
+    public function test_a_solid_background_clears_the_gradient(): void
+    {
+        $tank = Tank::factory()->create(['background_gradient_colour' => '#000000']);
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.background', $tank), ['colour' => '#ffeedd', 'gradient_colour' => null])
+            ->assertSessionHasNoErrors();
+
+        $tank->refresh();
+        $this->assertSame('#ffeedd', $tank->background_colour);
+        $this->assertNull($tank->background_gradient_colour);
+    }
+
+    public function test_rejects_a_background_that_is_not_a_six_digit_hex_colour(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.background', $tank), ['colour' => 'blue', 'gradient_colour' => '#fff'])
+            ->assertSessionHasErrors([
+                'colour' => 'The colour field must be a valid hexadecimal color.',
+                'gradient_colour' => 'The gradient colour field must be 7 characters.',
+            ]);
+
+        $this->assertSame('#2c3e52', $tank->fresh()->background_colour);
+    }
+
+    public function test_only_the_owner_can_change_the_background(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->put(route('tanks.background', $tank), ['colour' => '#ffffff'])
+            ->assertForbidden();
+    }
 }
