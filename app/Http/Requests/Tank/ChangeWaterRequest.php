@@ -2,8 +2,12 @@
 
 namespace App\Http\Requests\Tank;
 
+use App\Models\Tank;
+use App\Simulation\TankGeometry;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class ChangeWaterRequest extends FormRequest
 {
@@ -16,6 +20,24 @@ class ChangeWaterRequest extends FormRequest
     {
         return [
             'percent' => ['required', 'integer', 'between:5,90'],
+        ];
+    }
+
+    /**
+     * Reject the request while the tank is empty.
+     *
+     * @return array<int, Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $tank = $this->route('tank');
+
+                if ($tank instanceof Tank && TankGeometry::isDry($tank)) {
+                    $validator->errors()->add('percent', __('There is no water to change.'));
+                }
+            },
         ];
     }
 }

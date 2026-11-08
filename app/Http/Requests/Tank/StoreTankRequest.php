@@ -23,6 +23,7 @@ class StoreTankRequest extends FormRequest
             'width' => ['required', 'integer', 'between:'.implode(',', TankGeometry::WIDTH_CM)],
             'height' => ['required', 'integer', 'between:'.implode(',', TankGeometry::HEIGHT_CM)],
             'depth' => ['required', 'integer', 'between:'.implode(',', TankGeometry::DEPTH_CM)],
+            'water_depth' => ['nullable', 'numeric', 'multiple_of:0.5', 'min:0'],
             'stocked' => ['boolean'],
         ];
     }
@@ -40,7 +41,28 @@ class StoreTankRequest extends FormRequest
                     $validator->errors()->add('name', __('You cannot keep any more tanks.'));
                 }
             },
+            function (Validator $validator): void {
+                if ($validator->errors()->hasAny(['height', 'water_depth']) || ! $this->filled('water_depth')) {
+                    return;
+                }
+
+                $deepest = TankGeometry::maxWaterDepthCm($this->cells('height'));
+
+                if ($this->float('water_depth') > $deepest) {
+                    $validator->errors()->add('water_depth', __('A tank this tall holds at most :depth cm of water.', ['depth' => $deepest]));
+                } elseif ($this->float('water_depth') == 0 && $this->boolean('stocked')) {
+                    $validator->errors()->add('stocked', __('An empty tank cannot start with plants and fish.'));
+                }
+            },
         ];
+    }
+
+    /**
+     * The chosen water level in grid cells, or null to fill the tank.
+     */
+    public function waterLevel(): ?int
+    {
+        return $this->filled('water_depth') ? TankGeometry::waterLevelForDepth($this->float('water_depth')) : null;
     }
 
     /**

@@ -11,7 +11,7 @@ use App\Simulation\TankState;
  * Poor water quality, unsuitable temperature/pH and starvation damage
  * health; good conditions let creatures recover.
  */
-final class HealthSystem implements SimulationSystem
+final class HealthSystem implements RequiresWater, SimulationSystem
 {
     private const float RECOVERY_PER_HOUR = 0.03;
 

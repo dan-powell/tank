@@ -13,7 +13,7 @@ use App\Simulation\TankState;
  * A species' diet maps each source (food, algae, detritus) to the amount of
  * that source which fully satisfies an adult.
  */
-final class FeedingSystem implements SimulationSystem
+final class FeedingSystem implements RequiresWater, SimulationSystem
 {
     /** A full meal can be eaten in this many hours. */
     private const float MEAL_DURATION_HOURS = 0.25;

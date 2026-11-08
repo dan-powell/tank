@@ -25,6 +25,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->group(function () {
             Route::post('feed', [TankMaintenanceController::class, 'feed'])->name('feed');
             Route::post('water-change', [TankMaintenanceController::class, 'changeWater'])->name('water-change');
+            Route::put('water-level', [TankMaintenanceController::class, 'setWaterLevel'])->name('water-level');
             Route::post('vacuum', [TankMaintenanceController::class, 'vacuum'])->name('vacuum');
             Route::post('scrub', [TankMaintenanceController::class, 'scrub'])->name('scrub');
             Route::post('light', [TankMaintenanceController::class, 'toggleLight'])->name('light');

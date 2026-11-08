@@ -9,7 +9,7 @@ use App\Simulation\TankState;
 /**
  * Plants and algae release oxygen and consume CO2 under light, and respire in the dark.
  */
-final class PhotosynthesisSystem implements SimulationSystem
+final class PhotosynthesisSystem implements RequiresWater, SimulationSystem
 {
     /** mg O2 per hour per unit of plant biomass at full light. */
     private const float PLANT_OXYGEN_RATE = 0.5;

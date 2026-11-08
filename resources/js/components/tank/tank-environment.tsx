@@ -14,6 +14,8 @@ type Props = {
     grid: TankGrid;
     /** Substrate height in grid cells per heightmap column. */
     substrate: number[];
+    /** False when the tank is empty: no bubbles from the air stone. */
+    hasWater: boolean;
     /** Outline the glass edges (hidden in the flat 2D view). */
     showEdges?: boolean;
 };
@@ -23,6 +25,7 @@ export function TankEnvironment({
     isLit,
     grid,
     substrate,
+    hasWater,
     showEdges = true,
 }: Props) {
     const algae = Math.min(1, water.algae / 100);
@@ -46,7 +49,7 @@ export function TankEnvironment({
             {/* Substrate */}
             <mesh geometry={substrateGeometry} material={substrateMaterial} />
             <Detritus amount={water.detritus} />
-            <Bubbles isLit={isLit} />
+            {hasWater && <Bubbles key={grid.water_level} isLit={isLit} />}
 
             {/* Algae film on the back and side glass */}
             {algae > 0.02 && (

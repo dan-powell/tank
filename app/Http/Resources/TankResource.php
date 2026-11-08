@@ -28,6 +28,7 @@ class TankResource extends JsonResource
             'volume_litres' => $this->volume_litres,
             'layer_count' => $this->layer_count,
             'grid' => TankGeometry::grid($this->resource),
+            'has_water' => ! TankGeometry::isDry($this->resource),
             'substrate' => TankGeometry::substrateHeights($this->resource),
             'water' => [
                 'temperature' => round($this->temperature, 1),

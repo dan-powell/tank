@@ -4,6 +4,9 @@ namespace App\Simulation;
 
 /**
  * Mutable working copy of a plant during a simulation step.
+ *
+ * `rootHeight` is the grid cell row its roots sit in (the substrate's surface
+ * or a decoration anchor), which decides whether it is under water.
  */
 final class PlantState
 {
@@ -22,6 +25,7 @@ final class PlantState
         public int $ageSeconds,
         public ?int $decorationId = null,
         public ?int $anchorIndex = null,
+        public int $rootHeight = TankGeometry::DEFAULT_SUBSTRATE,
     ) {}
 
     /**

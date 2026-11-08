@@ -54,6 +54,7 @@ class TankController extends Controller
             $request->cells('height'),
             $request->cells('depth'),
             $request->boolean('stocked'),
+            $request->waterLevel(),
         );
 
         return to_route('tanks.show', $tank);

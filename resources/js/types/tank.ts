@@ -84,8 +84,10 @@ export type TankGrid = {
     width: number;
     height: number;
     depth: number;
-    /** First cell row above the water. */
+    /** First cell row above the water (at or below the substrate when empty). */
     water_level: number;
+    /** The highest water level the tank can be filled to. */
+    max_water_level: number;
     /** Cells per side of one substrate heightmap column. */
     substrate_column: number;
 };
@@ -113,6 +115,8 @@ export type TankSnapshot = {
     /** Number of depth layers the tank is divided into. */
     layer_count: number;
     grid: TankGrid;
+    /** False once the tank has been emptied. */
+    has_water: boolean;
     /** Substrate height in cells per heightmap column, row by row from the back glass. */
     substrate: number[];
     water: WaterParameters;

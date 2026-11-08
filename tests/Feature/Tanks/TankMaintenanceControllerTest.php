@@ -4,6 +4,8 @@ namespace Tests\Feature\Tanks;
 
 use App\Enums\TankEventType;
 use App\Events\TankUpdated;
+use App\Models\Creature;
+use App\Models\Species;
 use App\Models\Tank;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -122,5 +124,139 @@ class TankMaintenanceControllerTest extends TestCase
         }
 
         $this->actingAs($tank->user)->post(route('tanks.vacuum', $tank))->assertTooManyRequests();
+    }
+
+    public function test_draining_lowers_the_water_and_keeps_its_chemistry(): void
+    {
+        $tank = Tank::factory()->create(['nitrate' => 20.0, 'temperature' => 25.0]);
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.water-level', $tank), ['water_depth' => 10])
+            ->assertRedirect();
+
+        $tank->refresh();
+        $this->assertSame(24, $tank->water_level);
+        $this->assertSame(17, $tank->volume_litres);
+        $this->assertSame(20.0, $tank->nitrate);
+        $this->assertSame(25.0, $tank->temperature);
+        $event = $tank->events()->sole();
+        $this->assertSame(TankEventType::WaterLevel, $event->type);
+        $this->assertSame('You drained the tank to 10 cm of water (17 L).', $event->message);
+        Event::assertDispatched(TankUpdated::class);
+    }
+
+    public function test_topping_up_mixes_in_tap_water_in_proportion_to_what_is_added(): void
+    {
+        $tank = Tank::factory()->withWaterDepth(10)->create(['nitrate' => 20.0]);
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.water-level', $tank), ['water_depth' => 28.5])
+            ->assertRedirect();
+
+        $tank->refresh();
+        $this->assertSame(61, $tank->water_level);
+        $this->assertSame(47, $tank->volume_litres);
+        $this->assertEqualsWithDelta(20.0 * 17 / 47, $tank->nitrate, 0.001);
+        $this->assertSame('You topped the tank up to 28.5 cm of water (47 L).', $tank->events()->sole()->message);
+    }
+
+    public function test_emptying_a_tank_without_animals_leaves_it_dry(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.water-level', $tank), ['water_depth' => 0])
+            ->assertRedirect();
+
+        $tank->refresh();
+        $this->assertSame(4, $tank->water_level);
+        $this->assertSame(0, $tank->volume_litres);
+        $this->assertSame('You emptied the tank.', $tank->events()->sole()->message);
+    }
+
+    public function test_refilling_an_empty_tank_starts_it_on_tap_water(): void
+    {
+        $tank = Tank::factory()->withWaterDepth(0)->create(['nitrate' => 30.0, 'temperature' => 25.0]);
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.water-level', $tank), ['water_depth' => 5])
+            ->assertRedirect();
+
+        $tank->refresh();
+        $this->assertSame(0.0, $tank->nitrate);
+        $this->assertSame(21.0, $tank->temperature);
+    }
+
+    public function test_cannot_empty_a_tank_with_animals_in_it(): void
+    {
+        $tank = Tank::factory()->create();
+        Creature::factory()->for($tank)->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.water-level', $tank), ['water_depth' => 0])
+            ->assertSessionHasErrors(['water_depth' => 'Take the animals out before emptying the tank.']);
+
+        $this->assertSame(61, $tank->fresh()->water_level);
+    }
+
+    public function test_rejects_water_deeper_than_the_tank_allows(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.water-level', $tank), ['water_depth' => 29])
+            ->assertSessionHasErrors(['water_depth' => 'The water depth field must be between 0 and 28.5.']);
+    }
+
+    public function test_rejects_water_depths_finer_than_half_a_centimetre(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.water-level', $tank), ['water_depth' => 10.3])
+            ->assertSessionHasErrors(['water_depth' => 'The water depth field must be a multiple of 0.5.']);
+    }
+
+    public function test_an_empty_tank_cannot_be_fed(): void
+    {
+        $tank = Tank::factory()->withWaterDepth(0)->create(['uneaten_food' => 0]);
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.feed', $tank), ['x' => 0.5, 'z' => 0.5])
+            ->assertSessionHasErrors(['x' => 'There is no water to feed into.']);
+
+        $this->assertSame(0.0, $tank->fresh()->uneaten_food);
+    }
+
+    public function test_an_empty_tank_cannot_have_its_water_changed(): void
+    {
+        $tank = Tank::factory()->withWaterDepth(0)->create();
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.water-change', $tank), ['percent' => 25])
+            ->assertSessionHasErrors(['percent' => 'There is no water to change.']);
+    }
+
+    public function test_animals_cannot_be_added_to_an_empty_tank(): void
+    {
+        $tank = Tank::factory()->withWaterDepth(0)->create();
+        $species = Species::factory()->create();
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.stock', $tank), ['species_id' => $species->id, 'quantity' => 1])
+            ->assertSessionHasErrors(['species_id' => 'There is no water for animals to live in.']);
+
+        $this->assertSame(0, $tank->creatures()->count());
+    }
+
+    public function test_other_users_cannot_change_the_water_level(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->put(route('tanks.water-level', $tank), ['water_depth' => 10])
+            ->assertForbidden();
+
+        $this->assertSame(61, $tank->fresh()->water_level);
     }
 }

@@ -2,8 +2,12 @@
 
 namespace App\Http\Requests\Tank;
 
+use App\Models\Tank;
+use App\Simulation\TankGeometry;
+use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class FeedTankRequest extends FormRequest
 {
@@ -17,6 +21,24 @@ class FeedTankRequest extends FormRequest
         return [
             'x' => ['required', 'numeric', 'between:0,1'],
             'z' => ['required', 'numeric', 'between:0,1'],
+        ];
+    }
+
+    /**
+     * Reject the request while the tank is empty.
+     *
+     * @return array<int, Closure(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $tank = $this->route('tank');
+
+                if ($tank instanceof Tank && TankGeometry::isDry($tank)) {
+                    $validator->errors()->add('x', __('There is no water to feed into.'));
+                }
+            },
         ];
     }
 }

@@ -13,6 +13,7 @@ use App\Simulation\Systems\NitrogenCycleSystem;
 use App\Simulation\Systems\PhotosynthesisSystem;
 use App\Simulation\Systems\PlantGrowthSystem;
 use App\Simulation\Systems\ReproductionSystem;
+use App\Simulation\Systems\RequiresWater;
 use App\Simulation\Systems\SimulationSystem;
 use App\Simulation\Systems\WarningSystem;
 use App\Simulation\Systems\WaterQualitySystem;
@@ -92,7 +93,9 @@ final class TankSimulator
         $context = new StepContext($dtSeconds, $this->randomFor($state), $state->copy());
 
         foreach ($this->systems as $system) {
-            $system->apply($state, $context);
+            if ($state->hasWater || ! $system instanceof RequiresWater) {
+                $system->apply($state, $context);
+            }
         }
 
         $state->normalise();

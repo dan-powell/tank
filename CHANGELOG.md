@@ -30,6 +30,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Plants that can grow on decorations (Hornwort) can be planted on a decoration's plant spots and spread to its free spots.
 - Substrate heightmap and a shared 0.5 cm grid for the tank (groundwork for sculpted substrate and variable water levels).
 - Tanks have their own size: a New tank dialog on the dashboard sets the name, inside measurements (20–120 × 20–60 × 15–50 cm) and optional starter stock scaled to the water; each user may keep up to 6 tanks.
+- Adjustable water level, set when a tank is created and from Management (fill to the top, a chosen depth, or empty): draining keeps the water as it is, topping up mixes in tap water.
+- Empty tanks: water chemistry pauses; feeding, water changes and adding animals are refused, and a tank can't be emptied while animals live in it.
+- Plants whose roots are out of the water stop growing and wilt, dying back after about two simulated days.
 
 ### Changed
 

@@ -32,7 +32,7 @@ final class TankGeometry
 
     public const array DEPTH_CM = [15, 50];
 
-    /** Gap between the water line and the rim, in cells. */
+    /** Smallest gap between a full tank's water line and the rim, in cells. */
     public const int RIM_GAP = 4;
 
     /** The substrate heightmap holds one height per square of this many cells. */
@@ -53,7 +53,7 @@ final class TankGeometry
     /**
      * The grid dimensions sent to the browser.
      *
-     * @return array{width: int, height: int, depth: int, water_level: int, substrate_column: int}
+     * @return array{width: int, height: int, depth: int, water_level: int, max_water_level: int, substrate_column: int}
      */
     public static function grid(Tank $tank): array
     {
@@ -62,6 +62,7 @@ final class TankGeometry
             'height' => $tank->grid_height,
             'depth' => $tank->grid_depth,
             'water_level' => self::waterLevel($tank),
+            'max_water_level' => self::maxWaterLevel($tank->grid_height),
             'substrate_column' => self::SUBSTRATE_COLUMN,
         ];
     }
@@ -71,7 +72,39 @@ final class TankGeometry
      */
     public static function waterLevel(Tank $tank): int
     {
-        return $tank->grid_height - self::RIM_GAP;
+        return $tank->water_level;
+    }
+
+    /**
+     * The highest water level a tank of this height (in cells) can be filled to.
+     */
+    public static function maxWaterLevel(int $height): int
+    {
+        return $height - self::RIM_GAP;
+    }
+
+    /**
+     * The water level for a depth of water (cm) above an unsculpted substrate.
+     */
+    public static function waterLevelForDepth(float $depthCm): int
+    {
+        return self::DEFAULT_SUBSTRATE + (int) round($depthCm * self::CELLS_PER_CM);
+    }
+
+    /**
+     * The deepest water (cm above an unsculpted substrate) a tank of this height (in cells) can hold.
+     */
+    public static function maxWaterDepthCm(int $height): float
+    {
+        return (self::maxWaterLevel($height) - self::DEFAULT_SUBSTRATE) / self::CELLS_PER_CM;
+    }
+
+    /**
+     * Whether the tank holds no water at all.
+     */
+    public static function isDry(Tank $tank): bool
+    {
+        return self::waterCells($tank) === 0;
     }
 
     /**
@@ -95,6 +128,14 @@ final class TankGeometry
      */
     public static function waterLitres(Tank $tank): int
     {
+        return (int) round(self::waterCells($tank) * self::LITRES_PER_CELL);
+    }
+
+    /**
+     * How many grid cells of water the tank holds.
+     */
+    private static function waterCells(Tank $tank): int
+    {
         [$columns, $rows] = self::substrateColumns($tank);
         $heights = self::substrateHeights($tank);
         $waterLevel = self::waterLevel($tank);
@@ -109,7 +150,7 @@ final class TankGeometry
             }
         }
 
-        return (int) round($cells * self::LITRES_PER_CELL);
+        return $cells;
     }
 
     /**

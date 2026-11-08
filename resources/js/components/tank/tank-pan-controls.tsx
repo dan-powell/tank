@@ -25,8 +25,8 @@ const MIN_ALIGNMENT = 0.35;
 export function TankPanControls({
     controls,
     xLimit = TANK.width * 0.4,
-    // By default, from just above the gravel to the water line.
-    yRange = [TANK.substrate + 0.1, TANK.waterLine],
+    // By default, from just above the gravel to the rim (land may rise above the water).
+    yRange = [TANK.substrate + 0.1, TANK.height],
 }: Props) {
     const [yMin, yMax] = yRange;
     const camera = useThree((state) => state.camera);

@@ -24,20 +24,31 @@ import { PanelSection } from './panel-section';
 type Props = {
     tankId: number;
     lightOn: boolean;
+    /** Feeding and water changes need water in the tank. */
+    hasWater: boolean;
     onFeedRandomly: () => void;
 };
 
 const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
 
 /** Hands-on care and cleaning for the tank. */
-export function ToolsPanel({ tankId, lightOn, onFeedRandomly }: Props) {
+export function ToolsPanel({
+    tankId,
+    lightOn,
+    hasWater,
+    onFeedRandomly,
+}: Props) {
     const [percent, setPercent] = useState(25);
 
     return (
         <>
             <PanelSection id="care-heading" title="Care">
                 <div className="grid grid-cols-2 gap-2 *:w-full *:justify-start">
-                    <Button size="sm" onClick={onFeedRandomly}>
+                    <Button
+                        size="sm"
+                        disabled={!hasWater}
+                        onClick={onFeedRandomly}
+                    >
                         <Fish /> Feed
                     </Button>
                     <Button
@@ -103,6 +114,7 @@ export function ToolsPanel({ tankId, lightOn, onFeedRandomly }: Props) {
                     <Button
                         size="sm"
                         variant="outline"
+                        disabled={!hasWater}
                         onClick={() =>
                             router.post(
                                 waterChange.url(tankId),

@@ -9,7 +9,7 @@ use App\Simulation\TankState;
  * Algae bloom under light when nutrients are plentiful, unless plants
  * out-compete them.
  */
-final class AlgaeSystem implements SimulationSystem
+final class AlgaeSystem implements RequiresWater, SimulationSystem
 {
     private const float GROWTH_RATE = 0.06;
 

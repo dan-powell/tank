@@ -12,6 +12,7 @@ enum TankEventType: string
     case AutoFeeding = 'auto_feeding';
     case AutoFeederChanged = 'auto_feeder_changed';
     case WaterChange = 'water_change';
+    case WaterLevel = 'water_level';
     case Vacuum = 'vacuum';
     case AlgaeScrub = 'algae_scrub';
     case LightToggled = 'light_toggled';

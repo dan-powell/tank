@@ -64,7 +64,8 @@ class TankControllerTest extends TestCase
                     'seed' => 99,
                 ])
                 ->where('tank.plants.0.attachment', ['decoration_id' => $decoration->id, 'anchor' => 1])
-                ->where('tank.grid', ['width' => 120, 'height' => 65, 'depth' => 55, 'water_level' => 61, 'substrate_column' => 4])
+                ->where('tank.grid', ['width' => 120, 'height' => 65, 'depth' => 55, 'water_level' => 61, 'max_water_level' => 61, 'substrate_column' => 4])
+                ->where('tank.has_water', true)
                 ->has('tank.substrate', 30 * 14)
                 ->where('tank.substrate.0', 4)
                 ->has('decorationCatalogue', 6)
@@ -119,6 +120,37 @@ class TankControllerTest extends TestCase
         $this->assertSame(13, $tank->volume_litres);
         $this->assertSame(4, $tank->creatures()->count());
         $this->assertSame(2, $tank->plants()->count());
+    }
+
+    public function test_a_new_tank_can_be_filled_to_a_chosen_depth(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('tanks.store'), [
+            'name' => 'Shallow', 'width' => 60, 'height' => 40, 'depth' => 30, 'water_depth' => 6, 'stocked' => false,
+        ])->assertSessionHasNoErrors();
+
+        $tank = $user->tanks()->sole();
+        $this->assertSame(16, $tank->water_level);
+        $this->assertSame(11, $tank->volume_litres);
+    }
+
+    public function test_rejects_water_deeper_than_the_new_tank_can_hold(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('tanks.store'), ['name' => 'Deep', 'width' => 60, 'height' => 30, 'depth' => 30, 'water_depth' => 27])
+            ->assertSessionHasErrors(['water_depth' => 'A tank this tall holds at most 26 cm of water.']);
+    }
+
+    public function test_an_empty_new_tank_cannot_start_stocked(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('tanks.store'), ['name' => 'Dry', 'width' => 60, 'height' => 30, 'depth' => 30, 'water_depth' => 0, 'stocked' => true])
+            ->assertSessionHasErrors(['stocked' => 'An empty tank cannot start with plants and fish.']);
     }
 
     public function test_rejects_a_tank_outside_the_allowed_size(): void

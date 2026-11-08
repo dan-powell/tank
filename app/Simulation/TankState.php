@@ -21,6 +21,8 @@ final class TankState
      * @param  list<GridBox>  $groundedFootprints  Decorations resting on the substrate, where plants cannot root.
      * @param  int  $gridWidth  Interior width in decoration grid cells.
      * @param  int  $gridDepth  Interior depth in decoration grid cells.
+     * @param  int  $waterLevel  First grid cell row above the water.
+     * @param  bool  $hasWater  False while the tank is empty; water-only systems are skipped.
      */
     public function __construct(
         public int $volumeLitres,
@@ -49,6 +51,8 @@ final class TankState
         public array $groundedFootprints = [],
         public int $gridWidth = TankGeometry::DEFAULT_WIDTH,
         public int $gridDepth = TankGeometry::DEFAULT_DEPTH,
+        public int $waterLevel = TankGeometry::DEFAULT_HEIGHT - TankGeometry::RIM_GAP,
+        public bool $hasWater = true,
     ) {}
 
     /**
@@ -83,6 +87,14 @@ final class TankState
     public function livingCreatures(): array
     {
         return array_values(array_filter($this->creatures, fn (CreatureState $creature): bool => ! $creature->isDead));
+    }
+
+    /**
+     * Whether a plant's roots are under water.
+     */
+    public function isSubmerged(PlantState $plant): bool
+    {
+        return $this->hasWater && $plant->rootHeight < $this->waterLevel;
     }
 
     /**

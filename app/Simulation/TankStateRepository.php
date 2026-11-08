@@ -20,6 +20,8 @@ final class TankStateRepository
             $species->id => new SpeciesDefinition($species->id, $species->slug, $species->kind, $species->name, $species->params),
         ])->all();
 
+        $decorations = $tank->decorations()->get()->keyBy('id');
+
         $plants = Plant::query()->whereBelongsTo($tank)->alive()->orderBy('id')->get()
             ->map(fn (Plant $plant): PlantState => new PlantState(
                 id: $plant->id,
@@ -34,9 +36,8 @@ final class TankStateRepository
                 ageSeconds: $plant->age_seconds,
                 decorationId: $plant->decoration_id,
                 anchorIndex: $plant->anchor_index,
+                rootHeight: $this->rootHeight($tank, $plant, $decorations->get($plant->decoration_id)),
             ))->all();
-
-        $decorations = $tank->decorations()->get();
 
         $creatures = Creature::query()->whereBelongsTo($tank)->alive()->orderBy('id')->get()
             ->map(fn (Creature $creature): CreatureState => new CreatureState(
@@ -92,7 +93,23 @@ final class TankStateRepository
             groundedFootprints: TankGeometry::groundedFootprints($tank, $decorations),
             gridWidth: $tank->grid_width,
             gridDepth: $tank->grid_depth,
+            waterLevel: TankGeometry::waterLevel($tank),
+            hasWater: ! TankGeometry::isDry($tank),
         );
+    }
+
+    /**
+     * The grid row a plant's roots sit in: its anchor, or the substrate's surface beneath it.
+     */
+    private function rootHeight(Tank $tank, Plant $plant, ?Decoration $decoration): int
+    {
+        if ($decoration !== null && $plant->anchor_index !== null && isset($decoration->definition()->anchors[$plant->anchor_index])) {
+            return TankGeometry::anchorCell($decoration, $plant->anchor_index)[1];
+        }
+
+        [$x, $z] = TankGeometry::plantColumn($plant->root_x, $plant->layer, $tank->layer_count, $tank->grid_width, $tank->grid_depth);
+
+        return TankGeometry::substrateHeightAt($tank, $x, $z);
     }
 
     /**

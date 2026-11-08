@@ -163,6 +163,7 @@ configureTankSpace({
     height: 65,
     depth: 55,
     water_level: 61,
+    max_water_level: 61,
     substrate_column: 4,
 });
 

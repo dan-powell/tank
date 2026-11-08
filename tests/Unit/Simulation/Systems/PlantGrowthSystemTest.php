@@ -94,4 +94,16 @@ class PlantGrowthSystemTest extends TestCase
         $this->assertCount(1, $state->plants);
         $this->assertSame(6.0, $plant->size);
     }
+
+    public function test_plants_out_of_the_water_wilt_instead_of_growing(): void
+    {
+        $plant = $this->plant(overrides: ['size' => 2.0, 'rootHeight' => 30]);
+        $state = $this->tankState(['plants' => [$plant], 'waterLevel' => 20, 'nitrate' => 10.0]);
+
+        (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertSame(2.0, $plant->size);
+        $this->assertEqualsWithDelta(0.98, $plant->health, 0.0001);
+        $this->assertSame(10.0, $state->nitrate);
+    }
 }

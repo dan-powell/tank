@@ -26,6 +26,7 @@ class TankFactory extends Factory
             'grid_width' => TankGeometry::DEFAULT_WIDTH,
             'grid_height' => TankGeometry::DEFAULT_HEIGHT,
             'grid_depth' => TankGeometry::DEFAULT_DEPTH,
+            'water_level' => TankGeometry::maxWaterLevel(TankGeometry::DEFAULT_HEIGHT),
             'layer_count' => 5,
             'temperature' => 25,
             'target_temperature' => 25,
@@ -57,7 +58,18 @@ class TankFactory extends Factory
             'grid_width' => $width,
             'grid_height' => $height,
             'grid_depth' => $depth,
+            'water_level' => TankGeometry::maxWaterLevel($height),
             'layer_count' => TankGeometry::layerCountFor($depth),
+        ]);
+    }
+
+    /**
+     * Water filled to the given depth (cm) above the substrate; 0 is empty.
+     */
+    public function withWaterDepth(float $depthCm): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'water_level' => TankGeometry::waterLevelForDepth($depthCm),
         ]);
     }
 

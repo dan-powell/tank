@@ -12,13 +12,24 @@ use App\Simulation\TankState;
 /**
  * Plants grow under light by taking up ammonia and nitrate, lose health in
  * poor conditions, and established plants spread new offshoots nearby.
+ * Plants whose roots are out of the water stop growing and wilt.
  */
 final class PlantGrowthSystem implements SimulationSystem
 {
+    /** Health lost per hour by a plant out of the water (dies in about two days). */
+    private const float WILT_PER_HOUR = 0.02;
+
     public function apply(TankState $state, StepContext $context): void
     {
         foreach ($state->livingPlants() as $plant) {
             $plant->ageSeconds += $context->dtSeconds;
+
+            if (! $state->isSubmerged($plant)) {
+                $plant->health = max(0.0, $plant->health - self::WILT_PER_HOUR * $context->hours);
+
+                continue;
+            }
+
             $this->grow($plant, $state, $context);
             $this->updateHealth($plant, $state, $context);
             $this->maybeSpread($plant, $state, $context);
@@ -128,6 +139,7 @@ final class PlantGrowthSystem implements SimulationSystem
             ageSeconds: 0,
             decorationId: $offshoot['decorationId'],
             anchorIndex: $offshoot['anchorIndex'],
+            rootHeight: $offshoot['rootHeight'],
         );
 
         $context->emit(
@@ -141,7 +153,7 @@ final class PlantGrowthSystem implements SimulationSystem
      * Where a new shoot takes root: a free anchor on the same decoration for an
      * attached plant, otherwise nearby substrate that no decoration covers.
      *
-     * @return array{rootX: float, layer: int, decorationId: int|null, anchorIndex: int|null}|null
+     * @return array{rootX: float, layer: int, decorationId: int|null, anchorIndex: int|null, rootHeight: int}|null
      */
     private function offshootPosition(PlantState $plant, TankState $state, StepContext $context): ?array
     {
@@ -152,13 +164,14 @@ final class PlantGrowthSystem implements SimulationSystem
 
             if ($freeAnchors !== []) {
                 $anchorIndex = $freeAnchors[(int) floor($context->between(0, count($freeAnchors) - 0.001))];
-                [$x, , $z] = $state->decorationAnchors[$plant->decorationId][$anchorIndex];
+                [$x, $y, $z] = $state->decorationAnchors[$plant->decorationId][$anchorIndex];
 
                 return [
                     'rootX' => TankGeometry::normalisedX($x, $state->gridWidth),
                     'layer' => TankGeometry::layerAt($z, $state->layerCount, $state->gridDepth),
                     'decorationId' => $plant->decorationId,
                     'anchorIndex' => $anchorIndex,
+                    'rootHeight' => $y,
                 ];
             }
         }
@@ -181,6 +194,12 @@ final class PlantGrowthSystem implements SimulationSystem
             return null;
         }
 
-        return ['rootX' => $rootX, 'layer' => $layer, 'decorationId' => null, 'anchorIndex' => null];
+        return [
+            'rootX' => $rootX,
+            'layer' => $layer,
+            'decorationId' => null,
+            'anchorIndex' => null,
+            'rootHeight' => $plant->decorationId === null ? $plant->rootHeight : TankGeometry::DEFAULT_SUBSTRATE,
+        ];
     }
 }

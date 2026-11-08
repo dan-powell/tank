@@ -8,7 +8,7 @@ use App\Simulation\TankState;
 /**
  * Heater, surface gas exchange and pH buffering.
  */
-final class WaterQualitySystem implements SimulationSystem
+final class WaterQualitySystem implements RequiresWater, SimulationSystem
 {
     private const float HEATER_RATE = 0.5;
 

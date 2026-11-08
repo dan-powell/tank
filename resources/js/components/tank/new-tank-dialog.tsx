@@ -47,12 +47,11 @@ const LAYER_CM = 5.5;
  */
 export function NewTankDialog({ limits, defaultName, trigger }: Props) {
     const [size, setSize] = useState({ width: 60, height: 35, depth: 30 });
-    const litres = Math.round(
-        (size.width *
-            size.depth *
-            Math.max(0, size.height - SUBSTRATE_CM - RIM_GAP_CM)) /
-            1000,
-    );
+    /** Chosen water depth in cm; null fills to the top, following the height. */
+    const [waterDepth, setWaterDepth] = useState<number | null>(null);
+    const deepest = Math.max(0, size.height - SUBSTRATE_CM - RIM_GAP_CM);
+    const water = Math.min(waterDepth ?? deepest, deepest);
+    const litres = Math.round((size.width * size.depth * water) / 1000);
     const layers = Math.max(2, Math.round(size.depth / LAYER_CM));
 
     return (
@@ -117,6 +116,34 @@ export function NewTankDialog({ limits, defaultName, trigger }: Props) {
                                 ))}
                             </div>
 
+                            <div className="grid gap-2">
+                                <Label htmlFor="tank-water-depth">
+                                    Water depth above the gravel (cm)
+                                </Label>
+                                <Input
+                                    id="tank-water-depth"
+                                    name="water_depth"
+                                    type="number"
+                                    inputMode="decimal"
+                                    min={0}
+                                    max={deepest}
+                                    step={0.5}
+                                    value={water}
+                                    onChange={(event) =>
+                                        setWaterDepth(
+                                            Number(event.target.value),
+                                        )
+                                    }
+                                    required
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    Up to {deepest} cm. Lower it for a
+                                    paludarium with land above the water, or 0
+                                    for an empty tank.
+                                </p>
+                                <InputError message={errors.water_depth} />
+                            </div>
+
                             <p className="text-sm text-muted-foreground tabular-nums">
                                 Holds about {litres} litres of water, in{' '}
                                 {layers} depth layers. Widths {limits.width[0]}–
@@ -136,6 +163,7 @@ export function NewTankDialog({ limits, defaultName, trigger }: Props) {
                                     Start with plants and fish to suit its size
                                 </Label>
                             </div>
+                            <InputError message={errors.stocked} />
 
                             <DialogFooter>
                                 <Button type="submit" disabled={processing}>

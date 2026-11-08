@@ -27,6 +27,7 @@ import { PopulationPanel } from '@/components/tank/population-panel';
 import { TankHeading } from '@/components/tank/tank-heading';
 import { TankScene } from '@/components/tank/tank-scene';
 import { ToolsPanel } from '@/components/tank/tools-panel';
+import { WaterLevelPanel } from '@/components/tank/water-level-panel';
 import { WaterPanel } from '@/components/tank/water-panel';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
@@ -143,8 +144,8 @@ export default function ShowTank({
     decorationCatalogue,
     events,
 }: Props) {
-    const { width, height, depth, water_level: waterLevel } = tank.grid;
-    const sizeKey = `${width}x${height}x${depth}@${waterLevel}`;
+    const { width, height, depth } = tank.grid;
+    const sizeKey = `${width}x${height}x${depth}`;
 
     // The scene and steering read the shared tank space, so size it for this
     // tank before anything renders (it is idempotent), and give each size a
@@ -510,7 +511,15 @@ export default function ShowTank({
                                 <ToolsPanel
                                     tankId={tank.id}
                                     lightOn={tank.light_on}
+                                    hasWater={tank.has_water}
                                     onFeedRandomly={feedRandomly}
+                                />
+                                <WaterLevelPanel
+                                    key={tank.grid.water_level}
+                                    tankId={tank.id}
+                                    grid={tank.grid}
+                                    litres={tank.volume_litres}
+                                    hasWater={tank.has_water}
                                 />
                             </PanelTabContent>
 

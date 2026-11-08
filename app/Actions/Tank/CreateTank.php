@@ -26,16 +26,25 @@ class CreateTank
 
     /**
      * Set up a cycled tank with the given interior size (in 0.5 cm grid
-     * cells), optionally planted and stocked in proportion to the water it holds.
+     * cells), filled to `$waterLevel` (or the top), optionally planted and
+     * stocked in proportion to the water it holds.
      */
-    public function handle(User $user, string $name, int $width, int $height, int $depth, bool $stocked = true): Tank
-    {
-        return DB::transaction(function () use ($user, $name, $width, $height, $depth, $stocked): Tank {
+    public function handle(
+        User $user,
+        string $name,
+        int $width,
+        int $height,
+        int $depth,
+        bool $stocked = true,
+        ?int $waterLevel = null,
+    ): Tank {
+        return DB::transaction(function () use ($user, $name, $width, $height, $depth, $stocked, $waterLevel): Tank {
             $tank = $user->tanks()->make([
                 'name' => $name,
                 'grid_width' => $width,
                 'grid_height' => $height,
                 'grid_depth' => $depth,
+                'water_level' => $waterLevel ?? TankGeometry::maxWaterLevel($height),
                 'layer_count' => TankGeometry::layerCountFor($depth),
                 'temperature' => 25,
                 'target_temperature' => 25,
@@ -52,7 +61,7 @@ class CreateTank
             $tank->volume_litres = TankGeometry::waterLitres($tank);
             $tank->save();
 
-            if ($stocked) {
+            if ($stocked && ! TankGeometry::isDry($tank)) {
                 $this->stock($tank);
             }
 

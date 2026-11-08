@@ -8,6 +8,7 @@ use App\Simulation\SimEvent;
 
 class ChangeWater
 {
+    use MixesTapWater;
     use MutatesTank;
 
     /**
@@ -18,17 +19,7 @@ class ChangeWater
     public function handle(Tank $tank, int $percent): void
     {
         $this->mutate($tank, function (Tank $tank) use ($percent): SimEvent {
-            $fraction = $percent / 100;
-            $tap = config('simulation.tap_water');
-            $mix = fn (float $current, float $fresh): float => $current * (1 - $fraction) + $fresh * $fraction;
-
-            $tank->ammonia *= 1 - $fraction;
-            $tank->nitrite *= 1 - $fraction;
-            $tank->nitrate *= 1 - $fraction;
-            $tank->temperature = $mix($tank->temperature, $tap['temperature']);
-            $tank->ph = $mix($tank->ph, $tap['ph']);
-            $tank->oxygen = $mix($tank->oxygen, $tap['oxygen']);
-            $tank->co2 = $mix($tank->co2, $tap['co2']);
+            $this->mixInTapWater($tank, $percent / 100);
 
             return $this->event($tank, TankEventType::WaterChange, "You changed {$percent}% of the water.", ['percent' => $percent]);
         });

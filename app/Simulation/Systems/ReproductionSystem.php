@@ -14,7 +14,7 @@ use App\Simulation\TankState;
  * Healthy, well-fed adults breed when a mate is present, up to a population
  * cap that scales with tank volume.
  */
-final class ReproductionSystem implements SimulationSystem
+final class ReproductionSystem implements RequiresWater, SimulationSystem
 {
     public function apply(TankState $state, StepContext $context): void
     {

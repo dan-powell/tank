@@ -9,7 +9,7 @@ use App\Simulation\TankState;
  * Rotting food and detritus release ammonia; nitrifying bacteria oxidise
  * ammonia to nitrite and nitrite to nitrate, growing on the available load.
  */
-final class NitrogenCycleSystem implements SimulationSystem
+final class NitrogenCycleSystem implements RequiresWater, SimulationSystem
 {
     /** Milligrams of ammonia released per gram of rotting food. */
     private const float FOOD_AMMONIA_MG_PER_GRAM = 50;

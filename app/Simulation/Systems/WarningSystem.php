@@ -9,7 +9,7 @@ use App\Simulation\TankState;
 /**
  * Raise a warning when a water parameter crosses into a harmful range.
  */
-final class WarningSystem implements SimulationSystem
+final class WarningSystem implements RequiresWater, SimulationSystem
 {
     public function apply(TankState $state, StepContext $context): void
     {

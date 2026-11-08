@@ -8,7 +8,7 @@ use App\Simulation\TankState;
 /**
  * Creatures age, get hungry, breathe and excrete; well-fed juveniles grow.
  */
-final class MetabolismSystem implements SimulationSystem
+final class MetabolismSystem implements RequiresWater, SimulationSystem
 {
     /** Animals are less active at night. */
     private const float NIGHT_ACTIVITY = 0.6;

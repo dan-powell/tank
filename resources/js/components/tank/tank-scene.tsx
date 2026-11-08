@@ -65,9 +65,15 @@ export function TankScene({
     const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
     const [start] = useState(orbitStart);
 
+    const waterLevel = tank.grid.water_level;
+
     useEffect(() => {
         causticUniforms.uCausticWaterLine.value = TANK.waterLine;
-    }, []);
+
+        if (!tank.has_water) {
+            causticUniforms.uCausticStrength.value = 0;
+        }
+    }, [waterLevel, tank.has_water]);
     const lastGizmoUse = useRef(0);
     const speciesById = useMemo(
         () => new Map(species.map((definition) => [definition.id, definition])),
@@ -137,6 +143,7 @@ export function TankScene({
                 isLit={tank.is_lit}
                 grid={tank.grid}
                 substrate={tank.substrate}
+                hasWater={tank.has_water}
                 showEdges={viewMode === 'orbit'}
             />
             <Suspense fallback={null}>
@@ -202,7 +209,14 @@ export function TankScene({
             <TankCameraRig mode={viewMode} controls={controls} />
             <TankPanControls controls={controls} />
             {/* Last, so its refraction pass sees this frame's camera. */}
-            <WaterVolume water={tank.water} isLit={tank.is_lit} world={world} />
+            {tank.has_water && (
+                <WaterVolume
+                    key={waterLevel}
+                    water={tank.water}
+                    isLit={tank.is_lit}
+                    world={world}
+                />
+            )}
         </Canvas>
     );
 }

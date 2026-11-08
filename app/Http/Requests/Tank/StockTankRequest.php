@@ -65,6 +65,12 @@ class StockTankRequest extends FormRequest
                     ]));
                 }
 
+                if (! $isPlant && TankGeometry::isDry($tank)) {
+                    $validator->errors()->add('species_id', __('There is no water for animals to live in.'));
+
+                    return;
+                }
+
                 $decoration = $this->decoration();
 
                 if ($decoration === null) {

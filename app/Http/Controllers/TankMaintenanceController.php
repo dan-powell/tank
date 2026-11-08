@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Actions\Tank\ChangeWater;
 use App\Actions\Tank\FeedTank;
 use App\Actions\Tank\ScrubAlgae;
+use App\Actions\Tank\SetWaterLevel;
 use App\Actions\Tank\ToggleLight;
 use App\Actions\Tank\VacuumGravel;
 use App\Http\Requests\Tank\ChangeWaterRequest;
 use App\Http\Requests\Tank\FeedTankRequest;
+use App\Http\Requests\Tank\SetWaterLevelRequest;
 use App\Models\Tank;
 use Illuminate\Http\RedirectResponse;
 
@@ -24,6 +26,13 @@ class TankMaintenanceController extends Controller
     public function changeWater(ChangeWaterRequest $request, Tank $tank, ChangeWater $changeWater): RedirectResponse
     {
         $changeWater->handle($tank, $request->integer('percent'));
+
+        return back();
+    }
+
+    public function setWaterLevel(SetWaterLevelRequest $request, Tank $tank, SetWaterLevel $setWaterLevel): RedirectResponse
+    {
+        $setWaterLevel->handle($tank, $request->waterLevel());
 
         return back();
     }

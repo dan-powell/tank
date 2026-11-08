@@ -46,6 +46,26 @@ class TankSimulatorTest extends TestCase
         $this->assertSame(3000, $result->simulatedSeconds);
     }
 
+    public function test_an_empty_tank_pauses_the_water_chemistry_but_plants_still_wilt(): void
+    {
+        $plant = $this->plant(overrides: ['health' => 1.0]);
+        $state = $this->tankState([
+            'hasWater' => false,
+            'waterLevel' => 4,
+            'ammonia' => 1.0,
+            'temperature' => 18.0,
+            'uneatenFood' => 0.5,
+            'plants' => [$plant],
+        ]);
+
+        $result = (new TankSimulator(TankSimulator::defaultSystems()))->advance($state, 3600);
+
+        $this->assertSame(1.0, $result->state->ammonia);
+        $this->assertSame(18.0, $result->state->temperature);
+        $this->assertSame(0.5, $result->state->uneatenFood);
+        $this->assertEqualsWithDelta(0.98, $result->state->plants[0]->health, 0.0001);
+    }
+
     public function test_does_not_mutate_the_input_state(): void
     {
         $state = $this->populatedTank();
