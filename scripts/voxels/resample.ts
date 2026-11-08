@@ -9,7 +9,11 @@
  * (x right, y up, z towards the viewer), as the catalogue's anchors do.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { readVox, writeVox, type VoxModel } from './vox-file.ts';
+import {
+    readVox,
+    writeVox,
+    type VoxModel,
+} from '../../resources/js/lib/tank/vox-file.ts';
 
 function resample(model: VoxModel, factor: number): VoxModel {
     const [sx, sy, sz] = model.size;

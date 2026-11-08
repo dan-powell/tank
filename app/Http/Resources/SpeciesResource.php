@@ -6,6 +6,7 @@ use App\Enums\Habitat;
 use App\Enums\PlantAnchorage;
 use App\Enums\SpeciesKind;
 use App\Models\Species;
+use App\Simulation\SpeciesCatalogue;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -33,7 +34,7 @@ class SpeciesResource extends JsonResource
             'max_size' => $this->params['max_size'] ?? null,
             'habitat' => Habitat::fromParams($this->params),
             'anchorage' => $this->kind === SpeciesKind::Plant ? PlantAnchorage::fromParams($this->params) : null,
-            'render' => $this->params['render'] ?? [],
+            'render' => SpeciesCatalogue::render($this->slug) ?? $this->params['render'] ?? [],
         ];
     }
 }

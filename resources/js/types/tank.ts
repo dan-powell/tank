@@ -174,6 +174,10 @@ export type SpeciesRender = {
     voxel_depth?: number;
     shell?: string;
     stripe?: string;
+    /** Animals' growth stages: model stage name => smallest size (cm) that shows it, in order. */
+    stages?: Record<string, number>;
+    /** Animals' animation frame rates (frames per second) per clip, e.g. `move` and `idle`. */
+    animation?: Record<string, number>;
 };
 
 export type Species = {

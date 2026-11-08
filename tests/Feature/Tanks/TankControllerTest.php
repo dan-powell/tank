@@ -7,6 +7,7 @@ use App\Models\Decoration;
 use App\Models\Plant;
 use App\Models\Tank;
 use App\Models\User;
+use App\Simulation\SpeciesCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
@@ -75,6 +76,20 @@ class TankControllerTest extends TestCase
                 ->has('decorationCatalogue', 6)
                 ->where('decorationCatalogue.1.slug', 'boulder')
                 ->where('decorationCatalogue.1.anchors.0', [33, 43, 28]));
+    }
+
+    public function test_species_render_settings_come_from_the_catalogue_not_the_stored_copy(): void
+    {
+        $tank = Tank::factory()->create();
+        $guppy = SpeciesCatalogue::resolve('guppy');
+        $guppy->update(['params' => [...$guppy->params, 'render' => ['body' => '#000000']]]);
+        Creature::factory()->for($tank)->for($guppy)->create();
+
+        $this->actingAs($tank->user)
+            ->get(route('tanks.show', $tank))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('species', fn ($species): bool => collect($species)->firstWhere('slug', 'guppy')['render']
+                    === SpeciesCatalogue::render('guppy')));
     }
 
     public function test_other_users_cannot_view_the_tank(): void

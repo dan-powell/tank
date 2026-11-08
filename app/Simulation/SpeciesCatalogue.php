@@ -19,6 +19,12 @@ use App\Models\Species;
  * species lives in the water (the default), at its edge, on land or both;
  * land species use `humidity` (%) ranges and `max_per_100cm2` of dry land.
  * Diets may include `prey`: the number of `prey` animals that make a full meal.
+ *
+ * `render` is presentation only and is read from here rather than the stored
+ * copy (see SpeciesResource). Animals list growth `stages` (name => smallest
+ * size in cm) and `animation` frame rates per clip (`move`, `idle`); their
+ * models live in resources/models/species/{slug}.vox, one MagicaVoxel object
+ * per frame named `stage.clip.frame` (e.g. `adult.move.2`).
  */
 final class SpeciesCatalogue
 {
@@ -100,7 +106,11 @@ final class SpeciesCatalogue
                         'brood' => [3, 8],
                     ],
                     'zone' => ['y' => [0.45, 0.9], 'radius' => 0.25],
-                    'render' => ['body' => '#b8c2cc', 'colorful_tail' => true, 'schooling' => 0.3, 'speed' => 0.35, 'layer_roam' => 0.25],
+                    'render' => [
+                        'body' => '#b8c2cc', 'colorful_tail' => true, 'schooling' => 0.3, 'speed' => 0.35, 'layer_roam' => 0.25,
+                        'stages' => ['fry' => 0, 'juvenile' => 1.4, 'adult' => 2.8],
+                        'animation' => ['move' => 8, 'idle' => 3],
+                    ],
                 ],
             ],
             'corydoras' => [
@@ -131,7 +141,11 @@ final class SpeciesCatalogue
                         'brood' => [2, 6],
                     ],
                     'zone' => ['y' => [0.02, 0.08], 'radius' => 0.35],
-                    'render' => ['body' => '#c9b28f', 'schooling' => 0.6, 'speed' => 0.2, 'layer_roam' => 0.1],
+                    'render' => [
+                        'body' => '#c9b28f', 'schooling' => 0.6, 'speed' => 0.2, 'layer_roam' => 0.1,
+                        'stages' => ['fry' => 0, 'juvenile' => 2.2, 'adult' => 4.4],
+                        'animation' => ['move' => 7, 'idle' => 2],
+                    ],
                 ],
             ],
             'nerite-snail' => [
@@ -158,7 +172,11 @@ final class SpeciesCatalogue
                     'max_per_100l' => 10,
                     'breeding' => ['mode' => BreedingMode::None->value],
                     'zone' => ['y' => [0.0, 0.03], 'radius' => 0.5],
-                    'render' => ['shell' => '#6b4f2a', 'stripe' => '#e0b84a', 'speed' => 0.03, 'layer_roam' => 0.05],
+                    'render' => [
+                        'shell' => '#6b4f2a', 'stripe' => '#e0b84a', 'speed' => 0.03, 'layer_roam' => 0.05,
+                        'stages' => ['hatchling' => 0, 'juvenile' => 0.8, 'adult' => 1.6],
+                        'animation' => ['move' => 3, 'idle' => 1],
+                    ],
                 ],
             ],
             'cushion-moss' => [
@@ -277,7 +295,11 @@ final class SpeciesCatalogue
                     'prey' => true,
                     'breeding' => ['mode' => BreedingMode::EggLayer->value, 'chance_per_day' => 0.3, 'brood' => [3, 8]],
                     'zone' => ['y' => [0.0, 0.0], 'radius' => 0.3],
-                    'render' => ['body' => '#e8e4d8', 'speed' => 0.06, 'layer_roam' => 0.4],
+                    'render' => [
+                        'body' => '#e8e4d8', 'speed' => 0.06, 'layer_roam' => 0.4,
+                        'stages' => ['young' => 0, 'adult' => 0.15],
+                        'animation' => ['move' => 6, 'idle' => 1],
+                    ],
                 ],
             ],
             'dwarf-white-isopod' => [
@@ -306,7 +328,11 @@ final class SpeciesCatalogue
                     'prey' => true,
                     'breeding' => ['mode' => BreedingMode::Livebearer->value, 'chance_per_day' => 0.2, 'gestation_days' => 20, 'brood' => [3, 6]],
                     'zone' => ['y' => [0.0, 0.0], 'radius' => 0.3],
-                    'render' => ['body' => '#f0ece0', 'speed' => 0.03, 'layer_roam' => 0.3],
+                    'render' => [
+                        'body' => '#f0ece0', 'speed' => 0.03, 'layer_roam' => 0.3,
+                        'stages' => ['young' => 0, 'adult' => 0.3],
+                        'animation' => ['move' => 6, 'idle' => 1],
+                    ],
                 ],
             ],
             'glass-snail' => [
@@ -334,7 +360,11 @@ final class SpeciesCatalogue
                     'max_per_100cm2' => 1,
                     'breeding' => ['mode' => BreedingMode::EggLayer->value, 'chance_per_day' => 0.05, 'brood' => [2, 4]],
                     'zone' => ['y' => [0.0, 0.0], 'radius' => 0.4],
-                    'render' => ['shell' => '#b8a17a', 'stripe' => '#d9c79d', 'speed' => 0.015, 'layer_roam' => 0.1],
+                    'render' => [
+                        'shell' => '#b8a17a', 'stripe' => '#d9c79d', 'speed' => 0.015, 'layer_roam' => 0.1,
+                        'stages' => ['hatchling' => 0, 'juvenile' => 0.25, 'adult' => 0.45],
+                        'animation' => ['move' => 3, 'idle' => 1],
+                    ],
                 ],
             ],
             'fire-bellied-toad' => [
@@ -363,10 +393,24 @@ final class SpeciesCatalogue
                     'max_per_100cm2' => 0.15,
                     'breeding' => ['mode' => BreedingMode::EggLayer->value, 'chance_per_day' => 0.01, 'brood' => [2, 5]],
                     'zone' => ['y' => [0.0, 0.2], 'radius' => 0.4],
-                    'render' => ['body' => '#4a7a3a', 'stripe' => '#e0562b', 'speed' => 0.12, 'layer_roam' => 0.3],
+                    'render' => [
+                        'body' => '#4a7a3a', 'stripe' => '#e0562b', 'speed' => 0.12, 'layer_roam' => 0.3,
+                        'stages' => ['froglet' => 0, 'juvenile' => 2.0, 'adult' => 4.0],
+                        'animation' => ['move' => 6, 'idle' => 2],
+                    ],
                 ],
             ],
         ];
+    }
+
+    /**
+     * A catalogue species' current render settings, or null for species not in the catalogue.
+     *
+     * @return array<string, mixed>|null
+     */
+    public static function render(string $slug): ?array
+    {
+        return self::definitions()[$slug]['params']['render'] ?? null;
     }
 
     /**

@@ -1,13 +1,18 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Color, Group, Vector3 } from 'three';
-import { useVoxelModel } from '@/hooks/use-voxel-model';
+import { Color, Group, Material, Mesh, Vector3 } from 'three';
 import {
-    CM,
+    framesFor,
+    stageFor,
+    useSpeciesModel,
+} from '@/hooks/use-species-model';
+import type { ModelFrame } from '@/hooks/use-species-model';
+import {
     laneOffset,
     layerToZ,
     TANK,
     toWorld,
+    VOXEL,
     zoneRadiusToWorld,
 } from '@/lib/tank/space';
 import { createWanderState, standsOnBase, steer } from '@/lib/tank/steering';
@@ -144,8 +149,11 @@ type CreatureProps = {
 /** Smallest hit box (world units), so fry stay clickable. */
 const MIN_HIT_SIZE = 0.06;
 
-/** Seconds a creature takes to turn round (the sprite faces right). */
+/** Seconds a creature takes to turn round (models face right). */
 const TURN_SECONDS = 0.4;
+
+/** Seconds of the squash-and-stretch played when a creature grows into its next stage. */
+const POP_SECONDS = 0.35;
 
 function Creature({
     creature,
@@ -159,11 +167,17 @@ function Creature({
 }: CreatureProps) {
     const group = useRef<Group>(null);
     const selectable = useSelectable(onSelect);
-    const model = useVoxelModel(species);
-    const length = Math.max(creature.size, 0.3) * CM;
-    const height = (model.height * length) / model.width;
+    const model = useSpeciesModel(species);
+    const stage = stageFor(species, model, creature.size);
+    const frame = framesFor(model, stage, 'idle')[0];
+    const length = (frame?.size[0] ?? 1) * VOXEL;
+    const height = (frame?.size[1] ?? 1) * VOXEL;
+    const depth = (frame?.size[2] ?? 1) * VOXEL;
     const centreY = standsOnBase(species.behaviour) ? height / 2 : 0;
     const yaw = useRef<Group>(null);
+    const pop = useRef<Group>(null);
+    const shownStage = useRef(stage);
+    const popStarted = useRef<number | null>(null);
     const wander = useRef<WanderState | null>(null);
     const homeLayer = Math.min(layerCount - 1, creature.zone.layer);
     const zoneCenter = useMemo(
@@ -279,18 +293,40 @@ function Creature({
         object.rotation.y =
             Math.sin(state.clock.elapsedTime * beat + creature.id) *
             (standsOnBase(species.behaviour) ? 0 : 0.12);
+
+        if (shownStage.current !== stage) {
+            shownStage.current = stage;
+            popStarted.current = state.clock.elapsedTime;
+        }
+
+        const popping = pop.current;
+
+        if (popping !== null && popStarted.current !== null) {
+            const t =
+                (state.clock.elapsedTime - popStarted.current) / POP_SECONDS;
+            const squash = t >= 1 ? 0 : Math.sin(Math.PI * t) * 0.25;
+            popping.scale.set(1 - squash * 0.5, 1 + squash, 1 - squash * 0.5);
+
+            if (t >= 1) {
+                popStarted.current = null;
+            }
+        }
     });
 
     return (
         <group ref={group} position={body.position}>
             <group ref={yaw}>
-                <VoxelCreature
-                    species={species}
-                    length={length}
-                    tint={tailColour(species, creature.id)}
-                    health={creature.health}
-                    highlighted={isSelected}
-                />
+                <group ref={pop}>
+                    {frame !== undefined && (
+                        <VoxelCreature
+                            species={species}
+                            frame={frame}
+                            tint={tailColour(species, creature.id)}
+                            health={creature.health}
+                            highlighted={isSelected}
+                        />
+                    )}
+                </group>
                 {/* Invisible, slightly generous hit box: cheaper to raycast than the voxels. */}
                 <mesh
                     position={[0, centreY, 0]}
@@ -301,7 +337,7 @@ function Creature({
                         args={[
                             Math.max(length * 1.1, MIN_HIT_SIZE),
                             Math.max(height * 1.2, MIN_HIT_SIZE),
-                            Math.max(height * 0.8, MIN_HIT_SIZE),
+                            Math.max(depth * 1.2, MIN_HIT_SIZE),
                         ]}
                     />
                 </mesh>
@@ -310,7 +346,7 @@ function Creature({
     );
 }
 
-/** Per-individual colour for tint-keyed sprite pixels (e.g. guppy tails). */
+/** Per-individual colour for tint-keyed voxels (e.g. guppy tails). */
 function tailColour(species: Species, creatureId: number): Color {
     if (!species.render.colorful_tail) {
         return new Color(species.render.body ?? '#b8c2cc');
@@ -321,8 +357,7 @@ function tailColour(species: Species, creatureId: number): Color {
 
 type VoxelCreatureProps = {
     species: Species;
-    /** Nose-to-tail length in world units. */
-    length: number;
+    frame: ModelFrame;
     tint: Color;
     health: number;
     /** Overall colour multiplier override (e.g. for the dead). */
@@ -333,19 +368,18 @@ type VoxelCreatureProps = {
 };
 
 /**
- * The species sprite as a voxel mesh, scaled to the creature's length and
- * centred on its body (crawlers sit on their base instead).
+ * One frame of a species model at the shared voxel size, centred on its body
+ * (crawlers and walkers stand on their base instead).
  */
 function VoxelCreature({
     species,
-    length,
+    frame,
     tint,
     health,
     shade,
     opacity = 1,
     highlighted = false,
 }: VoxelCreatureProps) {
-    const model = useVoxelModel(species);
     const tintHex = tint.getHexString();
     const shadeHex = shade?.getHexString();
     const material = useMemo(() => {
@@ -377,24 +411,23 @@ function VoxelCreature({
 
     useEffect(() => () => halo?.dispose(), [halo]);
 
-    const scale = length / model.width;
-    const lift = standsOnBase(species.behaviour) ? 0 : -model.height / 2;
+    const lift = standsOnBase(species.behaviour) ? 0 : -frame.size[1] / 2;
 
     return (
         <>
             <mesh
-                geometry={model.geometry}
+                geometry={frame.geometry}
                 material={material}
-                scale={scale}
-                position={[0, lift * scale, 0]}
+                scale={VOXEL}
+                position={[0, lift * VOXEL, 0]}
                 renderOrder={highlighted ? SELECTED_RENDER_ORDER : 0}
             />
             {halo !== null && (
                 <mesh
-                    geometry={haloGeometry(model.geometry)}
+                    geometry={haloGeometry(frame.geometry)}
                     material={halo}
-                    scale={scale}
-                    position={[0, lift * scale, 0]}
+                    scale={VOXEL}
+                    position={[0, lift * VOXEL, 0]}
                     renderOrder={HALO_RENDER_ORDER}
                     raycast={() => null}
                 />
@@ -403,6 +436,7 @@ function VoxelCreature({
     );
 }
 
+/** Seconds the dead take to float up (or lie still on land) and fade away. */
 const FLOAT_SECONDS = 5;
 
 function DepartedCreature({
@@ -415,7 +449,12 @@ function DepartedCreature({
     const group = useRef<Group>(null);
     const elapsed = useRef(0);
     const finished = useRef(false);
-    const length = Math.max(ghost.size, 0.3) * CM;
+    const model = useSpeciesModel(ghost.species);
+    const frame = framesFor(
+        model,
+        stageFor(ghost.species, model, ghost.size),
+        'idle',
+    )[0];
 
     useFrame((_, delta) => {
         const object = group.current;
@@ -437,9 +476,12 @@ function DepartedCreature({
                 object.rotation.x + delta * 1.5,
             );
         }
-        object.scale.setScalar(
-            Math.max(0.01, 1 - elapsed.current / FLOAT_SECONDS),
-        );
+        const opacity = 0.8 * Math.max(0, 1 - elapsed.current / FLOAT_SECONDS);
+        object.traverse((child) => {
+            if (child instanceof Mesh && child.material instanceof Material) {
+                child.material.opacity = opacity;
+            }
+        });
 
         if (elapsed.current >= FLOAT_SECONDS) {
             finished.current = true;
@@ -450,14 +492,16 @@ function DepartedCreature({
     return (
         <group ref={group} position={ghost.position}>
             <group rotation={[0, ghost.facing > 0 ? 0 : Math.PI, 0]}>
-                <VoxelCreature
-                    species={ghost.species}
-                    length={length}
-                    tint={new Color('#9a9a9a')}
-                    health={0}
-                    shade={new Color('#9a9a9a')}
-                    opacity={0.8}
-                />
+                {frame !== undefined && (
+                    <VoxelCreature
+                        species={ghost.species}
+                        frame={frame}
+                        tint={new Color('#9a9a9a')}
+                        health={0}
+                        shade={new Color('#9a9a9a')}
+                        opacity={0.8}
+                    />
+                )}
             </group>
         </group>
     );

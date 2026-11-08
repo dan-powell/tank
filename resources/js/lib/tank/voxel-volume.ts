@@ -4,9 +4,9 @@ import {
     Float32BufferAttribute,
     SRGBColorSpace,
 } from 'three';
-import { VOXLoader } from 'three/examples/jsm/loaders/VOXLoader.js';
 import type { DecorationDefinition, GridCell } from '@/types';
 import { CELLS_PER_CM } from './space';
+import { readVox } from './vox-file';
 
 /**
  * A fully 3D voxel model on the decoration grid. Each cell holds a palette
@@ -44,7 +44,7 @@ export function voxelAt(
     return volume.cells[(y * depth + z) * width + x];
 }
 
-function setVoxel(
+export function setVoxel(
     volume: VoxelVolume,
     x: number,
     y: number,
@@ -185,15 +185,26 @@ const FACES: { normal: GridCell; corners: GridCell[] }[] = [
 const BRIGHTNESS_JITTER = 0.08;
 
 /**
+ * Palette index that species models use for parts recoloured per individual
+ * (shown as magenta in MagicaVoxel), e.g. guppy tails.
+ */
+export const TINT_INDEX = 255;
+
+/**
  * Turn a volume into a mesh in cell units, with its minimum corner at the
  * origin. Only faces that border empty cells are emitted. Vertex colours and
- * an all-zero `aTint` attribute make it work with the voxel materials.
+ * an `aTint` attribute (1 on `tintIndex` voxels, if given) make it work with
+ * the voxel materials.
  */
-export function buildVolumeGeometry(volume: VoxelVolume): BufferGeometry {
+export function buildVolumeGeometry(
+    volume: VoxelVolume,
+    { tintIndex }: { tintIndex?: number } = {},
+): BufferGeometry {
     const [width, height, depth] = volume.size;
     const positions: number[] = [];
     const normals: number[] = [];
     const colours: number[] = [];
+    const tints: number[] = [];
     const colour = new Color();
 
     for (let y = 0; y < height; y++) {
@@ -232,6 +243,7 @@ export function buildVolumeGeometry(volume: VoxelVolume): BufferGeometry {
                         );
                         normals.push(...normal);
                         colours.push(colour.r, colour.g, colour.b);
+                        tints.push(value === tintIndex ? 1 : 0);
                     }
                 }
             }
@@ -242,50 +254,60 @@ export function buildVolumeGeometry(volume: VoxelVolume): BufferGeometry {
     geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
     geometry.setAttribute('normal', new Float32BufferAttribute(normals, 3));
     geometry.setAttribute('color', new Float32BufferAttribute(colours, 3));
-    geometry.setAttribute(
-        'aTint',
-        new Float32BufferAttribute(new Float32Array(positions.length / 3), 1),
-    );
+    geometry.setAttribute('aTint', new Float32BufferAttribute(tints, 1));
     geometry.computeBoundingSphere();
 
     return geometry;
 }
 
 /**
- * Read the first model of a MagicaVoxel file. MagicaVoxel's Z axis is up and
- * its Y axis points away from the viewer, so Y becomes depth reversed.
+ * Every model in a MagicaVoxel file, with its outliner name. MagicaVoxel's
+ * Z axis is up and its Y axis points away from the viewer, so Y becomes
+ * depth reversed.
  */
-export function volumeFromVox(buffer: ArrayBuffer): VoxelVolume {
-    const chunk = new VOXLoader().parse(buffer).chunks[0];
+export function volumesFromVox(
+    buffer: ArrayBuffer,
+): { name: string; volume: VoxelVolume }[] {
+    const file = readVox(new Uint8Array(buffer));
+    // File palette entry i is colour index i + 1; index 0 means empty.
+    const palette = [
+        new Color(),
+        ...file.palette.map((hex) =>
+            new Color().setRGB(
+                (hex & 0xff) / 255,
+                ((hex >> 8) & 0xff) / 255,
+                ((hex >> 16) & 0xff) / 255,
+                SRGBColorSpace,
+            ),
+        ),
+    ];
 
-    if (chunk === undefined) {
+    return file.models.map(({ name, size: [sx, sy, sz], voxels }) => {
+        const volume = createVolume([sx, sz, sy], palette);
+
+        for (let i = 0; i < voxels.length; i += 4) {
+            setVoxel(
+                volume,
+                voxels[i],
+                voxels[i + 2],
+                sy - 1 - voxels[i + 1],
+                voxels[i + 3],
+            );
+        }
+
+        return { name, volume };
+    });
+}
+
+/** Read the first model of a MagicaVoxel file. */
+export function volumeFromVox(buffer: ArrayBuffer): VoxelVolume {
+    const first = volumesFromVox(buffer)[0];
+
+    if (first === undefined) {
         throw new Error('The .vox file contains no model.');
     }
 
-    const palette = chunk.palette.map((hex) =>
-        new Color().setRGB(
-            (hex & 0xff) / 255,
-            ((hex >> 8) & 0xff) / 255,
-            ((hex >> 16) & 0xff) / 255,
-            SRGBColorSpace,
-        ),
-    );
-    const volume = createVolume(
-        [chunk.size.x, chunk.size.z, chunk.size.y],
-        palette,
-    );
-
-    for (let i = 0; i < chunk.data.length; i += 4) {
-        setVoxel(
-            volume,
-            chunk.data[i],
-            chunk.data[i + 2],
-            chunk.size.y - 1 - chunk.data[i + 1],
-            chunk.data[i + 3],
-        );
-    }
-
-    return volume;
+    return first.volume;
 }
 
 /** Rock shaping, in cells: lumps about 2 cm across, colour bands 1.25 cm tall with 1.5 cm waves. */
