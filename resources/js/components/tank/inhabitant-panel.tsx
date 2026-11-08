@@ -18,7 +18,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { CM, PLANT_HEIGHT_UNIT } from '@/lib/tank/space';
+import { MOSS_SPACING } from '@/lib/tank/plant-assembly';
+import { CELLS_PER_CM, CM, PLANT_HEIGHT_UNIT } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import creatureRoutes from '@/routes/tanks/creatures';
 import plantRoutes from '@/routes/tanks/plants';
@@ -189,16 +190,22 @@ function PlantStats({
     plant: PlantSnapshot;
     species: Species;
 }) {
-    const heightCm =
-        (plant.segments *
-            (species.render.segment_height ?? 0.06) *
-            PLANT_HEIGHT_UNIT) /
-        CM;
+    const isCushion = species.behaviour === 'cushion';
+    // Moss spreads instead of growing up: one patch per segment, about MOSS_SPACING apart.
+    const sizeCm = isCushion
+        ? (2 * MOSS_SPACING * Math.sqrt(plant.segments / Math.PI)) /
+          CELLS_PER_CM
+        : (plant.segments *
+              (species.render.segment_height ?? 0.06) *
+              PLANT_HEIGHT_UNIT) /
+          CM;
 
     return (
         <>
             <Stat label="Age">{formatDays(plant.age_days)}</Stat>
-            <Stat label="Height">{heightCm.toFixed(1)} cm</Stat>
+            <Stat label={isCushion ? 'Spread' : 'Height'}>
+                {sizeCm.toFixed(1)} cm
+            </Stat>
             <Stat label="Health">
                 <Meter
                     label="Health"

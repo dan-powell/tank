@@ -3,10 +3,11 @@
  *
  *     node scripts/voxels/generate-species.ts [--force] [slug...]
  *
- * Writes resources/models/species/{slug}.vox at 1 voxel = 0.2 cm, one object
- * per frame named `stage.clip.frame` (e.g. `adult.move.2`), matching the
- * `stages` and `animation` in app/Simulation/SpeciesCatalogue.php. Models
- * face +x (to the right), with z towards the viewer and y up.
+ * Writes resources/models/species/{slug}.vox at 1 voxel = 0.2 cm. Animals get
+ * one object per frame named `stage.clip.frame` (e.g. `adult.move.2`),
+ * matching the `stages` and `animation` in app/Simulation/SpeciesCatalogue.php;
+ * plants get named parts (see Parts). Models face +x (to the right), with z
+ * towards the viewer and y up.
  *
  * The placeholders are meant to be replaced in MagicaVoxel. A file whose
  * contents no longer match what this script last wrote (recorded in
@@ -526,13 +527,274 @@ function toadClips(length: number, style: ToadStyle): Clips {
     };
 }
 
+// ---------------------------------------------------------------- plants
+
+/**
+ * Plant parts are assembled in the game: a `base`, a chain of `stem.*`
+ * segments (one per growth segment, variant chosen per plant), a `tip`, and
+ * `leaf.*` placed along the stem. Parts are centred on x/z with their base
+ * at y = 0, except frond leaves, which grow out along +x from x = 0.
+ */
+type Parts = Record<string, Grid>;
+
+function crown(colour: string): Grid {
+    const grid = new Grid(3, 2, 3);
+    const root = mix(colour, '#6b4f2a', 0.55);
+
+    for (let x = 0; x < 3; x++) {
+        for (let z = 0; z < 3; z++) {
+            grid.set(x, 0, z, root);
+
+            if (x === 1 || z === 1) {
+                grid.set(x, 1, z, shade(colour, 0.8));
+            }
+        }
+    }
+
+    return grid;
+}
+
+function column(
+    width: number,
+    height: number,
+    depth: number,
+    colour: (x: number, y: number, z: number) => string,
+): Grid {
+    const grid = new Grid(width, height, depth);
+
+    for (let y = 0; y < height; y++) {
+        for (let z = 0; z < depth; z++) {
+            for (let x = 0; x < width; x++) {
+                grid.set(x, y, z, colour(x, y, z));
+            }
+        }
+    }
+
+    return grid;
+}
+
+function ribbonParts(
+    height: number,
+    colour: string,
+    width: number,
+    tipColour: string,
+): Parts {
+    const stem = (variant: number) =>
+        column(width, height, 1, (x, y, z) => {
+            const base = shade(colour, [1, 0.92, 1.08][variant]);
+            const lit =
+                width > 1 && x === 0 ? mix(base, '#e8f5c8', 0.15) : base;
+
+            return hash(x, y, z, variant) < 0.12 ? shade(lit, 0.85) : lit;
+        });
+    const tip = new Grid(width, 3, 1);
+
+    for (let x = 0; x < width; x++) {
+        tip.set(x, 0, 0, colour);
+    }
+
+    tip.set(0, 1, 0, mix(colour, tipColour, 0.5));
+    tip.set(0, 2, 0, tipColour);
+
+    return {
+        base: crown(colour),
+        'stem.0': stem(0),
+        'stem.1': stem(1),
+        'stem.2': stem(2),
+        tip,
+    };
+}
+
+function whorl(colour: string, reach: number, variant: number): Grid {
+    const size = reach * 2 + 1;
+    const grid = new Grid(size, 2, size);
+
+    for (let direction = 0; direction < 8; direction++) {
+        const angle = (direction / 8) * Math.PI * 2 + variant * 0.4;
+
+        for (let r = 1; r <= reach; r++) {
+            const x = Math.round(reach + Math.cos(angle) * r);
+            const z = Math.round(reach + Math.sin(angle) * r);
+            grid.set(
+                x,
+                r === reach ? 1 : 0,
+                z,
+                r === reach ? mix(colour, '#b8d88a', 0.25) : colour,
+            );
+        }
+    }
+
+    return grid;
+}
+
+function whorlParts(height: number, colour: string): Parts {
+    const stem = (variant: number) =>
+        column(1, height, 1, () => shade(colour, variant === 0 ? 0.75 : 0.7));
+    const tip = new Grid(5, 3, 5);
+
+    for (let y = 0; y < 3; y++) {
+        for (let x = 0; x < 5; x++) {
+            for (let z = 0; z < 5; z++) {
+                const r = Math.hypot(x - 2, z - 2);
+
+                if (r <= 2.2 - y * 0.7 && hash(x, y, z, 5) < 0.8) {
+                    tip.set(
+                        x,
+                        y,
+                        z,
+                        y === 2 ? mix(colour, '#b8d88a', 0.3) : colour,
+                    );
+                }
+            }
+        }
+    }
+
+    return {
+        base: crown(colour),
+        'stem.0': stem(0),
+        'stem.1': stem(1),
+        'leaf.0': whorl(colour, 3, 0),
+        'leaf.1': whorl(colour, 3, 1),
+        tip,
+    };
+}
+
+function fernLeaf(
+    colour: string,
+    stemColour: string,
+    length: number,
+    variant: number,
+): Grid {
+    const grid = new Grid(length, 2, 3);
+
+    for (let x = 0; x < length; x++) {
+        grid.set(
+            x,
+            x > length / 2 ? 1 : 0,
+            1,
+            x === 0 ? stemColour : shade(colour, 0.85),
+        );
+
+        if (x > 0 && x < length - (variant % 2)) {
+            const leaflet =
+                hash(x, 0, variant, 2) < 0.3
+                    ? mix(colour, '#d2e6a0', 0.3)
+                    : colour;
+            grid.set(x, x > length / 2 ? 1 : 0, 0, leaflet);
+            grid.set(x, x > length / 2 ? 1 : 0, 2, leaflet);
+        }
+    }
+
+    return grid;
+}
+
+function heartLeaf(colour: string, variegation: string, variant: number): Grid {
+    const grid = new Grid(7, 5, 1);
+
+    for (let x = 0; x < 7; x++) {
+        for (let y = 0; y < 5; y++) {
+            const nx = (x - 4) / 3;
+            const ny = (y - 2) / 2.5;
+            const notch = x === 6 && y === 2;
+
+            if (x <= 1 ? y === 1 : nx * nx + ny * ny <= 1.05 && !notch) {
+                grid.set(
+                    x,
+                    y,
+                    0,
+                    x <= 1
+                        ? shade(colour, 0.8)
+                        : hash(x, y, variant, 7) < 0.25
+                          ? variegation
+                          : colour,
+                );
+            }
+        }
+    }
+
+    return grid;
+}
+
+function frondParts(
+    height: number,
+    colour: string,
+    stemColour: string,
+    leaves: Grid[],
+): Parts {
+    const stem = (variant: number) =>
+        column(1, height, 1, () => shade(stemColour, variant === 0 ? 1 : 0.9));
+    const tip = new Grid(3, 2, 3);
+
+    for (let x = 0; x < 3; x++) {
+        for (let z = 0; z < 3; z++) {
+            if (x === 1 || z === 1) {
+                tip.set(x, 0, z, colour);
+            }
+        }
+    }
+
+    tip.set(1, 1, 1, mix(colour, '#d2e6a0', 0.4));
+
+    return {
+        base: crown(colour),
+        'stem.0': stem(0),
+        'stem.1': stem(1),
+        ...Object.fromEntries(leaves.map((leaf, i) => [`leaf.${i}`, leaf])),
+        tip,
+    };
+}
+
+function mossParts(colour: string): Parts {
+    const light = mix(colour, '#a9c98a', 0.45);
+    const mound = (
+        width: number,
+        height: number,
+        depth: number,
+        salt: number,
+    ) => {
+        const grid = new Grid(width, height, depth);
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                for (let z = 0; z < depth; z++) {
+                    const corner =
+                        (x === 0 || x === width - 1) &&
+                        (z === 0 || z === depth - 1);
+
+                    if (y === 0 || !corner) {
+                        grid.set(
+                            x,
+                            y,
+                            z,
+                            y === height - 1 && hash(x, y, z, salt) < 0.6
+                                ? light
+                                : colour,
+                        );
+                    }
+                }
+            }
+        }
+
+        return grid;
+    };
+
+    return {
+        'patch.0': mound(3, 2, 3, 1),
+        'patch.1': mound(3, 1, 3, 2),
+        'patch.2': mound(2, 2, 2, 3),
+        'patch.3': mound(4, 2, 3, 4),
+    };
+}
+
 // ---------------------------------------------------------------- catalogue
 
-type Species = {
-    /** Model length in voxels per growth stage, in the catalogue's order. */
-    stages: Record<string, number>;
-    clips: (length: number) => Clips;
-};
+type Species =
+    | {
+          /** Model length in voxels per growth stage, in the catalogue's order. */
+          stages: Record<string, number>;
+          clips: (length: number) => Clips;
+      }
+    | { parts: () => Parts };
 
 const guppy: FishStyle = {
     body: '#b8c2cc',
@@ -601,17 +863,54 @@ const SPECIES: Record<string, Species> = {
         clips: (length) =>
             toadClips(length, { body: '#4a7a3a', belly: '#e0562b' }),
     },
+    // Stem parts are one growth segment tall (the catalogue's segment_height).
+    vallisneria: { parts: () => ribbonParts(11, '#4f9d3a', 2, '#9cc46a') },
+    'dwarf-rush': { parts: () => ribbonParts(10, '#3f7d34', 1, '#8a6a3a') },
+    hornwort: { parts: () => whorlParts(8, '#2f7a3b') },
+    'maidenhair-fern': {
+        parts: () =>
+            frondParts(
+                6,
+                '#6fa548',
+                '#2b2118',
+                [0, 1, 2].map((variant) =>
+                    fernLeaf('#6fa548', '#2b2118', 6 + (variant % 2), variant),
+                ),
+            ),
+    },
+    pothos: {
+        parts: () =>
+            frondParts(
+                8,
+                '#4f9a3f',
+                '#3f7f33',
+                [0, 1, 2].map((variant) =>
+                    heartLeaf('#4f9a3f', '#d8d36a', variant),
+                ),
+            ),
+    },
+    'cushion-moss': { parts: () => mossParts('#5d8f3a') },
 };
 
 function build(species: Species): Uint8Array {
     const palette = new Palette();
     const models: VoxModel[] = [];
 
-    for (const [stage, length] of Object.entries(species.stages)) {
-        for (const [clip, frames] of Object.entries(species.clips(length))) {
-            frames.forEach((grid, frame) =>
-                models.push(grid.toModel(`${stage}.${clip}.${frame}`, palette)),
-            );
+    if ('parts' in species) {
+        for (const [name, grid] of Object.entries(species.parts())) {
+            models.push(grid.toModel(name, palette));
+        }
+    } else {
+        for (const [stage, length] of Object.entries(species.stages)) {
+            for (const [clip, frames] of Object.entries(
+                species.clips(length),
+            )) {
+                frames.forEach((grid, frame) =>
+                    models.push(
+                        grid.toModel(`${stage}.${clip}.${frame}`, palette),
+                    ),
+                );
+            }
         }
     }
 

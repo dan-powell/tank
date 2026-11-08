@@ -34,6 +34,8 @@ export type ModelFrame = {
     geometry: BufferGeometry;
     /** Width, height and depth in voxels. */
     size: [number, number, number];
+    /** The voxels themselves, for assembling plants from parts. */
+    volume: VoxelVolume;
 };
 
 /**
@@ -93,7 +95,11 @@ function modelFromVolumes(
         const [width, height, depth] = volume.size;
         const geometry = buildVolumeGeometry(volume, { tintIndex: TINT_INDEX });
         geometry.translate(-width / 2, 0, -depth / 2);
-        const frame: ModelFrame = { geometry, size: [width, height, depth] };
+        const frame: ModelFrame = {
+            geometry,
+            size: [width, height, depth],
+            volume,
+        };
         const animation = /^([^.]+)\.([^.]+)\.(\d+)$/.exec(name);
 
         if (animation !== null) {

@@ -9,9 +9,10 @@ import { applyVoxelTint } from './voxel-material';
  * The bend grows with height above the plant's base (local y = 0) and is
  * phased by world position, so neighbouring plants do not move in lockstep.
  *
- * `unitHeight` is the model's height in local units, so the sway shape is the
- * same whatever the sprite's resolution; the material colour multiplies the
- * sprite colours (use {@link healthTint}).
+ * `unitHeight` is the plant's height in local units (voxels), so the sway
+ * shape is the same at any size; it is a uniform, so plants of every height
+ * share one shader. The material colour multiplies the voxel colours (use
+ * {@link healthTint}).
  */
 export function createSwayMaterial(
     color: Color,
@@ -29,8 +30,7 @@ export function createSwayMaterial(
         applyCaustics(shader);
         applySway(shader, amplitude, unitHeight);
     };
-    material.customProgramCacheKey = () =>
-        `sway-${amplitude.toFixed(3)}-${unitHeight.toFixed(3)}`;
+    material.customProgramCacheKey = () => `sway-${amplitude.toFixed(3)}`;
 
     return material;
 }
@@ -45,14 +45,15 @@ export function applySway(
     unitHeight: number,
 ): void {
     shader.uniforms.uSwayTime = sceneClock;
+    shader.uniforms.uSwayHeight = { value: Math.max(unitHeight, 1e-3) };
     shader.vertexShader =
-        `uniform float uSwayTime;\n${shader.vertexShader}`.replace(
+        `uniform float uSwayTime;\nuniform float uSwayHeight;\n${shader.vertexShader}`.replace(
             '#include <begin_vertex>',
             `#include <begin_vertex>
             vec4 swayOrigin = modelMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-            float swayHeight = max(position.y, 0.0) / ${unitHeight.toFixed(3)};
+            float swayHeight = max(position.y, 0.0) / uSwayHeight;
             float swayPhase = uSwayTime * 0.8 + swayOrigin.x * 2.3 + swayOrigin.z * 1.7;
-            float swayAmount = ${amplitude.toFixed(3)} * swayHeight * swayHeight * ${unitHeight.toFixed(3)};
+            float swayAmount = ${amplitude.toFixed(3)} * swayHeight * swayHeight * uSwayHeight;
             transformed.x += sin(swayPhase + swayHeight * 1.5) * swayAmount;
             transformed.z += cos(swayPhase * 0.7) * swayAmount * 0.4;`,
         );
@@ -62,8 +63,8 @@ export function applySway(
 export const HIGHLIGHT_BRIGHTNESS = 1.45;
 
 /**
- * A colour multiplier for sprite colours that browns a plant as its health
- * drops (white = sprite colours unchanged).
+ * A colour multiplier for voxel colours that browns a plant as its health
+ * drops (white = colours unchanged).
  */
 export function healthTint(health: number): Color {
     return new Color('#ffffff').lerp(

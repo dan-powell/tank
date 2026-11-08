@@ -162,7 +162,9 @@ export type Habitat = 'aquatic' | 'emergent' | 'terrestrial' | 'amphibious';
 
 export type SpeciesRender = {
     color?: string;
+    /** Plants: growth segment height, as a fraction of PLANT_HEIGHT_UNIT (one stem part). */
     segment_height?: number;
+    /** Ribbon plants: how many blades rise from the crown. */
     blades?: number;
     body?: string;
     colorful_tail?: boolean;
@@ -170,8 +172,6 @@ export type SpeciesRender = {
     speed?: number;
     /** 0..1 tendency to visit neighbouring depth layers. */
     layer_roam?: number;
-    /** Maximum voxel thickness when a sprite has a depth map. */
-    voxel_depth?: number;
     shell?: string;
     stripe?: string;
     /** Animals' growth stages: model stage name => smallest size (cm) that shows it, in order. */

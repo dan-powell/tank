@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Simulation;
 
+use App\Enums\SpeciesKind;
 use App\Simulation\SpeciesCatalogue;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -48,6 +49,29 @@ class SpeciesModelsTest extends TestCase
                 in_array("{$stage}.idle.0", $names, true) || in_array("{$stage}.move.0", $names, true),
                 "{$slug}.vox has no idle or move frames for its {$stage} stage.",
             );
+        }
+    }
+
+    /**
+     * @return iterable<string, array{0: string, 1: string}>
+     */
+    public static function plants(): iterable
+    {
+        foreach (SpeciesCatalogue::definitions() as $slug => $definition) {
+            if ($definition['kind'] === SpeciesKind::Plant) {
+                yield $slug => [$slug, $definition['behaviour']];
+            }
+        }
+    }
+
+    #[DataProvider('plants')]
+    public function test_each_plant_model_has_the_parts_it_is_built_from(string $slug, string $behaviour): void
+    {
+        $names = $this->objectNames(dirname(__DIR__, 3)."/resources/models/species/{$slug}.vox");
+        $required = $behaviour === 'cushion' ? ['patch.0'] : ['stem.0', 'tip'];
+
+        foreach ($required as $part) {
+            $this->assertContains($part, $names, "{$slug}.vox has no {$part} part.");
         }
     }
 

@@ -95,7 +95,7 @@ export function createHaloMaterial({
     material.customProgramCacheKey = () =>
         sway === undefined
             ? `halo-${pixels}`
-            : `halo-${pixels}-sway-${sway.amplitude.toFixed(3)}-${sway.unitHeight.toFixed(3)}`;
+            : `halo-${pixels}-sway-${sway.amplitude.toFixed(3)}`;
 
     return material;
 }

@@ -1,14 +1,11 @@
 import { useFrame } from '@react-three/fiber';
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { Group, Vector3 } from 'three';
-import { useVoxelModel } from '@/hooks/use-voxel-model';
-import {
-    laneOffset,
-    layerToZ,
-    PLANT_HEIGHT_UNIT,
-    toWorld,
-} from '@/lib/tank/space';
+import { useSpeciesModel } from '@/hooks/use-species-model';
+import { assembleMoss, assemblePlant } from '@/lib/tank/plant-assembly';
+import { laneOffset, layerToZ, toWorld, VOXEL } from '@/lib/tank/space';
 import { substrateHeightAt } from '@/lib/tank/terrain-field';
+import { buildVolumeGeometry, TINT_INDEX } from '@/lib/tank/voxel-volume';
 import type { PlantSnapshot, Species, TankGrid } from '@/types';
 import {
     createHaloMaterial,
@@ -76,7 +73,7 @@ function RootedPlant({
     grid,
     substrate,
     ...props
-}: Omit<PlantProps, 'position'> & {
+}: Omit<PlantProps, 'position' | 'groundAt'> & {
     layerCount: number;
     grid: TankGrid;
     substrate: number[];
@@ -90,43 +87,88 @@ function RootedPlant({
 
         return root.setY(substrateHeightAt(grid, substrate, root.x, root.z));
     }, [plant.id, plant.root, layer, layerCount, grid, substrate]);
+    const groundAt = useCallback(
+        (dx: number, dz: number) =>
+            (substrateHeightAt(
+                grid,
+                substrate,
+                position.x + dx * VOXEL,
+                position.z + dz * VOXEL,
+            ) -
+                position.y) /
+            VOXEL,
+        [grid, substrate, position],
+    );
 
-    return <Plant plant={plant} position={position} {...props} />;
+    return (
+        <Plant
+            plant={plant}
+            position={position}
+            groundAt={groundAt}
+            {...props}
+        />
+    );
 }
 
 /** Offsets plant lanes from creature lanes, whose ids come from another table. */
 const PLANT_LANE_SALT = 0.31;
+
+/** Seconds a newly planted plant takes to rise out of the ground. */
+const SPROUT_SECONDS = 2;
+
+/** Flat ground, for plants on a decoration. */
+const flatGround = () => 0;
 
 type PlantProps = {
     plant: PlantSnapshot;
     species: Species;
     /** Where its roots are, relative to the parent group. */
     position: Vector3;
+    /** Ground height (voxels, relative to the roots) at an offset from them, for spreading moss. */
+    groundAt?: (dx: number, dz: number) => number;
     isSelected: boolean;
     onSelect: () => void;
 };
 
 /**
- * A plant sprite as a swaying voxel mesh, rooted at `position`. The sprite is
- * the fully grown plant and is scaled to the current height. A second copy
- * turned 90° keeps it looking full when the tank is rotated.
+ * A plant built from its species' voxel parts and rooted at `position`:
+ * stalks one stem part per growth segment (moss: one patch per segment,
+ * spreading over the ground), swaying with the current. It grows by gaining
+ * parts, never by scaling, so every voxel stays the same size.
  */
 export function Plant({
     plant,
     species,
     position,
+    groundAt = flatGround,
     isSelected,
     onSelect,
 }: PlantProps) {
-    const group = useRef<Group>(null);
+    const rise = useRef<Group>(null);
     const selectable = useSelectable(onSelect);
-    const growIn = useRef(0);
-    const model = useVoxelModel(species);
-    const height =
-        plant.segments *
-        (species.render.segment_height ?? 0.06) *
-        PLANT_HEIGHT_UNIT;
-    const scale = height / model.height;
+    const sprout = useRef(0);
+    const model = useSpeciesModel(species);
+    const assembled = useMemo(
+        () =>
+            species.behaviour === 'cushion'
+                ? assembleMoss(model, plant.segments, plant.id, groundAt)
+                : assemblePlant(model, species, plant.segments, plant.id),
+        [model, species, plant.segments, plant.id, groundAt],
+    );
+    const geometry = useMemo(() => {
+        const [ox, oy, oz] = assembled.origin;
+        const built = buildVolumeGeometry(assembled.volume, {
+            tintIndex: TINT_INDEX,
+        });
+        built.translate(-(ox + 0.5), -oy, -(oz + 0.5));
+
+        return built;
+    }, [assembled]);
+
+    useEffect(() => () => geometry.dispose(), [geometry]);
+
+    /** Height above the roots, in voxels. */
+    const height = Math.max(1, assembled.volume.size[1] - assembled.origin[1]);
 
     // Water plants sway in the current; edge plants barely; land plants not at all.
     const swayAmplitude =
@@ -144,9 +186,9 @@ export function Plant({
                     isSelected ? HIGHLIGHT_BRIGHTNESS : 1,
                 ),
                 swayAmplitude,
-                model.height,
+                height,
             ),
-        [swayAmplitude, plant.health, model.height, isSelected],
+        [swayAmplitude, plant.health, height, isSelected],
     );
 
     useEffect(() => () => material.dispose(), [material]);
@@ -155,63 +197,46 @@ export function Plant({
         () =>
             isSelected
                 ? createHaloMaterial({
-                      sway: {
-                          amplitude: swayAmplitude,
-                          unitHeight: model.height,
-                      },
+                      sway: { amplitude: swayAmplitude, unitHeight: height },
                   })
                 : null,
-        [isSelected, swayAmplitude, model.height],
+        [isSelected, swayAmplitude, height],
     );
 
     useEffect(() => () => halo?.dispose(), [halo]);
 
+    // New plants rise out of the ground (or their decoration) instead of scaling up.
     useFrame((_, delta) => {
-        if (group.current !== null && growIn.current < 1) {
-            growIn.current = Math.min(1, growIn.current + delta / 2);
-            group.current.scale.setScalar(growIn.current);
+        if (rise.current !== null && sprout.current < 1) {
+            sprout.current = Math.min(
+                1,
+                sprout.current + delta / SPROUT_SECONDS,
+            );
+            rise.current.position.y = -(1 - sprout.current) * height * VOXEL;
         }
     });
 
-    const mirror = plant.id % 2 === 0 ? 1 : -1;
-
     return (
-        <group ref={group} position={position} scale={0}>
-            {/* Clicks hit the voxels themselves, so gaps between leaves stay see-through. */}
-            <group {...selectable}>
+        <group position={position}>
+            <group ref={rise} position={[0, -height * VOXEL, 0]}>
+                {/* Clicks hit the voxels themselves, so gaps between leaves stay see-through. */}
                 <mesh
-                    geometry={model.geometry}
+                    geometry={geometry}
                     material={material}
-                    scale={[scale * mirror, scale, scale]}
+                    scale={VOXEL}
                     renderOrder={isSelected ? SELECTED_RENDER_ORDER : 0}
+                    {...selectable}
                 />
-                <mesh
-                    geometry={model.geometry}
-                    material={material}
-                    rotation={[0, Math.PI / 2, 0]}
-                    scale={[scale * 0.8 * mirror, scale * 0.92, scale]}
-                    renderOrder={isSelected ? SELECTED_RENDER_ORDER : 0}
-                />
+                {halo !== null && (
+                    <mesh
+                        geometry={haloGeometry(geometry)}
+                        material={halo}
+                        scale={VOXEL}
+                        renderOrder={HALO_RENDER_ORDER}
+                        raycast={() => null}
+                    />
+                )}
             </group>
-            {halo !== null && (
-                <>
-                    <mesh
-                        geometry={haloGeometry(model.geometry)}
-                        material={halo}
-                        scale={[scale * mirror, scale, scale]}
-                        renderOrder={HALO_RENDER_ORDER}
-                        raycast={() => null}
-                    />
-                    <mesh
-                        geometry={haloGeometry(model.geometry)}
-                        material={halo}
-                        rotation={[0, Math.PI / 2, 0]}
-                        scale={[scale * 0.8 * mirror, scale * 0.92, scale]}
-                        renderOrder={HALO_RENDER_ORDER}
-                        raycast={() => null}
-                    />
-                </>
-            )}
         </group>
     );
 }
