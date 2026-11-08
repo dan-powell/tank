@@ -42,7 +42,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
                 Route::put('auto-feeder', [TankAutoFeederController::class, 'update'])->name('auto-feeder.update');
                 Route::delete('auto-feeder', [TankAutoFeederController::class, 'destroy'])->name('auto-feeder.destroy');
                 Route::post('auto-feeder/refill', [TankAutoFeederController::class, 'refill'])->name('auto-feeder.refill');
+                Route::patch('creatures/{creature}/position', [TankCreatureController::class, 'move'])->name('creatures.move');
                 Route::delete('creatures/{creature}', [TankCreatureController::class, 'destroy'])->name('creatures.destroy');
+                Route::patch('plants/{plant}/position', [TankPlantController::class, 'move'])->name('plants.move');
                 Route::delete('plants/{plant}', [TankPlantController::class, 'destroy'])->name('plants.destroy');
                 Route::post('decorations', [TankDecorationController::class, 'store'])->name('decorations.store');
                 Route::patch('decorations/{decoration}', [TankDecorationController::class, 'update'])->name('decorations.update');

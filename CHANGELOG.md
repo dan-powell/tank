@@ -38,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Air above the water (humidity, oxygen, CO2) on the Summary tab: land plants and animals breathe it, open tanks share the room's air, and land plants feed on detritus.
 - Seal the tank from Equipment to make it a closed ecosystem: a glass lid, no air from the room (it mists up as humidity rises), the auto-feeder pauses, and feeding, maintenance, stocking and aquascaping wait until the lid is lifted.
 - The Add stock dialog groups species into water, edge and land, explaining why any can't go in yet.
+- Move a selected animal or plant: choose Move, then click its new spot (swimmers in the water at their depth, everything else on the gravel or a decoration). Spots that don't suit it are refused, e.g. fish on dry land.
 
 ### Changed
 

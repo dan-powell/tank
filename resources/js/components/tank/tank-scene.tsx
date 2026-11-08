@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentRef } from 'react';
 import { MOUSE } from 'three';
+import type { Vector3 } from 'three';
 import { TANK } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
@@ -18,6 +19,8 @@ import { causticUniforms } from './caustics';
 import { Creatures } from './creatures';
 import { Decorations } from './decorations';
 import { Substrate } from './substrate';
+import { PlacementController } from './placement';
+import type { PlacementMode } from './placement';
 import { FoodParticles } from './food-particles';
 import { haloUniforms } from './halo-material';
 import { Plants } from './plants';
@@ -42,6 +45,9 @@ type Props = {
     /** The sculpting brush while sculpt mode is on; selection is paused meanwhile. */
     sculptBrush: SculptBrush | null;
     onSculpt: (heights: number[]) => void;
+    /** While an inhabitant is being moved: how to read the click, and where it landed. */
+    placement: PlacementMode | null;
+    onPlace: (point: Vector3) => void;
 };
 
 /** Clicks this soon (ms) after a gizmo drag ends belong to the gizmo, not the empty water. */
@@ -68,8 +74,10 @@ export function TankScene({
     onMoveDecoration,
     sculptBrush,
     onSculpt,
+    placement,
+    onPlace,
 }: Props) {
-    const isSculpting = sculptBrush !== null;
+    const isSculpting = sculptBrush !== null || placement !== null;
     const onSelect = (next: TankSelection | null) => {
         if (!isSculpting) {
             select(next);
@@ -236,6 +244,9 @@ export function TankScene({
             />
             <TankCameraRig mode={viewMode} controls={controls} />
             <TankPanControls controls={controls} />
+            {placement !== null && (
+                <PlacementController mode={placement} onPlace={onPlace} />
+            )}
             {/* Last, so its refraction pass sees this frame's camera. */}
             {tank.has_water && (
                 <WaterVolume

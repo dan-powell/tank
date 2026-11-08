@@ -255,6 +255,27 @@ final class TankGeometry
     }
 
     /**
+     * Height of whatever stands highest at a grid column: the substrate or a
+     * decoration over it.
+     *
+     * @param  iterable<Decoration>  $decorations
+     */
+    public static function surfaceAt(Tank $tank, iterable $decorations, int $x, int $z): int
+    {
+        $surface = self::substrateHeightAt($tank, $x, $z);
+
+        foreach ($decorations as $decoration) {
+            $box = self::footprint($decoration);
+
+            if ($box->coversColumn($x, $z)) {
+                $surface = max($surface, $box->maxY());
+            }
+        }
+
+        return $surface;
+    }
+
+    /**
      * Square centimetres of dry ground (see landColumns()).
      *
      * @param  iterable<Decoration>  $decorations

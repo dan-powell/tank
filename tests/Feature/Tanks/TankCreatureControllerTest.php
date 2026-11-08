@@ -107,4 +107,105 @@ class TankCreatureControllerTest extends TestCase
 
         $this->assertNull($creature->fresh()->died_at);
     }
+
+    public function test_moving_an_animal_gives_it_a_new_home(): void
+    {
+        $creature = Creature::factory()->create();
+
+        $this->actingAs($creature->tank->user)
+            ->patch(route('tanks.creatures.move', [$creature->tank, $creature]), ['x' => 0.7, 'y' => 0.4, 'layer' => 3])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $creature->refresh();
+        $this->assertSame([0.7, 0.4, 3], [$creature->zone_x, $creature->zone_y, $creature->layer]);
+        $this->assertSame(0, $creature->tank->events()->count());
+        Event::assertDispatched(TankUpdated::class);
+    }
+
+    public function test_a_water_animal_cannot_be_moved_onto_dry_land(): void
+    {
+        $tank = Tank::factory()->create(['substrate_heights' => $this->landOnTheLeft()]);
+        $creature = Creature::factory()->for($tank)->create(['zone_x' => 0.8]);
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.creatures.move', [$tank, $creature]), ['x' => 0.2, 'y' => 0.5, 'layer' => 2])
+            ->assertSessionHasErrors(['x' => 'That spot is out of the water.']);
+
+        $this->assertSame(0.8, $creature->fresh()->zone_x);
+    }
+
+    public function test_a_land_animal_can_be_rescued_onto_dry_land_but_not_put_in_the_water(): void
+    {
+        $tank = Tank::factory()->create(['substrate_heights' => $this->landOnTheLeft()]);
+        $springtail = Creature::factory()->for($tank)->for(Species::factory()->catalogue('springtail'))->create(['zone_x' => 0.8]);
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.creatures.move', [$tank, $springtail]), ['x' => 0.9, 'y' => 0, 'layer' => 2])
+            ->assertSessionHasErrors(['x' => 'That spot is under water.']);
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.creatures.move', [$tank, $springtail]), ['x' => 0.2, 'y' => 0, 'layer' => 2])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(0.2, $springtail->fresh()->zone_x);
+    }
+
+    public function test_rejects_a_layer_the_tank_does_not_have(): void
+    {
+        $creature = Creature::factory()->create();
+
+        $this->actingAs($creature->tank->user)
+            ->patch(route('tanks.creatures.move', [$creature->tank, $creature]), ['x' => 0.5, 'y' => 0.5, 'layer' => 9])
+            ->assertSessionHasErrors(['layer' => 'The layer field must be between 0 and 4.']);
+    }
+
+    public function test_cannot_move_an_animal_through_a_sealed_lid(): void
+    {
+        $tank = Tank::factory()->sealed()->create();
+        $creature = Creature::factory()->for($tank)->create(['zone_x' => 0.5]);
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.creatures.move', [$tank, $creature]), ['x' => 0.7, 'y' => 0.4, 'layer' => 3])
+            ->assertSessionHasErrors(['lid' => 'Lift the lid first.']);
+
+        $this->assertSame(0.5, $creature->fresh()->zone_x);
+    }
+
+    public function test_cannot_move_an_animal_that_has_died(): void
+    {
+        $creature = Creature::factory()->dead()->create();
+
+        $this->actingAs($creature->tank->user)
+            ->patch(route('tanks.creatures.move', [$creature->tank, $creature]), ['x' => 0.7, 'y' => 0.4, 'layer' => 3])
+            ->assertNotFound();
+    }
+
+    public function test_cannot_move_an_animal_through_another_tank(): void
+    {
+        $tank = Tank::factory()->create();
+        $creature = Creature::factory()->create();
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.creatures.move', [$tank, $creature]), ['x' => 0.7, 'y' => 0.4, 'layer' => 3])
+            ->assertNotFound();
+    }
+
+    /**
+     * A heightmap (60 x 28 columns) with gravel above the water on the left half.
+     *
+     * @return list<int>
+     */
+    private function landOnTheLeft(): array
+    {
+        $heights = [];
+
+        for ($row = 0; $row < 28; $row++) {
+            for ($column = 0; $column < 60; $column++) {
+                $heights[] = $column < 30 ? 61 : 4;
+            }
+        }
+
+        return $heights;
+    }
 }

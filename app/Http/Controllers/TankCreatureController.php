@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Tank\MoveCreature;
 use App\Actions\Tank\RemoveCreature;
+use App\Http\Requests\Tank\MoveCreatureRequest;
 use App\Http\Requests\Tank\RenameInhabitantRequest;
 use App\Models\Creature;
 use App\Models\Tank;
@@ -18,6 +20,18 @@ class TankCreatureController extends Controller
         abort_if($creature->died_at !== null, 404);
 
         $creature->update(['nickname' => $request->nickname()]);
+
+        return back();
+    }
+
+    /**
+     * Move a living animal to a new home in the tank.
+     */
+    public function move(MoveCreatureRequest $request, Tank $tank, Creature $creature, MoveCreature $moveCreature): RedirectResponse
+    {
+        abort_if($creature->died_at !== null, 404);
+
+        $moveCreature->handle($tank, $creature, $request->float('x'), $request->float('y'), $request->integer('layer'));
 
         return back();
     }

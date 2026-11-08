@@ -4,6 +4,7 @@ namespace Tests\Feature\Tanks;
 
 use App\Enums\TankEventType;
 use App\Events\TankUpdated;
+use App\Models\Decoration;
 use App\Models\Plant;
 use App\Models\Species;
 use App\Models\Tank;
@@ -70,5 +71,61 @@ class TankPlantControllerTest extends TestCase
             ->assertNotFound();
 
         $this->assertNull($plant->fresh()->died_at);
+    }
+
+    public function test_moving_a_plant_replants_it_and_takes_it_off_its_decoration(): void
+    {
+        $tank = Tank::factory()->create();
+        $decoration = Decoration::factory()->for($tank)->at(4, 4, 0)->create();
+        $plant = Plant::factory()->for($tank)->for(Species::factory()->decorPlant())->create(['decoration_id' => $decoration->id, 'anchor_index' => 0]);
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.plants.move', [$tank, $plant]), ['x' => 0.8, 'layer' => 1])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $plant->refresh();
+        $this->assertSame([0.8, 1, null, null], [$plant->root_x, $plant->layer, $plant->decoration_id, $plant->anchor_index]);
+    }
+
+    public function test_a_plant_cannot_be_moved_where_it_would_not_grow(): void
+    {
+        $tank = Tank::factory()->create(['substrate_heights' => $this->landOnTheLeft()]);
+        $plant = Plant::factory()->for($tank)->for(Species::factory()->plant()->state(['name' => 'Vallisneria']))->create(['root_x' => 0.8]);
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.plants.move', [$tank, $plant]), ['x' => 0.2, 'layer' => 1])
+            ->assertSessionHasErrors(['x' => "That spot doesn't suit Vallisneria."]);
+
+        $this->assertSame(0.8, $plant->fresh()->root_x);
+    }
+
+    public function test_a_plant_cannot_be_moved_under_a_decoration(): void
+    {
+        $tank = Tank::factory()->create();
+        Decoration::factory()->for($tank)->at(0, 4, 0)->create(['type' => 'slate-slab']);
+        $plant = Plant::factory()->for($tank)->create(['root_x' => 0.8]);
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.plants.move', [$tank, $plant]), ['x' => 0.1, 'layer' => 1])
+            ->assertSessionHasErrors(['x' => 'Something is in the way there.']);
+    }
+
+    /**
+     * A heightmap (60 x 28 columns) with gravel above the water on the left half.
+     *
+     * @return list<int>
+     */
+    private function landOnTheLeft(): array
+    {
+        $heights = [];
+
+        for ($row = 0; $row < 28; $row++) {
+            for ($column = 0; $column < 60; $column++) {
+                $heights[] = $column < 30 ? 61 : 4;
+            }
+        }
+
+        return $heights;
     }
 }

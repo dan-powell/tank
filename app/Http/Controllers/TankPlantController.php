@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Tank\MovePlant;
 use App\Actions\Tank\RemovePlant;
+use App\Http\Requests\Tank\MovePlantRequest;
 use App\Http\Requests\Tank\RenameInhabitantRequest;
 use App\Models\Plant;
 use App\Models\Tank;
@@ -18,6 +20,18 @@ class TankPlantController extends Controller
         abort_if($plant->died_at !== null, 404);
 
         $plant->update(['nickname' => $request->nickname()]);
+
+        return back();
+    }
+
+    /**
+     * Replant a living plant somewhere else on the substrate.
+     */
+    public function move(MovePlantRequest $request, Tank $tank, Plant $plant, MovePlant $movePlant): RedirectResponse
+    {
+        abort_if($plant->died_at !== null, 404);
+
+        $movePlant->handle($tank, $plant, $request->float('x'), $request->integer('layer'));
 
         return back();
     }

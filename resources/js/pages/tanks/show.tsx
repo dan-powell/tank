@@ -45,15 +45,20 @@ import { useTankChannel } from '@/hooks/use-tank-channel';
 import {
     AUTO_FEEDER_SPOT,
     configureTankSpace,
+    layerToZ,
     TANK,
     toNormalisedSurface,
     toWorld,
+    zToLayer,
 } from '@/lib/tank/space';
 import { cn } from '@/lib/utils';
 import { TankWorld } from '@/lib/tank/world';
 import { dashboard } from '@/routes';
 import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
 import { feed } from '@/routes/tanks';
+import creatureRoutes from '@/routes/tanks/creatures';
+import plantRoutes from '@/routes/tanks/plants';
+import type { PlacementMode } from '@/components/tank/placement';
 import substrateRoutes from '@/routes/tanks/substrate';
 import decorationRoutes from '@/routes/tanks/decorations';
 import type {
@@ -167,6 +172,8 @@ export default function ShowTank({
     const [selection, setSelection] = useState<TankSelection | null>(null);
     const [selectedAnchor, setSelectedAnchor] = useState<number | null>(null);
     const [sculptBrush, setSculptBrush] = useState<SculptBrush | null>(null);
+    /** The inhabitant being moved, while waiting for a click on its new spot. */
+    const [moving, setMoving] = useState<TankSelection | null>(null);
     /** Earlier substrate shapes, most recent last, for Undo. */
     const [substrateHistory, setSubstrateHistory] = useState<number[][]>([]);
     const [tab, setTab] = useState<PanelTab>('summary');
@@ -210,6 +217,86 @@ export default function ShowTank({
 
         return placed && definition ? { placed, definition } : null;
     }, [tank.decorations, decorationCatalogue, selection]);
+
+    const movingInhabitant = useMemo(
+        () => findInhabitant(tank, species, moving),
+        [tank, species, moving],
+    );
+
+    /** How a click picks the new spot: swimmers by depth slice, the rest on the ground. */
+    const placement = useMemo((): PlacementMode | null => {
+        if (movingInhabitant === null) {
+            return null;
+        }
+
+        return movingInhabitant.kind === 'creature' &&
+            movingInhabitant.species.behaviour === 'swimmer'
+            ? {
+                  kind: 'swim',
+                  z: layerToZ(
+                      Math.min(
+                          tank.layer_count - 1,
+                          movingInhabitant.entity.zone.layer,
+                      ),
+                      tank.layer_count,
+                  ),
+              }
+            : { kind: 'ground' };
+    }, [movingInhabitant, tank.layer_count]);
+
+    /** Send the inhabitant being moved to where the tank was clicked. */
+    const placeMoving = (point: Vector3) => {
+        const target = movingInhabitant;
+        setMoving(null);
+
+        if (target === null) {
+            return;
+        }
+
+        const { x } = toNormalisedSurface(point);
+        const layer = zToLayer(point.z, tank.layer_count);
+        const options = {
+            preserveScroll: true,
+            only: ['tank', 'errors'],
+            onError: (errors: Record<string, string>) =>
+                toast.error(
+                    errors.x ??
+                        errors.layer ??
+                        errors.lid ??
+                        'It could not be moved there.',
+                ),
+        };
+
+        if (target.kind === 'plant') {
+            router.patch(
+                plantRoutes.move.url([tank.id, target.entity.id]),
+                { x, layer },
+                options,
+            );
+
+            return;
+        }
+
+        const isSwimmer = target.species.behaviour === 'swimmer';
+        const height =
+            (point.y - TANK.substrate) / (TANK.waterLine - TANK.substrate);
+
+        router.patch(
+            creatureRoutes.move.url([tank.id, target.entity.id]),
+            {
+                x,
+                y: isSwimmer ? Math.min(0.95, Math.max(0.05, height)) : 0,
+                layer: isSwimmer ? target.entity.zone.layer : layer,
+            },
+            {
+                ...options,
+                onSuccess: () => {
+                    // Pop it straight there rather than letting it swim across.
+                    world.creatures.get(target.entity.id)?.position.copy(point);
+                },
+            },
+        );
+    };
 
     /** Save a new substrate shape, shown at once; `remember` keeps the old one for Undo. */
     const saveSubstrate = (heights: number[], remember = true) => {
@@ -336,6 +423,7 @@ export default function ShowTank({
             if (event.key === 'Escape') {
                 setSelection(null);
                 setSculptBrush(null);
+                setMoving(null);
             } else if (event.key.toLowerCase() === PANEL_SHORTCUT) {
                 setIsPanelOpen((open) => !open);
             }
@@ -405,7 +493,41 @@ export default function ShowTank({
                         onMoveDecoration={moveDecoration}
                         sculptBrush={sculptBrush}
                         onSculpt={saveSubstrate}
+                        placement={placement}
+                        onPlace={placeMoving}
                     />
+
+                    {movingInhabitant !== null && (
+                        <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center px-16">
+                            <div
+                                className={cn(
+                                    hudSurface,
+                                    'pointer-events-auto flex items-center gap-3 rounded-md px-3 py-2 text-sm',
+                                )}
+                            >
+                                <span>
+                                    Click where to put{' '}
+                                    <strong>
+                                        {movingInhabitant.entity.nickname ??
+                                            movingInhabitant.species.name}
+                                    </strong>
+                                    {movingInhabitant.kind === 'creature' &&
+                                    movingInhabitant.species.behaviour ===
+                                        'swimmer'
+                                        ? ' in the water.'
+                                        : ' on the gravel or a decoration.'}
+                                </span>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7"
+                                    onClick={() => setMoving(null)}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="pointer-events-none absolute top-3 left-3 flex items-start gap-2">
                         <Tooltip>
@@ -666,6 +788,12 @@ export default function ShowTank({
                                     inhabitant={inhabitant}
                                     world={world}
                                     isSealed={tank.is_sealed}
+                                    onMove={() =>
+                                        setMoving({
+                                            kind: inhabitant.kind,
+                                            id: inhabitant.entity.id,
+                                        })
+                                    }
                                     onBack={() => setSelection(null)}
                                 />
                             </div>

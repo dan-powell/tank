@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { Trash2 } from 'lucide-react';
+import { Move, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import InputError from '@/components/input-error';
@@ -33,8 +33,10 @@ type Props = {
     tankId: number;
     inhabitant: Inhabitant;
     world: TankWorld;
-    /** Nothing can be taken out through a sealed lid. */
+    /** Nothing can be moved or taken out through a sealed lid. */
     isSealed: boolean;
+    /** Start choosing a new spot for it in the tank. */
+    onMove: () => void;
     /** Deselect and return to the tank overview. */
     onBack: () => void;
 };
@@ -50,6 +52,7 @@ export function InhabitantPanel({
     inhabitant,
     world,
     isSealed,
+    onMove,
     onBack,
 }: Props) {
     const { kind, entity, species } = inhabitant;
@@ -108,21 +111,32 @@ export function InhabitantPanel({
                 placeholder={species.name}
             />
 
-            <RemoveButton
-                key={`remove-${kind}-${entity.id}`}
-                name={title}
-                disabled={isSealed}
-                onConfirm={() =>
-                    router.delete(url.destroy, {
-                        ...visitOptions,
-                        onBefore: () => {
-                            if (kind === 'creature') {
-                                world.removedCreatures.add(entity.id);
-                            }
-                        },
-                    })
-                }
-            />
+            <div className="flex flex-wrap gap-2">
+                <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isSealed}
+                    title={isSealed ? 'Lift the lid first' : undefined}
+                    onClick={onMove}
+                >
+                    <Move /> Move
+                </Button>
+                <RemoveButton
+                    key={`remove-${kind}-${entity.id}`}
+                    name={title}
+                    disabled={isSealed}
+                    onConfirm={() =>
+                        router.delete(url.destroy, {
+                            ...visitOptions,
+                            onBefore: () => {
+                                if (kind === 'creature') {
+                                    world.removedCreatures.add(entity.id);
+                                }
+                            },
+                        })
+                    }
+                />
+            </div>
         </section>
     );
 }

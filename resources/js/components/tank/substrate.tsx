@@ -25,6 +25,9 @@ type Props = {
     onStrokeChange: (isStroking: boolean) => void;
 };
 
+/** Marks the gravel as somewhere things can be put down (see PlacementController). */
+const PLACEABLE = { placeable: true };
+
 type Stroke = {
     heights: Float32Array;
     /** Height Flatten levels towards: the gravel where the stroke began. */
@@ -158,6 +161,7 @@ export function Substrate({
                 ref={mesh}
                 geometry={geometry}
                 material={material}
+                userData={PLACEABLE}
                 {...handlers}
             />
             {brush !== null && cursor !== null && (

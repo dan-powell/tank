@@ -207,6 +207,9 @@ export function Decorations({
     );
 }
 
+/** Marks decorations as somewhere things can be put down (see PlacementController). */
+const PLACEABLE = { placeable: true };
+
 type ContentProps = {
     decoration: DecorationSnapshot;
     definition: DecorationDefinition;
@@ -265,6 +268,7 @@ function DecorationContent({
                 material={material}
                 scale={DECOR_VOXEL}
                 renderOrder={halo !== null ? SELECTED_RENDER_ORDER : 0}
+                userData={PLACEABLE}
                 {...selectable}
             />
             {halo !== null && (
