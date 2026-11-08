@@ -38,7 +38,7 @@ type Stroke = {
 /**
  * The substrate, drawn from its heightmap. In sculpt mode a ring follows the
  * pointer, and dragging with the left button shapes the gravel under it; the
- * stroke is shown as it goes and saved when the button is released.
+ * stroke is shown as it goes and handed on when the button is released.
  */
 export function Substrate({
     grid,

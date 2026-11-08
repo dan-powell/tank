@@ -40,7 +40,7 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function configureRateLimiting(): void
     {
-        RateLimiter::for('tank-actions', fn (Request $request): Limit => Limit::perMinute(30)->by($request->user()?->id ?: $request->ip()));
+        RateLimiter::for('tank-actions', fn (Request $request): Limit => Limit::perMinute(40)->by($request->user()?->id ?: $request->ip()));
     }
 
     /**

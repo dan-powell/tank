@@ -119,7 +119,7 @@ class TankMaintenanceControllerTest extends TestCase
     {
         $tank = Tank::factory()->create();
 
-        for ($i = 0; $i < 30; $i++) {
+        for ($i = 0; $i < 40; $i++) {
             $this->actingAs($tank->user)->post(route('tanks.vacuum', $tank));
         }
 

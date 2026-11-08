@@ -35,7 +35,7 @@ const DEFAULT_BRUSH: SculptBrush = { tool: 'raise', radiusCm: 4 };
 
 /**
  * Shape the gravel: start from a ready-made shape, then refine it with a
- * brush dragged across the substrate. Each stroke saves when released.
+ * brush dragged across the substrate. Changes save every few seconds.
  */
 export function SubstratePanel({
     grid,

@@ -42,6 +42,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useSubstrateSync } from '@/hooks/use-substrate-sync';
 import { useTankChannel } from '@/hooks/use-tank-channel';
 import {
     AUTO_FEEDER_SPOT,
@@ -60,7 +61,6 @@ import { feed } from '@/routes/tanks';
 import creatureRoutes from '@/routes/tanks/creatures';
 import plantRoutes from '@/routes/tanks/plants';
 import type { PlacementMode } from '@/components/tank/placement';
-import substrateRoutes from '@/routes/tanks/substrate';
 import decorationRoutes from '@/routes/tanks/decorations';
 import type {
     DecorationDefinition,
@@ -176,8 +176,15 @@ export default function ShowTank({
     const [sculptBrush, setSculptBrush] = useState<SculptBrush | null>(null);
     /** The inhabitant being moved, while waiting for a click on its new spot. */
     const [moving, setMoving] = useState<TankSelection | null>(null);
-    /** Earlier substrate shapes, most recent last, for Undo. */
-    const [substrateHistory, setSubstrateHistory] = useState<number[][]>([]);
+    const gravel = useSubstrateSync(tank.id, tank.substrate);
+    /** The tank as shown, with any gravel changes not yet saved. */
+    const shownTank = useMemo(
+        () =>
+            gravel.substrate === tank.substrate
+                ? tank
+                : { ...tank, substrate: gravel.substrate },
+        [tank, gravel.substrate],
+    );
     const [tab, setTab] = useState<PanelTab>('summary');
     const [previewBackground, setPreviewBackground] =
         useState<TankBackground | null>(null);
@@ -300,48 +307,6 @@ export default function ShowTank({
                 },
             },
         );
-    };
-
-    /** Save a new substrate shape, shown at once; `remember` keeps the old one for Undo. */
-    const saveSubstrate = (heights: number[], remember = true) => {
-        const previous = tank.substrate;
-
-        if (remember) {
-            setSubstrateHistory((history) => [...history.slice(-19), previous]);
-        }
-
-        router.put(
-            substrateRoutes.update.url(tank.id),
-            { heights },
-            {
-                preserveScroll: true,
-                only: ['tank', 'errors'],
-                optimistic: (props) => ({
-                    tank: {
-                        ...(props.tank as TankSnapshot),
-                        substrate: heights,
-                    },
-                }),
-                onError: (errors) => {
-                    if (remember) {
-                        setSubstrateHistory((history) => history.slice(0, -1));
-                    }
-
-                    toast.error(
-                        errors.heights ?? 'The gravel could not be reshaped.',
-                    );
-                },
-            },
-        );
-    };
-
-    const undoSubstrate = () => {
-        const previous = substrateHistory.at(-1);
-
-        if (previous !== undefined) {
-            setSubstrateHistory((history) => history.slice(0, -1));
-            saveSubstrate(previous, false);
-        }
     };
 
     const startSculpting = (brush: SculptBrush | null) => {
@@ -486,7 +451,7 @@ export default function ShowTank({
                 <main className="absolute inset-0">
                     <TankScene
                         key={sizeKey}
-                        tank={tank}
+                        tank={shownTank}
                         species={species}
                         world={world}
                         viewMode={viewMode}
@@ -496,7 +461,7 @@ export default function ShowTank({
                         onSelectAnchor={selectAnchor}
                         onMoveDecoration={moveDecoration}
                         sculptBrush={sculptBrush}
-                        onSculpt={saveSubstrate}
+                        onSculpt={gravel.reshape}
                         placement={placement}
                         onPlace={placeMoving}
                         previewBackground={previewBackground}
@@ -754,9 +719,9 @@ export default function ShowTank({
                                         grid={tank.grid}
                                         brush={sculptBrush}
                                         onBrushChange={startSculpting}
-                                        onApply={saveSubstrate}
-                                        onUndo={undoSubstrate}
-                                        canUndo={substrateHistory.length > 0}
+                                        onApply={gravel.reshape}
+                                        onUndo={gravel.undo}
+                                        canUndo={gravel.canUndo}
                                     />
                                     <DecorCatalogue
                                         tankId={tank.id}
