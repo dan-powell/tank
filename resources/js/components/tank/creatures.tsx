@@ -16,7 +16,7 @@ import {
 } from '@/lib/tank/animator';
 import type { AnimationState } from '@/lib/tank/animator';
 import {
-    laneOffset,
+    layerDepth,
     layerToZ,
     TANK,
     toWorld,
@@ -53,7 +53,7 @@ type Departed = {
     species: Species;
     size: number;
     position: Vector3;
-    facing: 1 | -1;
+    yaw: number;
 };
 
 /**
@@ -92,7 +92,7 @@ export function Creatures({
                     species: definition,
                     size: creature.size,
                     position: body.position.clone(),
-                    facing: body.facing,
+                    yaw: body.yaw,
                 });
                 world.creatures.delete(creature.id);
             }
@@ -157,7 +157,7 @@ type CreatureProps = {
 /** Smallest hit box (world units), so fry stay clickable. */
 const MIN_HIT_SIZE = 0.06;
 
-/** Seconds a creature takes to turn round (models face right). */
+/** Seconds a creature takes to turn right round (models face right, +x). */
 const TURN_SECONDS = 0.4;
 
 /** Seconds of the squash-and-stretch played when a creature grows into its next stage. */
@@ -191,11 +191,14 @@ function Creature({
     const animation = useRef<AnimationState>(createAnimationState(creature.id));
     const bodyMesh = useRef<Mesh>(null);
     const haloMesh = useRef<Mesh>(null);
-    const wander = useRef<WanderState | null>(null);
+    const wander = useRef<WanderState>(createWanderState());
+    const hasTurned = useRef(false);
     const homeLayer = Math.min(layerCount - 1, creature.zone.layer);
+    const [zoneX, zoneY] = creature.zone.center;
+    // Keyed on the values: every snapshot brings a new array.
     const zoneCenter = useMemo(
-        () => toWorld(creature.zone.center[0], creature.zone.center[1], 0.5),
-        [creature.zone.center],
+        () => toWorld(zoneX, zoneY, 0.5),
+        [zoneX, zoneY],
     );
 
     const body = useMemo<CreatureBody>(() => {
@@ -211,12 +214,11 @@ function Creature({
                 zoneCenter.x + (Math.random() - 0.5) * 0.3,
                 zoneCenter.y + (Math.random() - 0.5) * 0.1,
                 layerToZ(homeLayer, layerCount) +
-                    laneOffset(creature.id, layerCount),
+                    (Math.random() - 0.5) * layerDepth(layerCount),
             ),
             velocity: new Vector3(),
             homeLayer,
-            layer: homeLayer,
-            facing: Math.random() < 0.5 ? 1 : -1,
+            yaw: Math.random() * Math.PI * 2,
         };
 
         if (world.terrain !== null) {
@@ -244,9 +246,11 @@ function Creature({
         layerCount,
     ]);
 
+    // A new home (e.g. after being moved) sends it somewhere new within it.
     useEffect(() => {
         body.homeLayer = homeLayer;
-    }, [body, homeLayer]);
+        wander.current.hasTarget = false;
+    }, [body, homeLayer, zoneCenter]);
 
     useEffect(
         () => () => {
@@ -281,24 +285,23 @@ function Creature({
             return;
         }
 
-        const targetYaw = body.facing > 0 ? 0 : Math.PI;
-
-        if (wander.current === null) {
-            wander.current = { ...createWanderState(), direction: body.facing };
-            turn.rotation.y = targetYaw;
-        }
-
         steer(body, wander.current, profile, world, delta);
         object.position.copy(body.position);
 
-        const step = (Math.PI / TURN_SECONDS) * Math.min(delta, 0.1);
-        const remaining = targetYaw - turn.rotation.y;
-        turn.rotation.y +=
-            Math.abs(remaining) <= step
-                ? remaining
-                : Math.sign(remaining) * step;
+        // Turn towards the heading by the shortest way round, at a limited rate.
+        if (!hasTurned.current) {
+            turn.rotation.y = body.yaw;
+            hasTurned.current = true;
+        }
 
-        const speed = Math.abs(body.velocity.x) + 1e-4;
+        const step = (Math.PI / TURN_SECONDS) * Math.min(delta, 0.1);
+        const remaining = Math.atan2(
+            Math.sin(body.yaw - turn.rotation.y),
+            Math.cos(body.yaw - turn.rotation.y),
+        );
+        turn.rotation.y += Math.max(-step, Math.min(step, remaining));
+
+        const speed = Math.hypot(body.velocity.x, body.velocity.z) + 1e-4;
         const pitch = Math.atan2(body.velocity.y, speed) * 0.6;
         turn.rotation.z += (pitch - turn.rotation.z) * Math.min(1, delta * 5);
 
@@ -538,7 +541,7 @@ function DepartedCreature({
 
     return (
         <group ref={group} position={ghost.position}>
-            <group rotation={[0, ghost.facing > 0 ? 0 : Math.PI, 0]}>
+            <group rotation={[0, ghost.yaw, 0]}>
                 {frame !== undefined && (
                     <VoxelCreature
                         species={ghost.species}

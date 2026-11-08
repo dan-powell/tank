@@ -47,6 +47,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- Animals move freely in 3D around their home instead of along fixed depth layers: they curve between spots (front to back too), pause now and then, school, and rise over or slip round decorations; ground dwellers walk in any direction. Their home zone and layer still come from the server.
 - Simulation runs at 60× real time by default.
 - Project-specific README and changelog.
 - Tank panels use shadcn/ui components throughout; removing an inhabitant now asks for confirmation in a dialog.

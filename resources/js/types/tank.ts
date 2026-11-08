@@ -170,7 +170,7 @@ export type SpeciesRender = {
     colorful_tail?: boolean;
     schooling?: number;
     speed?: number;
-    /** 0..1 tendency to visit neighbouring depth layers. */
+    /** 0..1: how far beyond its home depth layer an animal roams, front to back. */
     layer_roam?: number;
     shell?: string;
     stripe?: string;

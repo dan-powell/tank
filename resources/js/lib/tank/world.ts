@@ -13,12 +13,10 @@ export type CreatureBody = {
     speciesId: number;
     position: Vector3;
     velocity: Vector3;
-    /** The depth layer the creature lives in. */
+    /** The depth layer at the heart of its home (from the server). */
     homeLayer: number;
-    /** The depth layer it is currently heading for (usually its home). */
-    layer: number;
-    /** Which way the creature faces along x: 1 = right, -1 = left. */
-    facing: 1 | -1;
+    /** Heading in radians about the vertical axis: 0 faces +x (right), as models are drawn. */
+    yaw: number;
 };
 
 /** A ring spreading across the water surface from where something landed. */
@@ -128,13 +126,12 @@ export class TankWorld {
 
     /**
      * The closest food particle within `maxDistance`, optionally only food
-     * that has sunk and only food within `maxDepthOffset` of `from` in z.
+     * that has sunk.
      */
     nearestFood(
         from: Vector3,
         maxDistance: number,
         sunkenOnly: boolean,
-        maxDepthOffset = Infinity,
     ): FoodParticle | null {
         let best: FoodParticle | null = null;
         let bestDistance = maxDistance * maxDistance;
@@ -146,10 +143,6 @@ export class TankWorld {
                 particle.position.y >
                     this.floorBeneath(particle.position) + 0.08
             ) {
-                continue;
-            }
-
-            if (Math.abs(particle.position.z - from.z) > maxDepthOffset) {
                 continue;
             }
 
