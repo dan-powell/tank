@@ -41,7 +41,7 @@ class TankDecorationControllerTest extends TestCase
         $this->assertSame(0, $decoration->rotation);
         $this->assertSame(TankGeometry::DEFAULT_SUBSTRATE, $decoration->y);
         $this->assertLessThanOrEqual(20, $decoration->z);
-        $this->assertLessThanOrEqual(TankGeometry::WIDTH, $decoration->x + 26);
+        $this->assertLessThanOrEqual(120, $decoration->x + 26);
         $event = $tank->events()->sole();
         $this->assertSame(TankEventType::Aquascaping, $event->type);
         $this->assertSame('You added a Boulder to the tank.', $event->message);
@@ -85,7 +85,7 @@ class TankDecorationControllerTest extends TestCase
 
         $wall = $tank->decorations()->where('type', 'coral-wall')->sole();
         $this->assertSame(28, $wall->y);
-        $this->assertGreaterThan(TankGeometry::WATER_LEVEL, $wall->y + 36);
+        $this->assertGreaterThan(61, $wall->y + 36);
     }
 
     public function test_adding_a_decoration_that_would_poke_out_of_the_tank_is_rejected(): void
@@ -103,14 +103,38 @@ class TankDecorationControllerTest extends TestCase
 
     public function test_decorations_rest_on_raised_substrate(): void
     {
-        [$columns, $rows] = TankGeometry::substrateColumns();
-        $tank = Tank::factory()->create(['substrate_heights' => array_fill(0, $columns * $rows, 10)]);
+        $tank = Tank::factory()->create(['substrate_heights' => array_fill(0, 30 * 14, 10)]);
 
         $this->actingAs($tank->user)
             ->post(route('tanks.decorations.store', $tank), ['type' => 'pebble'])
             ->assertRedirect();
 
         $this->assertSame(10, $tank->decorations()->sole()->y);
+    }
+
+    public function test_decorations_too_big_for_the_tank_are_rejected(): void
+    {
+        $tank = Tank::factory()->sized(40, 40, 30)->create();
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.decorations.store', $tank), ['type' => 'coral-wall'])
+            ->assertSessionHasErrors(['type' => 'There is no room in the tank for the Coral wall.']);
+    }
+
+    public function test_moving_a_decoration_is_bounded_by_its_own_tanks_size(): void
+    {
+        $tank = Tank::factory()->sized(200, 100, 100)->create();
+        $decoration = Decoration::factory()->for($tank)->at(4, 4, 0)->create();
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.decorations.update', [$tank, $decoration]), ['x' => 174, 'y' => 4, 'z' => 78, 'rotation' => 0])
+            ->assertSessionHasNoErrors();
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.decorations.update', [$tank, $decoration]), ['x' => 175, 'y' => 4, 'z' => 0, 'rotation' => 0])
+            ->assertSessionHasErrors(['x' => 'The decoration must stay inside the tank.']);
+
+        $this->assertSame(174, $decoration->fresh()->x);
     }
 
     public function test_rejects_an_unknown_decoration(): void

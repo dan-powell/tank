@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
     Color,
     DepthTexture,
@@ -17,10 +17,10 @@ import { TANK } from '@/lib/tank/space';
 import { MAX_RIPPLES, RIPPLE_LIFETIME } from '@/lib/tank/world';
 import type { TankWorld } from '@/lib/tank/world';
 import type { WaterParameters } from '@/types';
-import { AIR_STONE } from './bubbles';
+import { airStone } from './bubbles';
 import { CAUSTIC_GLSL, causticUniforms } from './caustics';
 import { sceneClock } from './scene-clock';
-import { HOOD_HEIGHT, SPOT_POSITIONS } from './tank-lighting';
+import { hoodHeight, spotPositions } from './tank-lighting';
 
 type Props = {
     water: WaterParameters;
@@ -53,21 +53,34 @@ const NIGHT = {
     causticTint: new Color('#dfe6ff'),
 };
 
-/** Surface subdivisions; the top face is displaced by the ripple field. */
-const SURFACE_SEGMENTS = { x: 160, z: 72 };
+/** Surface subdivisions per world unit; the top face is displaced by the ripple field. */
+const SURFACE_SEGMENTS_PER_UNIT = 66;
 
-const WATER_HEIGHT = TANK.waterLine - TANK.substrate;
-
-const BOX_MIN = new Vector3(
-    -TANK.width / 2 + 0.005,
-    TANK.substrate,
-    -TANK.depth / 2 + 0.005,
-);
-const BOX_MAX = new Vector3(
-    TANK.width / 2 - 0.005,
-    TANK.waterLine,
-    TANK.depth / 2 - 0.005,
-);
+/** The water's box in the current tank, from the substrate to the water line. */
+function waterBox(): {
+    min: Vector3;
+    max: Vector3;
+    height: number;
+    segments: { x: number; z: number };
+} {
+    return {
+        min: new Vector3(
+            -TANK.width / 2 + 0.005,
+            TANK.substrate,
+            -TANK.depth / 2 + 0.005,
+        ),
+        max: new Vector3(
+            TANK.width / 2 - 0.005,
+            TANK.waterLine,
+            TANK.depth / 2 - 0.005,
+        ),
+        height: TANK.waterLine - TANK.substrate,
+        segments: {
+            x: Math.round(TANK.width * SURFACE_SEGMENTS_PER_UNIT),
+            z: Math.round(TANK.depth * SURFACE_SEGMENTS_PER_UNIT),
+        },
+    };
+}
 
 const vertexShader = /* glsl */ `
 #define MAX_RIPPLES ${MAX_RIPPLES}
@@ -338,6 +351,7 @@ export function WaterVolume({ water, isLit, world }: Props) {
     const mesh = useRef<Mesh>(null);
     const target = useSceneTarget();
     const preset = isLit ? DAY : NIGHT;
+    const [box] = useState(waterBox);
 
     const algae = Math.min(1, water.algae / 100);
     const murk = Math.min(1, water.detritus / 4);
@@ -357,7 +371,7 @@ export function WaterVolume({ water, isLit, world }: Props) {
                     uTime: sceneClock,
                     uSurfaceY: { value: TANK.waterLine },
                     uBubbleSource: {
-                        value: new Vector2(AIR_STONE.x, AIR_STONE.z),
+                        value: new Vector2(airStone().x, airStone().z),
                     },
                     uRipples: {
                         value: Array.from(
@@ -365,8 +379,8 @@ export function WaterVolume({ water, isLit, world }: Props) {
                             () => new Vector4(0, 0, 0, 0),
                         ),
                     },
-                    uBoxMin: { value: BOX_MIN },
-                    uBoxMax: { value: BOX_MAX },
+                    uBoxMin: { value: box.min },
+                    uBoxMax: { value: box.max },
                     uWaterColour: { value: new Color() },
                     uExtinction: { value: new Vector3() },
                     uAmbient: { value: 0 },
@@ -375,13 +389,13 @@ export function WaterVolume({ water, isLit, world }: Props) {
                     uSkyColour: { value: new Color() },
                     uShaftStrength: { value: 0 },
                     uSpots: {
-                        value: SPOT_POSITIONS.map(
-                            (x) => new Vector3(x, HOOD_HEIGHT, 0),
+                        value: spotPositions().map(
+                            (x) => new Vector3(x, hoodHeight(), 0),
                         ),
                     },
                 },
             }),
-        [],
+        [box],
     );
 
     useEffect(() => () => material.dispose(), [material]);
@@ -453,18 +467,18 @@ export function WaterVolume({ water, isLit, world }: Props) {
         <mesh
             ref={mesh}
             material={material}
-            position={[0, TANK.substrate + WATER_HEIGHT / 2, 0]}
+            position={[0, TANK.substrate + box.height / 2, 0]}
             renderOrder={-1}
             raycast={() => null}
         >
             <boxGeometry
                 args={[
-                    BOX_MAX.x - BOX_MIN.x,
-                    WATER_HEIGHT,
-                    BOX_MAX.z - BOX_MIN.z,
-                    SURFACE_SEGMENTS.x,
+                    box.max.x - box.min.x,
+                    box.height,
+                    box.max.z - box.min.z,
+                    box.segments.x,
                     1,
-                    SURFACE_SEGMENTS.z,
+                    box.segments.z,
                 ]}
             />
         </mesh>

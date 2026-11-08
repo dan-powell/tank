@@ -41,10 +41,10 @@ export class TerrainField {
 
     private readonly cells: Uint8Array;
 
-    /** Which decoration fills each cell (0 = none). */
-    private readonly owners: Uint32Array;
+    /** Which placement fills each cell: its index + 1 (0 = none). Decorations per tank are capped well below 255. */
+    private readonly owners: Uint8Array;
 
-    private readonly placements = new Map<number, Placement>();
+    private readonly placements: Placement[] = [];
 
     constructor(grid: TankGrid, substrate: number[], placements: Placement[]) {
         this.width = grid.width;
@@ -52,7 +52,7 @@ export class TerrainField {
         this.depth = grid.depth;
         this.waterLevel = grid.water_level;
         this.cells = new Uint8Array(this.width * this.height * this.depth);
-        this.owners = new Uint32Array(this.cells.length);
+        this.owners = new Uint8Array(this.cells.length);
 
         const columns = Math.ceil(this.width / grid.substrate_column);
 
@@ -74,10 +74,10 @@ export class TerrainField {
             }
         }
 
-        for (const placement of placements) {
-            this.placements.set(placement.id, placement);
-            this.stamp(placement);
-        }
+        placements.forEach((placement, index) => {
+            this.placements.push(placement);
+            this.stamp(placement, index + 1);
+        });
     }
 
     /** The cell type at a grid cell; outside the tank counts as solid glass. */
@@ -203,11 +203,16 @@ export class TerrainField {
      * it (the substrate or other decorations), or null if it is not placed.
      */
     restingCell(decorationId: number): number | null {
-        const placement = this.placements.get(decorationId);
+        const placementIndex = this.placements.findIndex(
+            (placement) => placement.id === decorationId,
+        );
 
-        if (placement === undefined) {
+        if (placementIndex < 0) {
             return null;
         }
+
+        const placement = this.placements[placementIndex];
+        const owner = placementIndex + 1;
 
         const { volume, position } = placement;
         const [width, height, depth] = volume.size;
@@ -237,7 +242,7 @@ export class TerrainField {
 
                     if (
                         this.cells[index] >= Cell.Substrate &&
-                        this.owners[index] !== decorationId
+                        this.owners[index] !== owner
                     ) {
                         rest = Math.max(rest, row + 1 - lowest);
                         break;
@@ -249,7 +254,10 @@ export class TerrainField {
         return Math.min(rest, this.height - height);
     }
 
-    private stamp({ id, volume, position: [px, py, pz] }: Placement): void {
+    private stamp(
+        { volume, position: [px, py, pz] }: Placement,
+        owner: number,
+    ): void {
         const [width, height, depth] = volume.size;
 
         for (let y = 0; y < height; y++) {
@@ -269,7 +277,7 @@ export class TerrainField {
                         tz < this.depth
                     ) {
                         this.cells[this.index(tx, ty, tz)] = Cell.Decor;
-                        this.owners[this.index(tx, ty, tz)] = id;
+                        this.owners[this.index(tx, ty, tz)] = owner;
                     }
                 }
             }

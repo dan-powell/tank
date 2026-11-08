@@ -13,12 +13,6 @@ type Props = {
     yRange?: [number, number];
 };
 
-/** Default vertical pan range: from just above the gravel to the water line. */
-const DEFAULT_Y_RANGE: [number, number] = [
-    TANK.substrate + 0.1,
-    TANK.waterLine,
-];
-
 /** Never divide by less than this when correcting for a foreshortened axis. */
 const MIN_ALIGNMENT = 0.35;
 
@@ -31,7 +25,8 @@ const MIN_ALIGNMENT = 0.35;
 export function TankPanControls({
     controls,
     xLimit = TANK.width * 0.4,
-    yRange = DEFAULT_Y_RANGE,
+    // By default, from just above the gravel to the water line.
+    yRange = [TANK.substrate + 0.1, TANK.waterLine],
 }: Props) {
     const [yMin, yMax] = yRange;
     const camera = useThree((state) => state.camera);

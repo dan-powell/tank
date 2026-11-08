@@ -26,8 +26,8 @@ class RemoveDecoration
                 $plant->update([
                     'decoration_id' => null,
                     'anchor_index' => null,
-                    'root_x' => TankGeometry::normalisedX($x),
-                    'layer' => TankGeometry::layerAt($z, $tank->layer_count),
+                    'root_x' => TankGeometry::normalisedX($x, $tank->grid_width),
+                    'layer' => TankGeometry::layerAt($z, $tank->layer_count, $tank->grid_depth),
                 ]);
             });
 

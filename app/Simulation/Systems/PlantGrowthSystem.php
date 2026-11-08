@@ -155,8 +155,8 @@ final class PlantGrowthSystem implements SimulationSystem
                 [$x, , $z] = $state->decorationAnchors[$plant->decorationId][$anchorIndex];
 
                 return [
-                    'rootX' => TankGeometry::normalisedX($x),
-                    'layer' => TankGeometry::layerAt($z, $state->layerCount),
+                    'rootX' => TankGeometry::normalisedX($x, $state->gridWidth),
+                    'layer' => TankGeometry::layerAt($z, $state->layerCount, $state->gridDepth),
                     'decorationId' => $plant->decorationId,
                     'anchorIndex' => $anchorIndex,
                 ];

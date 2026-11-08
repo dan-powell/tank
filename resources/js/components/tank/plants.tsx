@@ -2,7 +2,12 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import type { Group, Vector3 } from 'three';
 import { useVoxelModel } from '@/hooks/use-voxel-model';
-import { laneOffset, layerToZ, TANK, toWorld } from '@/lib/tank/space';
+import {
+    laneOffset,
+    layerToZ,
+    PLANT_HEIGHT_UNIT,
+    toWorld,
+} from '@/lib/tank/space';
 import { substrateHeightAt } from '@/lib/tank/terrain-field';
 import type { PlantSnapshot, Species, TankGrid } from '@/types';
 import {
@@ -118,7 +123,9 @@ export function Plant({
     const growIn = useRef(0);
     const model = useVoxelModel(species);
     const height =
-        plant.segments * (species.render.segment_height ?? 0.06) * TANK.height;
+        plant.segments *
+        (species.render.segment_height ?? 0.06) *
+        PLANT_HEIGHT_UNIT;
     const scale = height / model.height;
 
     const swayAmplitude = species.behaviour === 'whorl' ? 0.08 : 0.12;

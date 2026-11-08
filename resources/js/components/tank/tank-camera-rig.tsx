@@ -10,22 +10,38 @@ export type TankViewMode = 'orbit' | 'flat';
 
 type Controls = ComponentRef<typeof OrbitControls>;
 
-/** Where the camera starts, and the pivot it orbits. */
-export const ORBIT_START = {
-    position: [0, TANK.height * 0.6, 2.6] as [number, number, number],
-    target: [0, TANK.height * 0.45, 0] as [number, number, number],
-    fov: 75,
-};
+/**
+ * How much bigger the current tank is than a starter tank (60 x 32.5 cm),
+ * which the camera distances were tuned for.
+ */
+function tankScale(): number {
+    return Math.max(TANK.width / 2.4, TANK.height / 1.3);
+}
+
+/** Where the camera starts, and the pivot it orbits, for the current tank. */
+export function orbitStart(): {
+    position: [number, number, number];
+    target: [number, number, number];
+    fov: number;
+} {
+    return {
+        position: [0, TANK.height * 0.6, 2.6 * tankScale()],
+        target: [0, TANK.height * 0.45, 0],
+        fov: 75,
+    };
+}
 
 /** Field of view in flat mode: narrow enough to all but remove perspective. */
 const FLAT_FOV = 1;
 
 /** The area (world units) the flat view fits to the screen: the tank front. */
-const FLAT_FRAME = {
-    width: TANK.width + 0.1,
-    height: TANK.height + 0.08,
-    centreY: TANK.height / 2,
-};
+function flatFrame(): { width: number; height: number; centreY: number } {
+    return {
+        width: TANK.width + 0.1,
+        height: TANK.height + 0.08,
+        centreY: TANK.height / 2,
+    };
+}
 
 /** How far (radians) the flat view may be turned or tilted away from the front. */
 const FLAT_ROTATION = 0.12;
@@ -144,16 +160,17 @@ export function TankCameraRig({ mode, controls }: Props) {
 }
 
 function orbitStartPose(): Pose {
-    const target = new Vector3(...ORBIT_START.target);
-    const offset = new Vector3(...ORBIT_START.position).sub(target);
+    const start = orbitStart();
+    const target = new Vector3(...start.target);
+    const offset = new Vector3(...start.position).sub(target);
     const spherical = new Spherical().setFromVector3(offset);
 
     return {
         target,
         azimuth: spherical.theta,
         polar: spherical.phi,
-        halfHeight: spherical.radius * halfFovTan(ORBIT_START.fov),
-        fov: ORBIT_START.fov,
+        halfHeight: spherical.radius * halfFovTan(start.fov),
+        fov: start.fov,
     };
 }
 
@@ -163,11 +180,12 @@ function orbitStartPose(): Pose {
  * object-fit.
  */
 function flatPose(aspect: number, fit: 'cover' | 'contain'): Pose {
-    const toFitHeight = FLAT_FRAME.height / 2;
-    const toFitWidth = FLAT_FRAME.width / (2 * Math.max(aspect, 0.1));
+    const frame = flatFrame();
+    const toFitHeight = frame.height / 2;
+    const toFitWidth = frame.width / (2 * Math.max(aspect, 0.1));
 
     return {
-        target: new Vector3(0, FLAT_FRAME.centreY, 0),
+        target: new Vector3(0, frame.centreY, 0),
         azimuth: 0,
         polar: Math.PI / 2,
         halfHeight:
@@ -232,8 +250,8 @@ function applyLimits(
     aspect: number,
 ): void {
     if (mode === 'orbit') {
-        orbit.minDistance = 1.2;
-        orbit.maxDistance = 4.5;
+        orbit.minDistance = 1.2 * tankScale();
+        orbit.maxDistance = 4.5 * tankScale();
         orbit.minPolarAngle = 0.3;
         orbit.maxPolarAngle = Math.PI / 2;
         orbit.minAzimuthAngle = -Infinity;

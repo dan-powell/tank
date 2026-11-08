@@ -75,8 +75,8 @@ class StockTank
 
         $tank->plants()->create([
             ...$this->youngPlant($species),
-            'root_x' => TankGeometry::normalisedX($x),
-            'layer' => TankGeometry::layerAt($z, $tank->layer_count),
+            'root_x' => TankGeometry::normalisedX($x, $tank->grid_width),
+            'layer' => TankGeometry::layerAt($z, $tank->layer_count, $tank->grid_depth),
             'decoration_id' => $decoration->id,
             'anchor_index' => $anchor,
         ]);
@@ -111,7 +111,7 @@ class StockTank
         for ($attempt = 0; ; $attempt++) {
             $rootX = $this->random->getFloat(0.08, 0.92);
             $layer = $this->random->getInt(0, $this->backLayerLimit($tank));
-            [$x, $z] = TankGeometry::plantColumn($rootX, $layer, $tank->layer_count);
+            [$x, $z] = TankGeometry::plantColumn($rootX, $layer, $tank->layer_count, $tank->grid_width, $tank->grid_depth);
 
             $isCovered = array_any($footprints, fn (GridBox $box): bool => $box->coversColumn($x, $z));
 

@@ -40,6 +40,7 @@ import {
 import { useTankChannel } from '@/hooks/use-tank-channel';
 import {
     AUTO_FEEDER_SPOT,
+    configureTankSpace,
     TANK,
     toNormalisedSurface,
     toWorld,
@@ -142,7 +143,18 @@ export default function ShowTank({
     decorationCatalogue,
     events,
 }: Props) {
-    const world = useMemo(() => new TankWorld(), []);
+    const { width, height, depth, water_level: waterLevel } = tank.grid;
+    const sizeKey = `${width}x${height}x${depth}@${waterLevel}`;
+
+    // The scene and steering read the shared tank space, so size it for this
+    // tank before anything renders (it is idempotent), and give each size a
+    // fresh world and scene.
+    configureTankSpace(tank.grid);
+    const world = useMemo(
+        () => new TankWorld(),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [sizeKey],
+    );
     const [viewMode, setViewMode] = useState<TankViewMode>('flat');
     const [isPanelOpen, setIsPanelOpen] = useState(initialPanelOpen);
     const [selection, setSelection] = useState<TankSelection | null>(null);
@@ -299,6 +311,7 @@ export default function ShowTank({
             <div className="relative h-svh w-full overflow-hidden bg-background">
                 <main className="absolute inset-0">
                     <TankScene
+                        key={sizeKey}
                         tank={tank}
                         species={species}
                         world={world}

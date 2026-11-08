@@ -1,8 +1,9 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Suspense, useEffect, useMemo, useRef } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentRef } from 'react';
 import { MOUSE } from 'three';
+import { TANK } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import type {
     DecorationDefinition,
@@ -12,13 +13,14 @@ import type {
     TankSnapshot,
 } from '@/types';
 import { AutoFeederModel } from './auto-feeder-model';
+import { causticUniforms } from './caustics';
 import { Creatures } from './creatures';
 import { Decorations } from './decorations';
 import { FoodParticles } from './food-particles';
 import { haloUniforms } from './halo-material';
 import { Plants } from './plants';
 import { sceneClock } from './scene-clock';
-import { ORBIT_START, TankCameraRig } from './tank-camera-rig';
+import { orbitStart, TankCameraRig } from './tank-camera-rig';
 import type { TankViewMode } from './tank-camera-rig';
 import { TankPanControls } from './tank-pan-controls';
 import { TankEnvironment } from './tank-environment';
@@ -61,6 +63,11 @@ export function TankScene({
     onMoveDecoration,
 }: Props) {
     const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
+    const [start] = useState(orbitStart);
+
+    useEffect(() => {
+        causticUniforms.uCausticWaterLine.value = TANK.waterLine;
+    }, []);
     const lastGizmoUse = useRef(0);
     const speciesById = useMemo(
         () => new Map(species.map((definition) => [definition.id, definition])),
@@ -107,7 +114,7 @@ export function TankScene({
 
     return (
         <Canvas
-            camera={{ position: ORBIT_START.position, fov: ORBIT_START.fov }}
+            camera={{ position: start.position, fov: start.fov }}
             dpr={[1, 2]}
             gl={{ antialias: true }}
             onPointerMissed={() => {
@@ -188,7 +195,7 @@ export function TankScene({
             )}
             <OrbitControls
                 ref={controls}
-                target={ORBIT_START.target}
+                target={start.target}
                 enablePan={false}
                 mouseButtons={MOUSE_BUTTONS}
             />

@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Tank;
 use App\Models\User;
+use App\Simulation\TankGeometry;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,6 +23,9 @@ class TankFactory extends Factory
             'user_id' => User::factory(),
             'name' => fake()->firstName()."'s Tank",
             'volume_litres' => 60,
+            'grid_width' => TankGeometry::DEFAULT_WIDTH,
+            'grid_height' => TankGeometry::DEFAULT_HEIGHT,
+            'grid_depth' => TankGeometry::DEFAULT_DEPTH,
             'layer_count' => 5,
             'temperature' => 25,
             'target_temperature' => 25,
@@ -42,6 +46,19 @@ class TankFactory extends Factory
             'rng_seed' => fake()->numberBetween(1, 2_147_483_647),
             'last_simulated_at' => now(),
         ];
+    }
+
+    /**
+     * A tank with the given interior size in grid cells, with matching layers.
+     */
+    public function sized(int $width, int $height, int $depth): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'grid_width' => $width,
+            'grid_height' => $height,
+            'grid_depth' => $depth,
+            'layer_count' => TankGeometry::layerCountFor($depth),
+        ]);
     }
 
     /**

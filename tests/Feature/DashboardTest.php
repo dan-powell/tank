@@ -39,4 +39,15 @@ class DashboardTest extends TestCase
                 ->has('tanks', 1)
                 ->where('tanks.0.id', $tank->id));
     }
+
+    public function test_dashboard_shows_each_tanks_size_and_the_sizes_a_new_tank_may_have(): void
+    {
+        $tank = Tank::factory()->sized(180, 90, 81)->create();
+
+        $this->actingAs($tank->user)
+            ->get(route('dashboard'))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('tanks.0.dimensions_cm', [90, 45, 40.5])
+                ->where('sizeLimits', ['width' => [20, 120], 'height' => [20, 60], 'depth' => [15, 50]]));
+    }
 }

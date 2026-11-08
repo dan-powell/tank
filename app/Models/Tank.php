@@ -23,7 +23,10 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $user_id
  * @property string $name
- * @property int $volume_litres
+ * @property int $volume_litres Water held, derived from the dimensions (see TankGeometry::waterLitres()).
+ * @property int $grid_width Interior width in 0.5 cm decoration grid cells.
+ * @property int $grid_height Interior height (glass floor to rim) in grid cells.
+ * @property int $grid_depth Interior depth in grid cells.
  * @property int $layer_count Number of depth layers the tank is divided into.
  * @property list<int>|null $substrate_heights Substrate depth per heightmap column, in grid cells (null = flat; see TankGeometry).
  * @property float $temperature
@@ -52,7 +55,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'name', 'volume_litres', 'layer_count', 'substrate_heights', 'temperature', 'target_temperature', 'ph', 'ammonia', 'nitrite',
+    'name', 'volume_litres', 'grid_width', 'grid_height', 'grid_depth', 'layer_count', 'substrate_heights', 'temperature', 'target_temperature', 'ph', 'ammonia', 'nitrite',
     'nitrate', 'oxygen', 'co2', 'detritus', 'uneaten_food', 'algae', 'bacteria', 'light_on',
     'auto_feeder_installed', 'auto_feeder_feeds_per_day', 'auto_feeder_unlimited', 'auto_feeder_portions',
     'is_active', 'sim_tick', 'sim_seconds', 'rng_seed', 'last_simulated_at',
@@ -137,6 +140,9 @@ class Tank extends Model
     {
         return [
             'volume_litres' => 'integer',
+            'grid_width' => 'integer',
+            'grid_height' => 'integer',
+            'grid_depth' => 'integer',
             'layer_count' => 'integer',
             'substrate_heights' => 'array',
             'temperature' => 'float',

@@ -81,24 +81,65 @@ class TankControllerTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_user_without_a_tank_gets_a_starter_tank(): void
+    public function test_creating_a_tank_gives_it_the_chosen_size_and_matching_water_and_layers(): void
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->post(route('tanks.store'));
+        $response = $this->actingAs($user)->post(route('tanks.store'), [
+            'name' => 'Big Tank',
+            'width' => 90,
+            'height' => 45,
+            'depth' => 40,
+            'stocked' => false,
+        ]);
 
         $tank = $user->tanks()->sole();
         $response->assertRedirect(route('tanks.show', $tank));
-        $this->assertSame(11, $tank->creatures()->count());
+        $this->assertSame('Big Tank', $tank->name);
+        $this->assertSame([180, 90, 80], [$tank->grid_width, $tank->grid_height, $tank->grid_depth]);
+        $this->assertSame(7, $tank->layer_count);
+        $this->assertSame(148, $tank->volume_litres);
+        $this->assertSame(0, $tank->creatures()->count());
+        $this->assertSame(0, $tank->plants()->count());
     }
 
-    public function test_user_with_a_tank_is_sent_to_it_instead_of_getting_another(): void
+    public function test_a_stocked_tank_gets_stock_in_proportion_to_its_water(): void
     {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('tanks.store'), [
+            'name' => 'Nano',
+            'width' => 30,
+            'height' => 25,
+            'depth' => 20,
+            'stocked' => true,
+        ]);
+
+        $tank = $user->tanks()->sole();
+        $this->assertSame(13, $tank->volume_litres);
+        $this->assertSame(4, $tank->creatures()->count());
+        $this->assertSame(2, $tank->plants()->count());
+    }
+
+    public function test_rejects_a_tank_outside_the_allowed_size(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->post(route('tanks.store'), ['name' => 'Huge', 'width' => 200, 'height' => 45, 'depth' => 40])
+            ->assertSessionHasErrors(['width' => 'The width field must be between 20 and 120.']);
+
+        $this->assertSame(0, $user->tanks()->count());
+    }
+
+    public function test_rejects_a_tank_beyond_the_per_user_limit(): void
+    {
+        config(['simulation.max_tanks_per_user' => 1]);
         $tank = Tank::factory()->create();
 
         $this->actingAs($tank->user)
-            ->post(route('tanks.store'))
-            ->assertRedirect(route('tanks.show', $tank));
+            ->post(route('tanks.store'), ['name' => 'Second', 'width' => 60, 'height' => 30, 'depth' => 30])
+            ->assertSessionHasErrors(['name' => 'You cannot keep any more tanks.']);
 
         $this->assertSame(1, $tank->user->tanks()->count());
     }

@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { CM, TANK } from '@/lib/tank/space';
+import { CM, PLANT_HEIGHT_UNIT } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import creatureRoutes from '@/routes/tanks/creatures';
 import plantRoutes from '@/routes/tanks/plants';
@@ -169,7 +169,7 @@ function PlantStats({
     const heightCm =
         (plant.segments *
             (species.render.segment_height ?? 0.06) *
-            TANK.height) /
+            PLANT_HEIGHT_UNIT) /
         CM;
 
     return (

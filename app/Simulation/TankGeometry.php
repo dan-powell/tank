@@ -8,25 +8,32 @@ use App\Models\Tank;
 /**
  * The tank's physical layout on the decoration grid.
  *
- * The grid divides the tank's interior into 0.5 cm cells, from the glass floor
+ * The grid divides a tank's interior into 0.5 cm cells, from the glass floor
  * (y = 0) to the rim, with x running left to right and z from the back glass
  * (z = 0) to the front. Decorations, the substrate and the water level are all
  * measured in these cells, so none of them depends on the others.
- *
- * Every tank currently shares one size and water level; reading them through
- * this class keeps that a single change when tanks gain their own.
  */
 final class TankGeometry
 {
-    /** Interior width, height (floor to rim) and depth in cells. */
-    public const int WIDTH = 120;
+    /** Grid cells per centimetre. */
+    public const int CELLS_PER_CM = 2;
 
-    public const int HEIGHT = 65;
+    /** Interior size of a starter tank (60 x 32.5 x 27.5 cm), in cells. */
+    public const int DEFAULT_WIDTH = 120;
 
-    public const int DEPTH = 55;
+    public const int DEFAULT_HEIGHT = 65;
 
-    /** First cell row above the water. */
-    public const int WATER_LEVEL = 61;
+    public const int DEFAULT_DEPTH = 55;
+
+    /** Allowed interior sizes, in whole centimetres: [min, max]. */
+    public const array WIDTH_CM = [20, 120];
+
+    public const array HEIGHT_CM = [20, 60];
+
+    public const array DEPTH_CM = [15, 50];
+
+    /** Gap between the water line and the rim, in cells. */
+    public const int RIM_GAP = 4;
 
     /** The substrate heightmap holds one height per square of this many cells. */
     public const int SUBSTRATE_COLUMN = 4;
@@ -34,8 +41,14 @@ final class TankGeometry
     /** Substrate depth of an unsculpted tank, in cells. */
     public const int DEFAULT_SUBSTRATE = 4;
 
+    /** Target thickness of one depth layer, in cells (5.5 cm). */
+    private const int LAYER_CELLS = 11;
+
     /** Wall clearance used when dividing the depth into layers (matches the client's MARGIN). */
     private const int LAYER_MARGIN = 4;
+
+    /** Litres held by one grid cell (0.5 cm cubed). */
+    private const float LITRES_PER_CELL = 0.000125;
 
     /**
      * The grid dimensions sent to the browser.
@@ -45,17 +58,20 @@ final class TankGeometry
     public static function grid(Tank $tank): array
     {
         return [
-            'width' => self::WIDTH,
-            'height' => self::HEIGHT,
-            'depth' => self::DEPTH,
+            'width' => $tank->grid_width,
+            'height' => $tank->grid_height,
+            'depth' => $tank->grid_depth,
             'water_level' => self::waterLevel($tank),
             'substrate_column' => self::SUBSTRATE_COLUMN,
         ];
     }
 
+    /**
+     * First cell row above the water.
+     */
     public static function waterLevel(Tank $tank): int
     {
-        return self::WATER_LEVEL;
+        return $tank->grid_height - self::RIM_GAP;
     }
 
     /**
@@ -67,15 +83,45 @@ final class TankGeometry
     }
 
     /**
+     * How many depth layers a tank of this depth (in cells) is divided into.
+     */
+    public static function layerCountFor(int $depth): int
+    {
+        return max(2, (int) round($depth / self::LAYER_CELLS));
+    }
+
+    /**
+     * The volume of water in the tank, from the substrate's surface up to the water line.
+     */
+    public static function waterLitres(Tank $tank): int
+    {
+        [$columns, $rows] = self::substrateColumns($tank);
+        $heights = self::substrateHeights($tank);
+        $waterLevel = self::waterLevel($tank);
+        $cells = 0;
+
+        for ($row = 0; $row < $rows; $row++) {
+            $rowDepth = min(self::SUBSTRATE_COLUMN, $tank->grid_depth - $row * self::SUBSTRATE_COLUMN);
+
+            for ($column = 0; $column < $columns; $column++) {
+                $columnWidth = min(self::SUBSTRATE_COLUMN, $tank->grid_width - $column * self::SUBSTRATE_COLUMN);
+                $cells += $rowDepth * $columnWidth * max(0, $waterLevel - $heights[$row * $columns + $column]);
+            }
+        }
+
+        return (int) round($cells * self::LITRES_PER_CELL);
+    }
+
+    /**
      * The substrate heightmap's column counts along x and z.
      *
      * @return array{0: int, 1: int}
      */
-    public static function substrateColumns(): array
+    public static function substrateColumns(Tank $tank): array
     {
         return [
-            (int) ceil(self::WIDTH / self::SUBSTRATE_COLUMN),
-            (int) ceil(self::DEPTH / self::SUBSTRATE_COLUMN),
+            (int) ceil($tank->grid_width / self::SUBSTRATE_COLUMN),
+            (int) ceil($tank->grid_depth / self::SUBSTRATE_COLUMN),
         ];
     }
 
@@ -86,7 +132,7 @@ final class TankGeometry
      */
     public static function substrateHeights(Tank $tank): array
     {
-        [$columns, $rows] = self::substrateColumns();
+        [$columns, $rows] = self::substrateColumns($tank);
         $stored = $tank->substrate_heights ?? [];
 
         return array_map(
@@ -100,7 +146,7 @@ final class TankGeometry
      */
     public static function substrateHeightAt(Tank $tank, int $x, int $z): int
     {
-        [$columns, $rows] = self::substrateColumns();
+        [$columns, $rows] = self::substrateColumns($tank);
         $column = min($columns - 1, max(0, intdiv($x, self::SUBSTRATE_COLUMN)));
         $row = min($rows - 1, max(0, intdiv($z, self::SUBSTRATE_COLUMN)));
 
@@ -113,7 +159,7 @@ final class TankGeometry
     public static function highestSubstrateUnder(Tank $tank, GridBox $box): int
     {
         $heights = self::substrateHeights($tank);
-        [$columns, $rows] = self::substrateColumns();
+        [$columns, $rows] = self::substrateColumns($tank);
         $highest = 0;
 
         for ($row = intdiv($box->z, self::SUBSTRATE_COLUMN); $row <= min($rows - 1, intdiv($box->maxZ() - 1, self::SUBSTRATE_COLUMN)); $row++) {
@@ -131,7 +177,9 @@ final class TankGeometry
     public static function contains(Tank $tank, GridBox $box): bool
     {
         return $box->x >= 0 && $box->y >= 0 && $box->z >= 0
-            && $box->maxX() <= self::WIDTH && $box->maxY() <= self::HEIGHT && $box->maxZ() <= self::DEPTH;
+            && $box->maxX() <= $tank->grid_width
+            && $box->maxY() <= $tank->grid_height
+            && $box->maxZ() <= $tank->grid_depth;
     }
 
     /**
@@ -179,36 +227,39 @@ final class TankGeometry
     }
 
     /**
-     * The grid column under a substrate-rooted plant (normalised x, depth layer).
+     * The grid column under a substrate-rooted plant (normalised x, depth layer)
+     * in a tank of the given width and depth (in cells).
      *
      * @return array{0: int, 1: int}
      */
-    public static function plantColumn(float $rootX, int $layer, int $layerCount): array
+    public static function plantColumn(float $rootX, int $layer, int $layerCount, int $width, int $depth): array
     {
-        $layerDepth = (self::DEPTH - 2 * self::LAYER_MARGIN) / max(1, $layerCount);
-
         return [
-            min(self::WIDTH - 1, max(0, (int) floor($rootX * self::WIDTH))),
-            (int) floor(self::LAYER_MARGIN + ($layer + 0.5) * $layerDepth),
+            min($width - 1, max(0, (int) floor($rootX * $width))),
+            (int) floor(self::LAYER_MARGIN + ($layer + 0.5) * self::layerDepth($layerCount, $depth)),
         ];
     }
 
     /**
      * The normalised x (0..1) at the centre of a grid column.
      */
-    public static function normalisedX(int $x): float
+    public static function normalisedX(int $x, int $width): float
     {
-        return ($x + 0.5) / self::WIDTH;
+        return ($x + 0.5) / $width;
     }
 
     /**
      * The depth layer containing a grid row along z.
      */
-    public static function layerAt(int $z, int $layerCount): int
+    public static function layerAt(int $z, int $layerCount, int $depth): int
     {
-        $layerDepth = (self::DEPTH - 2 * self::LAYER_MARGIN) / max(1, $layerCount);
-        $layer = (int) floor(($z + 0.5 - self::LAYER_MARGIN) / $layerDepth);
+        $layer = (int) floor(($z + 0.5 - self::LAYER_MARGIN) / self::layerDepth($layerCount, $depth));
 
         return min($layerCount - 1, max(0, $layer));
+    }
+
+    private static function layerDepth(int $layerCount, int $depth): float
+    {
+        return ($depth - 2 * self::LAYER_MARGIN) / max(1, $layerCount);
     }
 }

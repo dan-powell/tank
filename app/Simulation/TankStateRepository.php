@@ -90,6 +90,8 @@ final class TankStateRepository
                 $decoration->id => $this->submergedAnchors($tank, $decoration),
             ])->all(),
             groundedFootprints: TankGeometry::groundedFootprints($tank, $decorations),
+            gridWidth: $tank->grid_width,
+            gridDepth: $tank->grid_depth,
         );
     }
 

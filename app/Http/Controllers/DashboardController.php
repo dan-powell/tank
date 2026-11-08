@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tank;
+use App\Simulation\TankGeometry;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -25,6 +26,7 @@ class DashboardController extends Controller
                 'id' => $tank->id,
                 'name' => $tank->name,
                 'volume_litres' => $tank->volume_litres,
+                'dimensions_cm' => [$tank->grid_width / 2, $tank->grid_height / 2, $tank->grid_depth / 2],
                 'creatures_count' => $tank->creatures_count,
                 'plants_count' => $tank->plants_count,
                 'temperature' => round($tank->temperature, 1),
@@ -34,6 +36,11 @@ class DashboardController extends Controller
 
         return Inertia::render('dashboard', [
             'tanks' => $tanks,
+            'sizeLimits' => [
+                'width' => TankGeometry::WIDTH_CM,
+                'height' => TankGeometry::HEIGHT_CM,
+                'depth' => TankGeometry::DEPTH_CM,
+            ],
         ]);
     }
 }

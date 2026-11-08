@@ -7,10 +7,14 @@ type Props = {
 };
 
 /** Height of the lamp hood's underside above the tank floor. */
-export const HOOD_HEIGHT = TANK.height + 0.35;
+export function hoodHeight(): number {
+    return TANK.height + 0.35;
+}
 
 /** Horizontal positions of the spotlights along the hood. */
-export const SPOT_POSITIONS = [-TANK.width / 3, 0, TANK.width / 3];
+export function spotPositions(): number[] {
+    return [-TANK.width / 3, 0, TANK.width / 3];
+}
 
 /**
  * Lighting presets. The spotlights are room lighting so the tank is always
@@ -56,7 +60,7 @@ export function TankLighting({ isLit }: Props) {
             />
 
             <LampHood isLit={isLit} />
-            {SPOT_POSITIONS.map((x) => (
+            {spotPositions().map((x) => (
                 <Spotlight key={x} x={x} isLit={isLit} />
             ))}
         </group>
@@ -68,7 +72,7 @@ function LampHood({ isLit }: Props) {
     const barLength = TANK.width + 0.1;
 
     return (
-        <group position={[0, HOOD_HEIGHT, 0]}>
+        <group position={[0, hoodHeight(), 0]}>
             {/* Rail the spotlights hang from */}
             <mesh position={[0, 0.08, 0]} raycast={() => null}>
                 <boxGeometry args={[barLength, 0.03, 0.06]} />
@@ -95,7 +99,7 @@ function LampHood({ isLit }: Props) {
                 </mesh>
             ))}
 
-            {SPOT_POSITIONS.map((x) => (
+            {spotPositions().map((x) => (
                 <group key={x} position={[x, 0, 0]}>
                     {/* Housing */}
                     <mesh position={[0, 0.03, 0]} raycast={() => null}>
@@ -133,7 +137,7 @@ function Spotlight({ x, isLit }: { x: number; isLit: boolean }) {
         <>
             <primitive object={target} position={[x, 0, 0]} />
             <spotLight
-                position={[x, HOOD_HEIGHT - 0.02, 0]}
+                position={[x, hoodHeight() - 0.02, 0]}
                 target={target}
                 color={preset.spotColour}
                 intensity={preset.spotIntensity}

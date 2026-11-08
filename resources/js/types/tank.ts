@@ -199,9 +199,18 @@ export type DashboardTank = {
     id: number;
     name: string;
     volume_litres: number;
+    /** Interior width, height and depth in centimetres. */
+    dimensions_cm: [number, number, number];
     creatures_count: number;
     plants_count: number;
     temperature: number;
     ammonia: number;
     nitrate: number;
+};
+
+/** Allowed interior sizes for a new tank, in whole centimetres: [min, max]. */
+export type TankSizeLimits = {
+    width: [number, number];
+    height: [number, number];
+    depth: [number, number];
 };

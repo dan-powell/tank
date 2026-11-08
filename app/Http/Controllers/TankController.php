@@ -2,7 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Actions\Tank\CreateStarterTank;
+use App\Actions\Tank\CreateTank;
+use App\Http\Requests\Tank\StoreTankRequest;
 use App\Http\Resources\DecorationDefinitionResource;
 use App\Http\Resources\SpeciesResource;
 use App\Http\Resources\TankEventResource;
@@ -11,7 +12,6 @@ use App\Models\Species;
 use App\Models\Tank;
 use App\Simulation\DecorationCatalogue;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -43,11 +43,18 @@ class TankController extends Controller
     }
 
     /**
-     * Give a user without a tank a new starter tank.
+     * Set up a new tank of the chosen size.
      */
-    public function store(Request $request, CreateStarterTank $createStarterTank): RedirectResponse
+    public function store(StoreTankRequest $request, CreateTank $createTank): RedirectResponse
     {
-        $tank = $request->user()->tanks()->first() ?? $createStarterTank->handle($request->user());
+        $tank = $createTank->handle(
+            $request->user(),
+            $request->string('name')->trim()->toString(),
+            $request->cells('width'),
+            $request->cells('height'),
+            $request->cells('depth'),
+            $request->boolean('stocked'),
+        );
 
         return to_route('tanks.show', $tank);
     }

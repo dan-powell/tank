@@ -73,14 +73,14 @@ class PlaceDecoration
         [$width, $height, $depth] = $size;
         $others = $tank->decorations()->get()->map(fn (Decoration $decoration): GridBox => TankGeometry::footprint($decoration))->all();
         $plantColumns = $tank->plants()->alive()->whereNull('decoration_id')->get()
-            ->map(fn (Plant $plant): array => TankGeometry::plantColumn($plant->root_x, $plant->layer, $tank->layer_count))
+            ->map(fn (Plant $plant): array => TankGeometry::plantColumn($plant->root_x, $plant->layer, $tank->layer_count, $tank->grid_width, $tank->grid_depth))
             ->all();
 
         $best = null;
         $bestScore = INF;
 
-        foreach ($this->candidateCorners(TankGeometry::WIDTH - $width) as $x) {
-            foreach ($this->candidateCorners(TankGeometry::DEPTH - $depth) as $z) {
+        foreach ($this->candidateCorners($tank->grid_width - $width) as $x) {
+            foreach ($this->candidateCorners($tank->grid_depth - $depth) as $z) {
                 $floorPlan = new GridBox($x, 0, $z, $width, $height, $depth);
                 $substrate = TankGeometry::highestSubstrateUnder($tank, $floorPlan);
                 $restingOn = $substrate;
@@ -94,7 +94,7 @@ class PlaceDecoration
                     $nearestGap = min($nearestGap, $floorPlan->footprintGap($other));
                 }
 
-                if ($restingOn + $height > TankGeometry::HEIGHT) {
+                if ($restingOn + $height > $tank->grid_height) {
                     continue;
                 }
 
@@ -104,8 +104,8 @@ class PlaceDecoration
                     fn (array $column): bool => $floorPlan->coversColumn($column[0], $column[1]),
                 ));
 
-                $score = ($isStacked ? 10 + $restingOn / TankGeometry::HEIGHT : 0)
-                    + $z / TankGeometry::DEPTH
+                $score = ($isStacked ? 10 + $restingOn / $tank->grid_height : 0)
+                    + $z / $tank->grid_depth
                     + max(0, self::COMFORTABLE_GAP - $nearestGap) / self::COMFORTABLE_GAP * 0.5
                     + $coveredPlants * 0.3
                     + $this->random->getFloat(0, 0.35);

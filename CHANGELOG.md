@@ -11,7 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Laravel React starter kit (Inertia v3, React 19, Fortify, Wayfinder, Tailwind 4) with Reverb realtime and DDEV daemons.
 - Tank simulation: species catalogue, deterministic simulator, scheduled ticks and live updates.
 - Tank care: feeding, water changes, gravel vacuum, algae scrub, lamp, stocking and an auto-feeder.
-- Starter tank for every new user, and a dashboard listing their tanks.
+- Starter tank for every new user, and a dashboard listing their tanks with their sizes.
 - Tank view: 2.5D depth layers with voxel artwork from PNG sprites (detailed placeholder art included), and spotlights.
 - 2D (default) and 3D view toggle, bottom left; left-drag pans, right-drag rotates. The 2D view hides the glass edge lines.
 - Tabbed tank side panel with animated transitions: Summary (tank name and clock, water, inhabitants, latest activity that fits without scrolling), Activity (full log), Inhabitants, Management and Equipment (auto-feeder); icon tabs with tooltips.
@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Fish swim over or turn away from decorations, bottom dwellers walk over low ones, snails climb them, and food settles on them.
 - Plants that can grow on decorations (Hornwort) can be planted on a decoration's plant spots and spread to its free spots.
 - Substrate heightmap and a shared 0.5 cm grid for the tank (groundwork for sculpted substrate and variable water levels).
+- Tanks have their own size: a New tank dialog on the dashboard sets the name, inside measurements (20–120 × 20–60 × 15–50 cm) and optional starter stock scaled to the water; each user may keep up to 6 tanks.
 
 ### Changed
 
@@ -37,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tank panels use shadcn/ui components throughout; removing an inhabitant now asks for confirmation in a dialog.
 - New look from a shadcn preset: Lyra style, teal theme and Source Sans 3 font.
 - Feeding is done from the Care panel only; clicking the water no longer drops food.
+- A tank's litres now come from the water it holds (existing tanks: 60 L → 47 L) and its depth layers from its depth (about one per 5.5 cm).
 
 ### Fixed
 

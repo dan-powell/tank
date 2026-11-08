@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     AdditiveBlending,
     InstancedBufferAttribute,
@@ -12,10 +12,12 @@ import { createCausticMaterial } from './caustics';
 import { sceneClock } from './scene-clock';
 
 /** Where the air stone sits on the substrate (world x/z, back left). */
-export const AIR_STONE = {
-    x: -TANK.width * 0.36,
-    z: -TANK.depth / 2 + 0.09,
-} as const;
+export function airStone(): { x: number; z: number } {
+    return {
+        x: -TANK.width * 0.36,
+        z: -TANK.depth / 2 + 0.09,
+    };
+}
 
 const BUBBLE_COUNT = 70;
 
@@ -100,6 +102,7 @@ type Props = {
  * per-frame CPU work.
  */
 export function Bubbles({ isLit }: Props) {
+    const [stone] = useState(airStone);
     const geometry = useMemo(() => {
         const sphere = new SphereGeometry(1, 12, 8);
         const bubbles = new Float32Array(BUBBLE_COUNT * 4);
@@ -137,9 +140,9 @@ export function Bubbles({ isLit }: Props) {
                     uTime: sceneClock,
                     uSource: {
                         value: new Vector3(
-                            AIR_STONE.x,
+                            stone.x,
                             TANK.substrate + 0.025,
-                            AIR_STONE.z,
+                            stone.z,
                         ),
                     },
                     uTop: { value: TANK.waterLine },
@@ -174,7 +177,7 @@ export function Bubbles({ isLit }: Props) {
         <group>
             {/* Air stone */}
             <mesh
-                position={[AIR_STONE.x, TANK.substrate + 0.012, AIR_STONE.z]}
+                position={[stone.x, TANK.substrate + 0.012, stone.z]}
                 material={stoneMaterial}
                 raycast={() => null}
             >
@@ -183,7 +186,7 @@ export function Bubbles({ isLit }: Props) {
             {/* Airline up the back glass */}
             <mesh
                 position={[
-                    AIR_STONE.x,
+                    stone.x,
                     TANK.substrate + tubeHeight / 2,
                     -TANK.depth / 2 + 0.02,
                 ]}
@@ -199,20 +202,15 @@ export function Bubbles({ isLit }: Props) {
             </mesh>
             <mesh
                 position={[
-                    AIR_STONE.x,
+                    stone.x,
                     TANK.substrate + 0.012,
-                    (AIR_STONE.z - TANK.depth / 2 + 0.02) / 2,
+                    (stone.z - TANK.depth / 2 + 0.02) / 2,
                 ]}
                 rotation={[Math.PI / 2, 0, 0]}
                 raycast={() => null}
             >
                 <cylinderGeometry
-                    args={[
-                        0.006,
-                        0.006,
-                        AIR_STONE.z + TANK.depth / 2 - 0.02,
-                        8,
-                    ]}
+                    args={[0.006, 0.006, stone.z + TANK.depth / 2 - 0.02, 8]}
                 />
                 <meshStandardMaterial color="#9fb7a8" roughness={0.3} />
             </mesh>

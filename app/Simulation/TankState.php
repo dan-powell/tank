@@ -19,6 +19,8 @@ final class TankState
      * @param  list<CreatureState>  $creatures
      * @param  array<int, array<int, array{0: int, 1: int, 2: int}>>  $decorationAnchors  Submerged anchor cells, keyed by decoration id then anchor index.
      * @param  list<GridBox>  $groundedFootprints  Decorations resting on the substrate, where plants cannot root.
+     * @param  int  $gridWidth  Interior width in decoration grid cells.
+     * @param  int  $gridDepth  Interior depth in decoration grid cells.
      */
     public function __construct(
         public int $volumeLitres,
@@ -45,6 +47,8 @@ final class TankState
         public ?AutoFeederState $autoFeeder = null,
         public array $decorationAnchors = [],
         public array $groundedFootprints = [],
+        public int $gridWidth = TankGeometry::DEFAULT_WIDTH,
+        public int $gridDepth = TankGeometry::DEFAULT_DEPTH,
     ) {}
 
     /**
@@ -101,7 +105,7 @@ final class TankState
      */
     public function isSubstrateCovered(float $rootX, int $layer): bool
     {
-        [$x, $z] = TankGeometry::plantColumn($rootX, $layer, $this->layerCount);
+        [$x, $z] = TankGeometry::plantColumn($rootX, $layer, $this->layerCount, $this->gridWidth, $this->gridDepth);
 
         return array_any($this->groundedFootprints, fn (GridBox $box): bool => $box->coversColumn($x, $z));
     }
