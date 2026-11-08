@@ -53,10 +53,17 @@ const NIGHT = {
     causticTint: new Color('#dfe6ff'),
 };
 
+/** Height of the water box's floor, just clear of the glass. */
+const WATER_FLOOR = 0.002;
+
 /** Surface subdivisions per world unit; the top face is displaced by the ripple field. */
 const SURFACE_SEGMENTS_PER_UNIT = 66;
 
-/** The water's box in the current tank, from the substrate to the water line. */
+/**
+ * The water's box in the current tank, from just above the glass floor to the
+ * water line; the gravel hides whatever part of it lies beneath its surface,
+ * wherever it has been sculpted.
+ */
 function waterBox(): {
     min: Vector3;
     max: Vector3;
@@ -66,7 +73,7 @@ function waterBox(): {
     return {
         min: new Vector3(
             -TANK.width / 2 + 0.005,
-            TANK.substrate,
+            WATER_FLOOR,
             -TANK.depth / 2 + 0.005,
         ),
         max: new Vector3(
@@ -74,7 +81,7 @@ function waterBox(): {
             TANK.waterLine,
             TANK.depth / 2 - 0.005,
         ),
-        height: TANK.waterLine - TANK.substrate,
+        height: TANK.waterLine - WATER_FLOOR,
         segments: {
             x: Math.round(TANK.width * SURFACE_SEGMENTS_PER_UNIT),
             z: Math.round(TANK.depth * SURFACE_SEGMENTS_PER_UNIT),
@@ -467,7 +474,7 @@ export function WaterVolume({ water, isLit, world }: Props) {
         <mesh
             ref={mesh}
             material={material}
-            position={[0, TANK.substrate + box.height / 2, 0]}
+            position={[0, WATER_FLOOR + box.height / 2, 0]}
             renderOrder={-1}
             raycast={() => null}
         >

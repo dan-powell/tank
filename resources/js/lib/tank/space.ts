@@ -164,7 +164,7 @@ configureTankSpace({
     depth: 55,
     water_level: 61,
     max_water_level: 61,
-    substrate_column: 4,
+    substrate_column: 2,
 });
 
 /** Format the simulation clock as "Day 3, 14:05". */

@@ -8,6 +8,7 @@ use App\Http\Controllers\TankDecorationController;
 use App\Http\Controllers\TankMaintenanceController;
 use App\Http\Controllers\TankPlantController;
 use App\Http\Controllers\TankStockController;
+use App\Http\Controllers\TankSubstrateController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
@@ -26,6 +27,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::post('feed', [TankMaintenanceController::class, 'feed'])->name('feed');
             Route::post('water-change', [TankMaintenanceController::class, 'changeWater'])->name('water-change');
             Route::put('water-level', [TankMaintenanceController::class, 'setWaterLevel'])->name('water-level');
+            Route::put('substrate', [TankSubstrateController::class, 'update'])->name('substrate.update');
             Route::post('vacuum', [TankMaintenanceController::class, 'vacuum'])->name('vacuum');
             Route::post('scrub', [TankMaintenanceController::class, 'scrub'])->name('scrub');
             Route::post('light', [TankMaintenanceController::class, 'toggleLight'])->name('light');

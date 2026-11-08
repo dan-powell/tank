@@ -1,18 +1,17 @@
 import { Edges } from '@react-three/drei';
-import { useEffect, useMemo } from 'react';
-import { Color, DoubleSide, InstancedMesh, Object3D } from 'three';
+import { useMemo } from 'react';
+import { DoubleSide, InstancedMesh, Object3D } from 'three';
 import { TANK } from '@/lib/tank/space';
-import { buildSubstrateGeometry } from '@/lib/tank/substrate-geometry';
+import { substrateHeightAt } from '@/lib/tank/terrain-field';
 import type { TankGrid, WaterParameters } from '@/types';
 import { Bubbles } from './bubbles';
-import { createCausticMaterial } from './caustics';
 import { TankLighting } from './tank-lighting';
 
 type Props = {
     water: WaterParameters;
     isLit: boolean;
     grid: TankGrid;
-    /** Substrate height in grid cells per heightmap column. */
+    /** Substrate height in grid cells per heightmap column, for litter lying on it. */
     substrate: number[];
     /** False when the tank is empty: no bubbles from the air stone. */
     hasWater: boolean;
@@ -29,26 +28,16 @@ export function TankEnvironment({
     showEdges = true,
 }: Props) {
     const algae = Math.min(1, water.algae / 100);
-    const substrateMaterial = useMemo(
-        () => createCausticMaterial(new Color('#b49a72')),
-        [],
-    );
-    const substrateKey = substrate.join(',');
-    const substrateGeometry = useMemo(
-        () => buildSubstrateGeometry(grid, substrateKey.split(',').map(Number)),
-        [grid, substrateKey],
-    );
-
-    useEffect(() => () => substrateMaterial.dispose(), [substrateMaterial]);
-    useEffect(() => () => substrateGeometry.dispose(), [substrateGeometry]);
 
     return (
         <group>
             <TankLighting isLit={isLit} />
 
-            {/* Substrate */}
-            <mesh geometry={substrateGeometry} material={substrateMaterial} />
-            <Detritus amount={water.detritus} />
+            <Detritus
+                amount={water.detritus}
+                grid={grid}
+                substrate={substrate}
+            />
             {hasWater && <Bubbles key={grid.water_level} isLit={isLit} />}
 
             {/* Algae film on the back and side glass */}
@@ -83,7 +72,15 @@ export function TankEnvironment({
 
 const dummy = new Object3D();
 
-function Detritus({ amount }: { amount: number }) {
+function Detritus({
+    amount,
+    grid,
+    substrate,
+}: {
+    amount: number;
+    grid: TankGrid;
+    substrate: number[];
+}) {
     const count = Math.min(250, Math.round(amount * 50));
     const offsets = useMemo(
         () =>
@@ -102,7 +99,11 @@ function Detritus({ amount }: { amount: number }) {
         }
 
         offsets.slice(0, count).forEach((offset, index) => {
-            dummy.position.set(offset.x, TANK.substrate + 0.002, offset.z);
+            dummy.position.set(
+                offset.x,
+                substrateHeightAt(grid, substrate, offset.x, offset.z) + 0.002,
+                offset.z,
+            );
             dummy.rotation.set(-Math.PI / 2, 0, offset.rotation);
             dummy.scale.setScalar(offset.scale);
             dummy.updateMatrix();

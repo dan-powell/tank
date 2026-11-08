@@ -5,6 +5,7 @@ import type { ComponentRef } from 'react';
 import { MOUSE } from 'three';
 import { TANK } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
+import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
 import type {
     DecorationDefinition,
     GridCell,
@@ -16,6 +17,7 @@ import { AutoFeederModel } from './auto-feeder-model';
 import { causticUniforms } from './caustics';
 import { Creatures } from './creatures';
 import { Decorations } from './decorations';
+import { Substrate } from './substrate';
 import { FoodParticles } from './food-particles';
 import { haloUniforms } from './halo-material';
 import { Plants } from './plants';
@@ -37,6 +39,9 @@ type Props = {
     /** A free anchor on a decoration was picked, to plant something there. */
     onSelectAnchor: (decorationId: number, anchor: number) => void;
     onMoveDecoration: (decorationId: number, position: GridCell) => void;
+    /** The sculpting brush while sculpt mode is on; selection is paused meanwhile. */
+    sculptBrush: SculptBrush | null;
+    onSculpt: (heights: number[]) => void;
 };
 
 /** Clicks this soon (ms) after a gizmo drag ends belong to the gizmo, not the empty water. */
@@ -58,10 +63,23 @@ export function TankScene({
     viewMode,
     decorationCatalogue,
     selection,
-    onSelect,
-    onSelectAnchor,
+    onSelect: select,
+    onSelectAnchor: selectAnchor,
     onMoveDecoration,
+    sculptBrush,
+    onSculpt,
 }: Props) {
+    const isSculpting = sculptBrush !== null;
+    const onSelect = (next: TankSelection | null) => {
+        if (!isSculpting) {
+            select(next);
+        }
+    };
+    const onSelectAnchor = (decorationId: number, anchor: number) => {
+        if (!isSculpting) {
+            selectAnchor(decorationId, anchor);
+        }
+    };
     const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
     const [start] = useState(orbitStart);
 
@@ -145,6 +163,13 @@ export function TankScene({
                 substrate={tank.substrate}
                 hasWater={tank.has_water}
                 showEdges={viewMode === 'orbit'}
+            />
+            <Substrate
+                grid={tank.grid}
+                heights={tank.substrate}
+                brush={sculptBrush}
+                onSculpt={onSculpt}
+                onStrokeChange={setGizmoDragging}
             />
             <Suspense fallback={null}>
                 <Decorations

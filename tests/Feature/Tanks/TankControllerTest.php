@@ -64,9 +64,9 @@ class TankControllerTest extends TestCase
                     'seed' => 99,
                 ])
                 ->where('tank.plants.0.attachment', ['decoration_id' => $decoration->id, 'anchor' => 1])
-                ->where('tank.grid', ['width' => 120, 'height' => 65, 'depth' => 55, 'water_level' => 61, 'max_water_level' => 61, 'substrate_column' => 4])
+                ->where('tank.grid', ['width' => 120, 'height' => 65, 'depth' => 55, 'water_level' => 61, 'max_water_level' => 61, 'substrate_column' => 2])
                 ->where('tank.has_water', true)
-                ->has('tank.substrate', 30 * 14)
+                ->has('tank.substrate', 60 * 28)
                 ->where('tank.substrate.0', 4)
                 ->has('decorationCatalogue', 6)
                 ->where('decorationCatalogue.1.slug', 'boulder')

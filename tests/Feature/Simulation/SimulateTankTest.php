@@ -7,6 +7,7 @@ use App\Enums\TankEventType;
 use App\Events\TankUpdated;
 use App\Jobs\SimulateTank;
 use App\Models\Creature;
+use App\Models\Plant;
 use App\Models\Species;
 use App\Models\Tank;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -118,5 +119,23 @@ class SimulateTankTest extends TestCase
         SimulateTank::dispatchSync($tank);
 
         $this->assertSame(3, $tank->fresh()->sim_tick);
+    }
+
+    public function test_plants_on_gravel_raised_above_the_water_wilt(): void
+    {
+        $heights = array_fill(0, 60 * 28, 4);
+        array_splice($heights, 0, 60 * 8, array_fill(0, 60 * 8, 50));
+        $tank = Tank::factory()->withWaterDepth(10)->create([
+            'substrate_heights' => $heights,
+            'last_simulated_at' => now()->subHour(),
+            'layer_count' => 5,
+        ]);
+        $onLand = Plant::factory()->for($tank)->create(['layer' => 0, 'health' => 1.0]);
+        $underWater = Plant::factory()->for($tank)->create(['layer' => 4, 'health' => 1.0]);
+
+        SimulateTank::dispatchSync($tank);
+
+        $this->assertEqualsWithDelta(1.0 - 0.02, $onLand->fresh()->health, 0.0001);
+        $this->assertSame(1.0, $underWater->fresh()->health);
     }
 }

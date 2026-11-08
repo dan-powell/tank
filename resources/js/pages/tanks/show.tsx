@@ -18,6 +18,7 @@ import type { ReactNode } from 'react';
 import { AutoFeederPanel } from '@/components/tank/auto-feeder-panel';
 import { DecorCatalogue } from '@/components/tank/decor-catalogue';
 import { DecorationPanel } from '@/components/tank/decoration-panel';
+import { SubstratePanel } from '@/components/tank/substrate-panel';
 import { EventLog } from '@/components/tank/event-log';
 import { InhabitantList } from '@/components/tank/inhabitant-list';
 import { InhabitantPanel } from '@/components/tank/inhabitant-panel';
@@ -49,7 +50,9 @@ import {
 import { cn } from '@/lib/utils';
 import { TankWorld } from '@/lib/tank/world';
 import { dashboard } from '@/routes';
+import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
 import { feed } from '@/routes/tanks';
+import substrateRoutes from '@/routes/tanks/substrate';
 import decorationRoutes from '@/routes/tanks/decorations';
 import type {
     DecorationDefinition,
@@ -59,6 +62,7 @@ import type {
     TankSelection,
     TankSnapshot,
 } from '@/types';
+import { toast } from 'sonner';
 import { Vector3 } from 'three';
 
 type Props = {
@@ -160,6 +164,9 @@ export default function ShowTank({
     const [isPanelOpen, setIsPanelOpen] = useState(initialPanelOpen);
     const [selection, setSelection] = useState<TankSelection | null>(null);
     const [selectedAnchor, setSelectedAnchor] = useState<number | null>(null);
+    const [sculptBrush, setSculptBrush] = useState<SculptBrush | null>(null);
+    /** Earlier substrate shapes, most recent last, for Undo. */
+    const [substrateHistory, setSubstrateHistory] = useState<number[][]>([]);
     const [tab, setTab] = useState<PanelTab>('summary');
     const [tabDirection, setTabDirection] = useState<TabDirection>('right');
 
@@ -169,6 +176,7 @@ export default function ShowTank({
 
         setTabDirection(index(next) < index(tab) ? 'left' : 'right');
         setTab(next);
+        setSculptBrush(null);
     };
 
     const togglePanel = () => setIsPanelOpen((open) => !open);
@@ -200,6 +208,56 @@ export default function ShowTank({
 
         return placed && definition ? { placed, definition } : null;
     }, [tank.decorations, decorationCatalogue, selection]);
+
+    /** Save a new substrate shape, shown at once; `remember` keeps the old one for Undo. */
+    const saveSubstrate = (heights: number[], remember = true) => {
+        const previous = tank.substrate;
+
+        if (remember) {
+            setSubstrateHistory((history) => [...history.slice(-19), previous]);
+        }
+
+        router.put(
+            substrateRoutes.update.url(tank.id),
+            { heights },
+            {
+                preserveScroll: true,
+                only: ['tank', 'errors'],
+                optimistic: (props) => ({
+                    tank: {
+                        ...(props.tank as TankSnapshot),
+                        substrate: heights,
+                    },
+                }),
+                onError: (errors) => {
+                    if (remember) {
+                        setSubstrateHistory((history) => history.slice(0, -1));
+                    }
+
+                    toast.error(
+                        errors.heights ?? 'The gravel could not be reshaped.',
+                    );
+                },
+            },
+        );
+    };
+
+    const undoSubstrate = () => {
+        const previous = substrateHistory.at(-1);
+
+        if (previous !== undefined) {
+            setSubstrateHistory((history) => history.slice(0, -1));
+            saveSubstrate(previous, false);
+        }
+    };
+
+    const startSculpting = (brush: SculptBrush | null) => {
+        if (brush !== null) {
+            setSelection(null);
+        }
+
+        setSculptBrush(brush);
+    };
 
     /** Move (and/or turn) a decoration, showing it there before the server confirms. */
     const moveDecoration = (
@@ -275,6 +333,7 @@ export default function ShowTank({
 
             if (event.key === 'Escape') {
                 setSelection(null);
+                setSculptBrush(null);
             } else if (event.key.toLowerCase() === PANEL_SHORTCUT) {
                 setIsPanelOpen((open) => !open);
             }
@@ -322,6 +381,8 @@ export default function ShowTank({
                         onSelect={select}
                         onSelectAnchor={selectAnchor}
                         onMoveDecoration={moveDecoration}
+                        sculptBrush={sculptBrush}
+                        onSculpt={saveSubstrate}
                     />
 
                     <div className="pointer-events-none absolute top-3 left-3 flex items-start gap-2">
@@ -527,6 +588,14 @@ export default function ShowTank({
                                 value="decor"
                                 direction={tabDirection}
                             >
+                                <SubstratePanel
+                                    grid={tank.grid}
+                                    brush={sculptBrush}
+                                    onBrushChange={startSculpting}
+                                    onApply={saveSubstrate}
+                                    onUndo={undoSubstrate}
+                                    canUndo={substrateHistory.length > 0}
+                                />
                                 <DecorCatalogue
                                     tankId={tank.id}
                                     catalogue={decorationCatalogue}

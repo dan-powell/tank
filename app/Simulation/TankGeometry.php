@@ -36,7 +36,7 @@ final class TankGeometry
     public const int RIM_GAP = 4;
 
     /** The substrate heightmap holds one height per square of this many cells. */
-    public const int SUBSTRATE_COLUMN = 4;
+    public const int SUBSTRATE_COLUMN = 2;
 
     /** Substrate depth of an unsculpted tank, in cells. */
     public const int DEFAULT_SUBSTRATE = 4;
