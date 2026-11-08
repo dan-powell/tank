@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Tank;
 
+use App\Enums\Habitat;
 use App\Enums\PlantAnchorage;
 use App\Enums\SpeciesKind;
 use App\Models\Decoration;
@@ -65,8 +66,8 @@ class StockTankRequest extends FormRequest
                     ]));
                 }
 
-                if (! $isPlant && TankGeometry::isDry($tank)) {
-                    $validator->errors()->add('species_id', __('There is no water for animals to live in.'));
+                if (! $isPlant && ($message = $this->habitatProblem($tank, $species)) !== null) {
+                    $validator->errors()->add('species_id', $message);
 
                     return;
                 }
@@ -76,6 +77,8 @@ class StockTankRequest extends FormRequest
                 if ($decoration === null) {
                     if ($isPlant && ! PlantAnchorage::fromParams($species->params)->allowsSubstrate()) {
                         $validator->errors()->add('decoration_id', __(':name must be attached to a decoration.', ['name' => $species->name]));
+                    } elseif ($isPlant && TankGeometry::rootSpots($tank, Habitat::fromParams($species->params), $tank->decorations()->get()) === []) {
+                        $validator->errors()->add('species_id', __('There is nowhere in the tank for :name to grow.', ['name' => $species->name]));
                     }
 
                     return;
@@ -126,8 +129,30 @@ class StockTankRequest extends FormRequest
             $validator->errors()->add('anchor', __('That decoration has no such anchor.'));
         } elseif ($decoration->plants()->alive()->where('anchor_index', $anchor)->exists()) {
             $validator->errors()->add('anchor', __('Something is already growing there.'));
-        } elseif (! TankGeometry::isSubmerged($tank, TankGeometry::anchorCell($decoration, $anchor)[1])) {
-            $validator->errors()->add('anchor', __('That spot is above the water.'));
+        } elseif (! TankGeometry::rootSuits(
+            Habitat::fromParams($species->params),
+            TankGeometry::anchorCell($decoration, $anchor)[1],
+            TankGeometry::waterLevel($tank),
+            ! TankGeometry::isDry($tank),
+        )) {
+            $validator->errors()->add('anchor', __('That spot doesn\'t suit :name.', ['name' => $species->name]));
         }
+    }
+
+    /**
+     * Why an animal can't live in the tank as it is, if it can't.
+     */
+    private function habitatProblem(Tank $tank, Species $species): ?string
+    {
+        $habitat = Habitat::fromParams($species->params);
+        $hasWater = ! TankGeometry::isDry($tank);
+        $hasLand = TankGeometry::landColumns($tank, $tank->decorations()->get()) !== [];
+
+        return match (true) {
+            $habitat === Habitat::Aquatic && ! $hasWater => __('There is no water for animals to live in.'),
+            $habitat === Habitat::Terrestrial && ! $hasLand => __('There is no dry land for :name.', ['name' => $species->name]),
+            $habitat === Habitat::Amphibious && ! ($hasWater && $hasLand) => __(':name needs both water and dry land.', ['name' => $species->name]),
+            default => null,
+        };
     }
 }

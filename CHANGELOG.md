@@ -31,9 +31,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Shared 0.5 cm grid for the tank, with a substrate heightmap that plants, litter, food and bottom dwellers follow.
 - Tanks have their own size: a New tank dialog on the dashboard sets the name, inside measurements (20–120 × 20–60 × 15–50 cm) and optional starter stock scaled to the water; each user may keep up to 6 tanks.
 - Adjustable water level, set when a tank is created and from Management (fill to the top, a chosen depth, or empty): draining keeps the water as it is, topping up mixes in tap water.
-- Empty tanks: water chemistry pauses; feeding, water changes and adding animals are refused, and a tank can't be emptied while animals live in it.
+- Empty tanks: water chemistry pauses; feeding, water changes and adding water animals are refused, and a tank can't be emptied while water animals live in it.
 - Plants whose roots are out of the water stop growing and wilt, dying back after about two simulated days.
 - Gravel sculpting (in 1 cm squares) in the Aquascaping tab: preset shapes (flat, slope, beaches, island, terraces) and a Raise / Lower / Smooth / Flatten brush in three sizes, with Undo. Raised gravel displaces water and becomes land above the waterline; decorations stay put.
+- Land and edge life: cushion moss and maidenhair fern grow above the water, pothos and dwarf rush at the waterline; springtails, dwarf white isopods and garlic glass-snails live on land, and the fire-bellied toad moves between water and land, hunting the small invertebrates.
+- Air above the water (humidity, oxygen, CO2) on the Summary tab: land plants and animals breathe it, open tanks share the room's air, and land plants feed on detritus.
+- Seal the tank from Equipment to make it a closed ecosystem: a glass lid, no air from the room (it mists up as humidity rises), the auto-feeder pauses, and feeding, maintenance, stocking and aquascaping wait until the lid is lifted.
+- The Add stock dialog groups species into water, edge and land, explaining why any can't go in yet.
 
 ### Changed
 

@@ -24,12 +24,15 @@ import type {
 } from '@/types';
 import { PanelSection } from './panel-section';
 import { StockDialog } from './stock-dialog';
+import type { StockConditions } from './stock-dialog';
 
 type Props = {
     tankId: number;
     creatures: CreatureSnapshot[];
     plants: PlantSnapshot[];
     species: Species[];
+    /** What the tank offers new arrivals (water, land, an open lid). */
+    stockConditions: StockConditions;
     onSelect: (selection: TankSelection) => void;
 };
 
@@ -64,6 +67,7 @@ export function InhabitantList({
     creatures,
     plants,
     species,
+    stockConditions,
     onSelect,
 }: Props) {
     const [query, setQuery] = useState('');
@@ -93,7 +97,13 @@ export function InhabitantList({
         <PanelSection
             id="inhabitant-list-heading"
             title={`Inhabitants (${rows.length})`}
-            action={<StockDialog tankId={tankId} species={species} />}
+            action={
+                <StockDialog
+                    tankId={tankId}
+                    species={species}
+                    conditions={stockConditions}
+                />
+            }
         >
             <div className="space-y-2">
                 <div className="relative">

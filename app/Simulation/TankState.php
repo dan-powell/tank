@@ -2,6 +2,8 @@
 
 namespace App\Simulation;
 
+use App\Enums\Habitat;
+
 /**
  * Mutable working copy of a tank's full simulated state.
  *
@@ -17,12 +19,20 @@ final class TankState
      * @param  array<int, SpeciesDefinition>  $species  Keyed by species id.
      * @param  list<PlantState>  $plants
      * @param  list<CreatureState>  $creatures
-     * @param  array<int, array<int, array{0: int, 1: int, 2: int}>>  $decorationAnchors  Submerged anchor cells, keyed by decoration id then anchor index.
+     * @param  array<int, array<int, array{0: int, 1: int, 2: int}>>  $decorationAnchors  Anchor cells, keyed by decoration id then anchor index.
      * @param  list<GridBox>  $groundedFootprints  Decorations resting on the substrate, where plants cannot root.
      * @param  int  $gridWidth  Interior width in decoration grid cells.
      * @param  int  $gridDepth  Interior depth in decoration grid cells.
      * @param  int  $waterLevel  First grid cell row above the water.
      * @param  bool  $hasWater  False while the tank is empty; water-only systems are skipped.
+     * @param  float  $humidity  Relative humidity of the air above the water, %.
+     * @param  float  $airOxygen  Oxygen in the air, % by volume.
+     * @param  float  $airCo2  CO2 in the air, ppm.
+     * @param  float  $airLitres  Volume of air inside the tank.
+     * @param  float  $landAreaCm2  Dry ground above the water.
+     * @param  float  $waterSurfaceShare  Share of the floor plan that is open water (0..1).
+     * @param  bool  $isSealed  Whether the lid is sealed (no air exchange with the room).
+     * @param  list<int>  $substrateHeights  The substrate heightmap (empty when flat); see TankGeometry.
      */
     public function __construct(
         public int $volumeLitres,
@@ -53,6 +63,14 @@ final class TankState
         public int $gridDepth = TankGeometry::DEFAULT_DEPTH,
         public int $waterLevel = TankGeometry::DEFAULT_HEIGHT - TankGeometry::RIM_GAP,
         public bool $hasWater = true,
+        public float $humidity = 70.0,
+        public float $airOxygen = Air::ROOM_OXYGEN,
+        public float $airCo2 = Air::ROOM_CO2,
+        public float $airLitres = 3.3,
+        public float $landAreaCm2 = 0.0,
+        public float $waterSurfaceShare = 1.0,
+        public bool $isSealed = false,
+        public array $substrateHeights = [],
     ) {}
 
     /**
@@ -90,11 +108,67 @@ final class TankState
     }
 
     /**
-     * Whether a plant's roots are under water.
+     * Whether a plant's roots are where its habitat needs them and, for land
+     * plants, the air is humid enough.
      */
-    public function isSubmerged(PlantState $plant): bool
+    public function suitsPlant(PlantState $plant): bool
     {
-        return $this->hasWater && $plant->rootHeight < $this->waterLevel;
+        $species = $this->speciesOf($plant);
+        $habitat = $species->habitat();
+
+        if (! TankGeometry::rootSuits($habitat, $plant->rootHeight, $this->waterLevel, $this->hasWater)) {
+            return false;
+        }
+
+        return $habitat !== Habitat::Terrestrial || $species->distanceOutside('humidity', $this->humidity) === 0.0;
+    }
+
+    /**
+     * Whether a plant of this habitat could root at a grid row.
+     */
+    public function rootSuits(Habitat $habitat, int $rootHeight): bool
+    {
+        return TankGeometry::rootSuits($habitat, $rootHeight, $this->waterLevel, $this->hasWater);
+    }
+
+    /**
+     * Height of the substrate at a grid column.
+     */
+    public function substrateHeightAt(int $x, int $z): int
+    {
+        if ($this->substrateHeights === []) {
+            return TankGeometry::DEFAULT_SUBSTRATE;
+        }
+
+        $columns = (int) ceil($this->gridWidth / TankGeometry::SUBSTRATE_COLUMN);
+        $column = min($columns - 1, max(0, intdiv($x, TankGeometry::SUBSTRATE_COLUMN)));
+        $row = max(0, intdiv($z, TankGeometry::SUBSTRATE_COLUMN));
+
+        return $this->substrateHeights[$row * $columns + $column] ?? TankGeometry::DEFAULT_SUBSTRATE;
+    }
+
+    /**
+     * Add (or, when negative, remove) a mass of oxygen to the air, in mg.
+     */
+    public function addAirOxygen(float $milligrams): void
+    {
+        $this->airOxygen += $milligrams / (max($this->airLitres, 0.5) * Air::OXYGEN_MG_PER_LITRE_PER_PERCENT);
+    }
+
+    /**
+     * Add (or, when negative, remove) a mass of CO2 to the air, in mg.
+     */
+    public function addAirCo2(float $milligrams): void
+    {
+        $this->airCo2 += $milligrams / (max($this->airLitres, 0.5) * Air::CO2_MG_PER_LITRE_PER_PPM);
+    }
+
+    /**
+     * The habitat of a creature's species.
+     */
+    public function habitatOf(CreatureState $creature): Habitat
+    {
+        return $this->speciesOf($creature)->habitat();
     }
 
     /**
@@ -154,6 +228,9 @@ final class TankState
         $this->detritus = max(0.0, $this->detritus);
         $this->uneatenFood = max(0.0, $this->uneatenFood);
         $this->algae = min(100.0, max(0.0, $this->algae));
+        $this->humidity = min(Air::MAX_HUMIDITY, max(0.0, $this->humidity));
+        $this->airOxygen = min(100.0, max(0.0, $this->airOxygen));
+        $this->airCo2 = max(0.0, $this->airCo2);
         $this->ph = min(9.5, max(4.5, $this->ph));
     }
 }

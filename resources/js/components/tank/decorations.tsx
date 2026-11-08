@@ -39,6 +39,8 @@ type Props = {
     grid: TankGrid;
     substrate: number[];
     viewMode: TankViewMode;
+    /** Whether decorations may be moved (not through a sealed lid). */
+    canArrange: boolean;
     selectedDecorationId: number | null;
     selectedPlantId: number | null;
     onSelectDecoration: (decorationId: number) => void;
@@ -64,6 +66,7 @@ export function Decorations({
     grid,
     substrate,
     viewMode,
+    canArrange,
     selectedDecorationId,
     selectedPlantId,
     onSelectDecoration,
@@ -179,7 +182,7 @@ export function Decorations({
                     />
                 );
 
-                return isSelected ? (
+                return isSelected && canArrange ? (
                     <DecorationGizmo
                         key={decoration.id}
                         decoration={decoration}

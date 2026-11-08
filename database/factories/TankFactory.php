@@ -40,6 +40,9 @@ class TankFactory extends Factory
             'uneaten_food' => 0,
             'algae' => 2,
             'bacteria' => 0.3,
+            'humidity' => 70,
+            'air_oxygen' => 20.9,
+            'air_co2' => 420,
             'light_on' => true,
             'is_active' => true,
             'sim_tick' => 0,
@@ -71,6 +74,14 @@ class TankFactory extends Factory
         return $this->state(fn (array $attributes): array => [
             'water_level' => TankGeometry::waterLevelForDepth($depthCm),
         ]);
+    }
+
+    /**
+     * A tank with its lid sealed.
+     */
+    public function sealed(): static
+    {
+        return $this->state(fn (array $attributes): array => ['is_sealed' => true]);
     }
 
     /**

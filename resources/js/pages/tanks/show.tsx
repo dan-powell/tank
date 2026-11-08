@@ -29,7 +29,9 @@ import { TankHeading } from '@/components/tank/tank-heading';
 import { TankScene } from '@/components/tank/tank-scene';
 import { ToolsPanel } from '@/components/tank/tools-panel';
 import { WaterLevelPanel } from '@/components/tank/water-level-panel';
-import { WaterPanel } from '@/components/tank/water-panel';
+import { AirPanel, WaterPanel } from '@/components/tank/water-panel';
+import { LidPanel } from '@/components/tank/lid-panel';
+import { SealedGuard } from '@/components/tank/panel-section';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -344,6 +346,26 @@ export default function ShowTank({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
+    // Hands-in work refused through a sealed lid is reported as a toast.
+    useEffect(
+        () =>
+            router.on('error', (event) => {
+                const lid = (event as CustomEvent).detail?.errors?.lid;
+
+                if (typeof lid === 'string') {
+                    toast.error(lid);
+                }
+            }),
+        [],
+    );
+
+    // Sealing the lid ends any sculpting in progress.
+    useEffect(() => {
+        if (tank.is_sealed) {
+            setSculptBrush(null);
+        }
+    }, [tank.is_sealed]);
+
     useTankChannel(tank.id, () => {
         const drop = toWorld(AUTO_FEEDER_SPOT.x, 1, AUTO_FEEDER_SPOT.z);
         world.sprinkle(drop.x, drop.z, 10);
@@ -532,6 +554,10 @@ export default function ShowTank({
                             >
                                 <TankHeading tank={tank} />
                                 <WaterPanel water={tank.water} />
+                                <AirPanel
+                                    air={tank.air}
+                                    isSealed={tank.is_sealed}
+                                />
                                 <PopulationPanel
                                     creatures={tank.creatures}
                                     plants={tank.plants}
@@ -561,6 +587,11 @@ export default function ShowTank({
                                     creatures={tank.creatures}
                                     plants={tank.plants}
                                     species={species}
+                                    stockConditions={{
+                                        hasWater: tank.has_water,
+                                        hasLand: tank.land_area_cm2 > 0,
+                                        isSealed: tank.is_sealed,
+                                    }}
                                     onSelect={select}
                                 />
                             </PanelTabContent>
@@ -573,47 +604,58 @@ export default function ShowTank({
                                     tankId={tank.id}
                                     lightOn={tank.light_on}
                                     hasWater={tank.has_water}
+                                    isSealed={tank.is_sealed}
                                     onFeedRandomly={feedRandomly}
                                 />
-                                <WaterLevelPanel
-                                    key={tank.grid.water_level}
-                                    tankId={tank.id}
-                                    grid={tank.grid}
-                                    litres={tank.volume_litres}
-                                    hasWater={tank.has_water}
-                                />
+                                <SealedGuard isSealed={tank.is_sealed}>
+                                    <WaterLevelPanel
+                                        key={tank.grid.water_level}
+                                        tankId={tank.id}
+                                        grid={tank.grid}
+                                        litres={tank.volume_litres}
+                                        hasWater={tank.has_water}
+                                    />
+                                </SealedGuard>
                             </PanelTabContent>
 
                             <PanelTabContent
                                 value="decor"
                                 direction={tabDirection}
                             >
-                                <SubstratePanel
-                                    grid={tank.grid}
-                                    brush={sculptBrush}
-                                    onBrushChange={startSculpting}
-                                    onApply={saveSubstrate}
-                                    onUndo={undoSubstrate}
-                                    canUndo={substrateHistory.length > 0}
-                                />
-                                <DecorCatalogue
-                                    tankId={tank.id}
-                                    catalogue={decorationCatalogue}
-                                    placedCount={tank.decorations.length}
-                                    onPlaced={(id) =>
-                                        select({ kind: 'decoration', id })
-                                    }
-                                />
+                                <SealedGuard isSealed={tank.is_sealed}>
+                                    <SubstratePanel
+                                        grid={tank.grid}
+                                        brush={sculptBrush}
+                                        onBrushChange={startSculpting}
+                                        onApply={saveSubstrate}
+                                        onUndo={undoSubstrate}
+                                        canUndo={substrateHistory.length > 0}
+                                    />
+                                    <DecorCatalogue
+                                        tankId={tank.id}
+                                        catalogue={decorationCatalogue}
+                                        placedCount={tank.decorations.length}
+                                        onPlaced={(id) =>
+                                            select({ kind: 'decoration', id })
+                                        }
+                                    />
+                                </SealedGuard>
                             </PanelTabContent>
 
                             <PanelTabContent
                                 value="equipment"
                                 direction={tabDirection}
                             >
-                                <AutoFeederPanel
+                                <LidPanel
                                     tankId={tank.id}
-                                    feeder={tank.auto_feeder}
+                                    isSealed={tank.is_sealed}
                                 />
+                                <SealedGuard isSealed={tank.is_sealed}>
+                                    <AutoFeederPanel
+                                        tankId={tank.id}
+                                        feeder={tank.auto_feeder}
+                                    />
+                                </SealedGuard>
                             </PanelTabContent>
                         </Tabs>
 
@@ -623,6 +665,7 @@ export default function ShowTank({
                                     tankId={tank.id}
                                     inhabitant={inhabitant}
                                     world={world}
+                                    isSealed={tank.is_sealed}
                                     onBack={() => setSelection(null)}
                                 />
                             </div>
@@ -655,6 +698,7 @@ export default function ShowTank({
                                     onSelectPlant={(id) =>
                                         select({ kind: 'plant', id })
                                     }
+                                    isSealed={tank.is_sealed}
                                     onBack={() => select(null)}
                                 />
                             </div>

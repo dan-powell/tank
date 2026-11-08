@@ -108,4 +108,27 @@ class TankSimulatorTest extends TestCase
             ],
         ]);
     }
+
+    public function test_a_sealed_dry_terrarium_runs_on_its_own_air(): void
+    {
+        $state = $this->tankState([
+            'hasWater' => false,
+            'isSealed' => true,
+            'waterLevel' => 4,
+            'humidity' => 90.0,
+            'detritus' => 2.0,
+            'landAreaCm2' => 1600.0,
+            'plants' => [$this->plant('cushion-moss', ['rootHeight' => 4]), $this->plant('cushion-moss', ['rootHeight' => 4])],
+            'creatures' => [
+                $this->creature('springtail', ['ageSeconds' => 30 * 86400]),
+                $this->creature('springtail', ['sex' => Sex::Male, 'ageSeconds' => 30 * 86400]),
+            ],
+        ]);
+
+        $result = (new TankSimulator(TankSimulator::defaultSystems()))->advance($state, 86400);
+
+        $this->assertNotSame(420.0, $result->state->airCo2);
+        $this->assertCount(2, array_filter($result->state->plants, fn ($plant): bool => ! $plant->isDead));
+        $this->assertGreaterThanOrEqual(2, count($result->state->livingCreatures()));
+    }
 }

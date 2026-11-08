@@ -117,6 +117,12 @@ export type TankSnapshot = {
     grid: TankGrid;
     /** False once the tank has been emptied. */
     has_water: boolean;
+    /** Dry ground above the water, in square centimetres. */
+    land_area_cm2: number;
+    /** Whether the lid is sealed: the tank runs as its own ecosystem, hands off. */
+    is_sealed: boolean;
+    /** The air above the water: humidity %, oxygen % by volume, CO2 ppm. */
+    air: { humidity: number; oxygen: number; co2: number };
     /** Substrate height in cells per heightmap column, row by row from the back glass. */
     substrate: number[];
     water: WaterParameters;
@@ -134,9 +140,16 @@ export type TankSnapshot = {
 export type SpeciesBehaviour =
     | 'ribbon'
     | 'whorl'
+    | 'cushion'
+    | 'frond'
     | 'swimmer'
     | 'bottom_dweller'
-    | 'crawler';
+    | 'crawler'
+    | 'walker'
+    | 'amphibian';
+
+/** Where a species lives: in the water, at its edge, on land, or both. */
+export type Habitat = 'aquatic' | 'emergent' | 'terrestrial' | 'amphibious';
 
 export type SpeciesRender = {
     color?: string;
@@ -157,7 +170,8 @@ export type SpeciesRender = {
 export type Species = {
     id: number;
     slug: string;
-    kind: 'plant' | 'fish' | 'invertebrate';
+    kind: 'plant' | 'fish' | 'invertebrate' | 'amphibian';
+    habitat: Habitat;
     name: string;
     scientific_name: string | null;
     behaviour: SpeciesBehaviour;
@@ -178,9 +192,11 @@ export type TankEventType =
     | 'auto_feeding'
     | 'auto_feeder_changed'
     | 'water_change'
+    | 'water_level'
     | 'vacuum'
     | 'algae_scrub'
     | 'light_toggled'
+    | 'lid'
     | 'livestock_added'
     | 'removed'
     | 'aquascaping'

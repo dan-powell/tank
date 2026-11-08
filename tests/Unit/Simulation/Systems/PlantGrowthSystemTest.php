@@ -106,4 +106,48 @@ class PlantGrowthSystemTest extends TestCase
         $this->assertEqualsWithDelta(0.98, $plant->health, 0.0001);
         $this->assertSame(10.0, $state->nitrate);
     }
+
+    public function test_land_plants_drown_with_their_roots_under_water(): void
+    {
+        $moss = $this->plant('cushion-moss', ['rootHeight' => 10]);
+        $state = $this->tankState(['plants' => [$moss], 'humidity' => 90.0]);
+
+        (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertEqualsWithDelta(0.98, $moss->health, 0.0001);
+    }
+
+    public function test_land_plants_dry_out_in_dry_air(): void
+    {
+        $moss = $this->plant('cushion-moss', ['rootHeight' => 61]);
+        $state = $this->tankState(['plants' => [$moss], 'humidity' => 40.0]);
+
+        (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertEqualsWithDelta(0.98, $moss->health, 0.0001);
+    }
+
+    public function test_land_plants_grow_on_detritus_in_humid_air(): void
+    {
+        $moss = $this->plant('cushion-moss', ['rootHeight' => 61, 'size' => 1.0]);
+        $state = $this->tankState(['plants' => [$moss], 'humidity' => 90.0, 'detritus' => 1.0, 'nitrate' => 10.0]);
+
+        (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertGreaterThan(1.0, $moss->size);
+        $this->assertLessThan(1.0, $state->detritus);
+        $this->assertSame(10.0, $state->nitrate);
+    }
+
+    public function test_edge_plants_thrive_only_near_the_waterline(): void
+    {
+        $atEdge = $this->plant('dwarf-rush', ['rootHeight' => 58]);
+        $deep = $this->plant('dwarf-rush', ['rootHeight' => 20]);
+        $state = $this->tankState(['plants' => [$atEdge, $deep]]);
+
+        (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertSame(1.0, $atEdge->health);
+        $this->assertEqualsWithDelta(0.98, $deep->health, 0.0001);
+    }
 }

@@ -10,7 +10,7 @@ import {
     toWorld,
     zoneRadiusToWorld,
 } from '@/lib/tank/space';
-import { createWanderState, steer } from '@/lib/tank/steering';
+import { createWanderState, standsOnBase, steer } from '@/lib/tank/steering';
 import type { SteeringProfile, WanderState } from '@/lib/tank/steering';
 import type { CreatureBody, TankWorld } from '@/lib/tank/world';
 import type { CreatureSnapshot, Species } from '@/types';
@@ -162,7 +162,7 @@ function Creature({
     const model = useVoxelModel(species);
     const length = Math.max(creature.size, 0.3) * CM;
     const height = (model.height * length) / model.width;
-    const centreY = species.behaviour === 'crawler' ? height / 2 : 0;
+    const centreY = standsOnBase(species.behaviour) ? height / 2 : 0;
     const yaw = useRef<Group>(null);
     const wander = useRef<WanderState | null>(null);
     const homeLayer = Math.min(layerCount - 1, creature.zone.layer);
@@ -192,8 +192,16 @@ function Creature({
             facing: Math.random() < 0.5 ? 1 : -1,
         };
 
-        if (world.terrain !== null && !world.terrain.isFree(spawn.position)) {
-            world.terrain.moveToFreeCell(spawn.position);
+        if (world.terrain !== null) {
+            if (
+                species.habitat === 'terrestrial' ||
+                species.habitat === 'amphibious'
+            ) {
+                // Land animals start out on dry ground near their home.
+                world.terrain.moveToLandNear(spawn.position);
+            } else if (!world.terrain.isFree(spawn.position)) {
+                world.terrain.moveToFreeCell(spawn.position);
+            }
         }
 
         world.creatures.set(creature.id, spawn);
@@ -202,6 +210,7 @@ function Creature({
     }, [
         creature.id,
         creature.species_id,
+        species.habitat,
         world,
         zoneCenter,
         homeLayer,
@@ -222,6 +231,7 @@ function Creature({
     const profile: SteeringProfile = {
         id: creature.id,
         behaviour: species.behaviour,
+        habitat: species.habitat,
         speed:
             (species.render.speed ?? 0.25) *
             (creature.size < (species.adult_size ?? 1) * 0.35 ? 0.7 : 1),
@@ -268,7 +278,7 @@ function Creature({
         const beat = 6 + body.velocity.length() * 40;
         object.rotation.y =
             Math.sin(state.clock.elapsedTime * beat + creature.id) *
-            (species.behaviour === 'crawler' ? 0 : 0.12);
+            (standsOnBase(species.behaviour) ? 0 : 0.12);
     });
 
     return (
@@ -368,7 +378,7 @@ function VoxelCreature({
     useEffect(() => () => halo?.dispose(), [halo]);
 
     const scale = length / model.width;
-    const lift = species.behaviour === 'crawler' ? 0 : -model.height / 2;
+    const lift = standsOnBase(species.behaviour) ? 0 : -model.height / 2;
 
     return (
         <>
@@ -415,11 +425,18 @@ function DepartedCreature({
         }
 
         elapsed.current += delta;
-        object.position.y = Math.min(
-            TANK.waterLine - 0.02,
-            object.position.y + delta * 0.08,
-        );
-        object.rotation.x = Math.min(Math.PI, object.rotation.x + delta * 1.5);
+
+        // The dead float up through water; on land they just fade where they lie.
+        if (object.position.y < TANK.waterLine) {
+            object.position.y = Math.min(
+                TANK.waterLine - 0.02,
+                object.position.y + delta * 0.08,
+            );
+            object.rotation.x = Math.min(
+                Math.PI,
+                object.rotation.x + delta * 1.5,
+            );
+        }
         object.scale.setScalar(
             Math.max(0.01, 1 - elapsed.current / FLOAT_SECONDS),
         );

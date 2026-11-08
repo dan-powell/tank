@@ -128,7 +128,15 @@ export function Plant({
         PLANT_HEIGHT_UNIT;
     const scale = height / model.height;
 
-    const swayAmplitude = species.behaviour === 'whorl' ? 0.08 : 0.12;
+    // Water plants sway in the current; edge plants barely; land plants not at all.
+    const swayAmplitude =
+        species.habitat === 'terrestrial'
+            ? 0
+            : species.habitat === 'emergent'
+              ? 0.03
+              : species.behaviour === 'whorl'
+                ? 0.08
+                : 0.12;
     const material = useMemo(
         () =>
             createSwayMaterial(

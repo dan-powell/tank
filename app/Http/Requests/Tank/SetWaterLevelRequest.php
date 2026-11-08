@@ -45,8 +45,8 @@ class SetWaterLevelRequest extends FormRequest
 
                 $tank = $this->tank();
 
-                if ($this->waterLevel() <= TankGeometry::DEFAULT_SUBSTRATE && $tank->creatures()->alive()->exists()) {
-                    $validator->errors()->add('water_depth', __('Take the animals out before emptying the tank.'));
+                if ($this->waterLevel() <= TankGeometry::DEFAULT_SUBSTRATE && $tank->hasAquaticAnimals()) {
+                    $validator->errors()->add('water_depth', __('Take the water animals out before emptying the tank.'));
                 }
             },
         ];

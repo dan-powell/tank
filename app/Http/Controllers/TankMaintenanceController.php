@@ -6,6 +6,7 @@ use App\Actions\Tank\ChangeWater;
 use App\Actions\Tank\FeedTank;
 use App\Actions\Tank\ScrubAlgae;
 use App\Actions\Tank\SetWaterLevel;
+use App\Actions\Tank\ToggleLid;
 use App\Actions\Tank\ToggleLight;
 use App\Actions\Tank\VacuumGravel;
 use App\Http\Requests\Tank\ChangeWaterRequest;
@@ -47,6 +48,13 @@ class TankMaintenanceController extends Controller
     public function scrub(Tank $tank, ScrubAlgae $scrubAlgae): RedirectResponse
     {
         $scrubAlgae->handle($tank);
+
+        return back();
+    }
+
+    public function toggleLid(Tank $tank, ToggleLid $toggleLid): RedirectResponse
+    {
+        $toggleLid->handle($tank);
 
         return back();
     }

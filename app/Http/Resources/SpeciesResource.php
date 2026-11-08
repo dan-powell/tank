@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Enums\Habitat;
 use App\Enums\PlantAnchorage;
 use App\Enums\SpeciesKind;
 use App\Models\Species;
@@ -30,6 +31,7 @@ class SpeciesResource extends JsonResource
             'description' => $this->description,
             'adult_size' => $this->params['adult_size'] ?? null,
             'max_size' => $this->params['max_size'] ?? null,
+            'habitat' => Habitat::fromParams($this->params),
             'anchorage' => $this->kind === SpeciesKind::Plant ? PlantAnchorage::fromParams($this->params) : null,
             'render' => $this->params['render'] ?? [],
         ];

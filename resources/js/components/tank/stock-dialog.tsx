@@ -17,18 +17,61 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
 import { stock } from '@/routes/tanks';
-import type { Species } from '@/types';
+import type { Habitat, Species } from '@/types';
+
+/** What the tank currently offers new arrivals. */
+export type StockConditions = {
+    hasWater: boolean;
+    hasLand: boolean;
+    isSealed: boolean;
+};
+
+const GROUPS: { title: string; habitats: Habitat[] }[] = [
+    { title: 'In the water', habitats: ['aquatic'] },
+    { title: "At the water's edge", habitats: ['emergent', 'amphibious'] },
+    { title: 'On land', habitats: ['terrestrial'] },
+];
+
+/** Why a species can't go into the tank as it is, if it can't. */
+function unavailableReason(
+    species: Species,
+    conditions: StockConditions,
+): string | null {
+    const isPlant = species.kind === 'plant';
+
+    switch (species.habitat) {
+        case 'aquatic':
+            return conditions.hasWater ? null : 'Needs water';
+        case 'emergent':
+            return conditions.hasWater ? null : 'Needs a waterline to root at';
+        case 'terrestrial':
+            return conditions.hasLand
+                ? null
+                : isPlant
+                  ? 'Needs gravel above the water'
+                  : 'Needs dry land above the water';
+        case 'amphibious':
+            return conditions.hasWater && conditions.hasLand
+                ? null
+                : 'Needs both water and dry land';
+    }
+}
 
 export function StockDialog({
     tankId,
     species,
+    conditions,
 }: {
     tankId: number;
     species: Species[];
+    conditions: StockConditions;
 }) {
     const [open, setOpen] = useState(false);
+    const firstAvailable = species.find(
+        (definition) => unavailableReason(definition, conditions) === null,
+    );
     const [speciesId, setSpeciesId] = useState<number | null>(
-        species[0]?.id ?? null,
+        firstAvailable?.id ?? null,
     );
     const [quantity, setQuantity] = useState(1);
     const [processing, setProcessing] = useState(false);
@@ -56,7 +99,16 @@ export function StockDialog({
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={conditions.isSealed}
+                    title={
+                        conditions.isSealed
+                            ? 'Lift the lid to add plants or animals'
+                            : undefined
+                    }
+                >
                     <Plus /> Add stock
                 </Button>
             </DialogTrigger>
@@ -75,34 +127,71 @@ export function StockDialog({
                         name="species_id"
                         value={speciesId === null ? '' : String(speciesId)}
                         onValueChange={(value) => setSpeciesId(Number(value))}
-                        className="gap-2"
+                        className="max-h-[50vh] gap-4 overflow-y-auto pr-1"
                     >
-                        {species.map((definition) => (
-                            <Label
-                                key={definition.id}
-                                className={cn(
-                                    'flex cursor-pointer items-start gap-3 rounded-lg border p-3 leading-normal font-normal',
-                                    speciesId === definition.id &&
-                                        'border-primary bg-accent',
-                                )}
-                            >
-                                <RadioGroupItem
-                                    value={String(definition.id)}
-                                    className="mt-0.5"
-                                />
-                                <span>
-                                    <span className="font-medium">
-                                        {definition.name}
-                                    </span>{' '}
-                                    <span className="text-muted-foreground italic">
-                                        {definition.scientific_name}
-                                    </span>
-                                    <span className="block text-muted-foreground">
-                                        {definition.description}
-                                    </span>
-                                </span>
-                            </Label>
-                        ))}
+                        {GROUPS.map((group) => {
+                            const members = species.filter((definition) =>
+                                group.habitats.includes(definition.habitat),
+                            );
+
+                            if (members.length === 0) {
+                                return null;
+                            }
+
+                            return (
+                                <div key={group.title} className="space-y-2">
+                                    <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                                        {group.title}
+                                    </p>
+                                    {members.map((definition) => {
+                                        const reason = unavailableReason(
+                                            definition,
+                                            conditions,
+                                        );
+
+                                        return (
+                                            <Label
+                                                key={definition.id}
+                                                className={cn(
+                                                    'flex cursor-pointer items-start gap-3 rounded-lg border p-3 leading-normal font-normal',
+                                                    speciesId ===
+                                                        definition.id &&
+                                                        'border-primary bg-accent',
+                                                    reason !== null &&
+                                                        'cursor-not-allowed opacity-60',
+                                                )}
+                                            >
+                                                <RadioGroupItem
+                                                    value={String(
+                                                        definition.id,
+                                                    )}
+                                                    disabled={reason !== null}
+                                                    className="mt-0.5"
+                                                />
+                                                <span>
+                                                    <span className="font-medium">
+                                                        {definition.name}
+                                                    </span>{' '}
+                                                    <span className="text-muted-foreground italic">
+                                                        {
+                                                            definition.scientific_name
+                                                        }
+                                                    </span>
+                                                    <span className="block text-muted-foreground">
+                                                        {definition.description}
+                                                    </span>
+                                                    {reason !== null && (
+                                                        <span className="block text-xs font-medium text-amber-600 dark:text-amber-400">
+                                                            {reason}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            </Label>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })}
                     </RadioGroup>
                     <InputError message={errors.species_id} />
 

@@ -162,6 +162,8 @@ export function TankScene({
                 grid={tank.grid}
                 substrate={tank.substrate}
                 hasWater={tank.has_water}
+                isSealed={tank.is_sealed}
+                humidity={tank.air.humidity}
                 showEdges={viewMode === 'orbit'}
             />
             <Substrate
@@ -181,6 +183,7 @@ export function TankScene({
                     grid={tank.grid}
                     substrate={tank.substrate}
                     viewMode={viewMode}
+                    canArrange={!tank.is_sealed}
                     selectedDecorationId={
                         selection?.kind === 'decoration' ? selection.id : null
                     }

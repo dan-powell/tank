@@ -2,6 +2,7 @@
 
 namespace App\Simulation\Systems;
 
+use App\Enums\Habitat;
 use App\Enums\PlantAnchorage;
 use App\Enums\TankEventType;
 use App\Simulation\PlantState;
@@ -12,19 +13,25 @@ use App\Simulation\TankState;
 /**
  * Plants grow under light by taking up ammonia and nitrate, lose health in
  * poor conditions, and established plants spread new offshoots nearby.
- * Plants whose roots are out of the water stop growing and wilt.
+ * Plants rooted where their habitat doesn't suit them (aquatic plants out of
+ * the water, land plants drowned or in dry air, edge plants away from the
+ * waterline) stop growing and wilt. Land plants feed on detritus in the
+ * soil rather than dissolved nitrogen, and draw CO2 from the air.
  */
 final class PlantGrowthSystem implements SimulationSystem
 {
-    /** Health lost per hour by a plant out of the water (dies in about two days). */
+    /** Health lost per hour by a plant out of its habitat (dies in about two days). */
     private const float WILT_PER_HOUR = 0.02;
+
+    /** Milligrams of nitrogen released by a gram of detritus (matches NitrogenCycleSystem). */
+    private const float DETRITUS_NITROGEN_MG_PER_GRAM = 20.0;
 
     public function apply(TankState $state, StepContext $context): void
     {
         foreach ($state->livingPlants() as $plant) {
             $plant->ageSeconds += $context->dtSeconds;
 
-            if (! $state->isSubmerged($plant)) {
+            if (! $state->suitsPlant($plant)) {
                 $plant->health = max(0.0, $plant->health - self::WILT_PER_HOUR * $context->hours);
 
                 continue;
@@ -44,10 +51,14 @@ final class PlantGrowthSystem implements SimulationSystem
             return;
         }
 
-        $nitrogen = $state->nitrate + $state->ammonia * 3;
-        $nutrientFactor = $nitrogen / ($nitrogen + 3);
+        $onLand = $species->habitat() === Habitat::Terrestrial;
+        $nutrientFactor = $onLand
+            ? $state->detritus / ($state->detritus + 0.3)
+            : ($state->nitrate + $state->ammonia * 3) / ($state->nitrate + $state->ammonia * 3 + 3);
         $temperatureFactor = max(0.0, 1 - $species->distanceOutside('temperature', $state->temperature) / 5);
-        $co2Factor = $state->co2 / ($state->co2 + 1);
+        $co2Factor = $species->habitat() === Habitat::Aquatic
+            ? $state->co2 / ($state->co2 + 1)
+            : $state->airCo2 / ($state->airCo2 + 400);
         $maxSize = $species->number('max_size', 5);
 
         $growth = $species->number('growth_per_hour') * $nutrientFactor * $temperatureFactor * $co2Factor
@@ -55,7 +66,7 @@ final class PlantGrowthSystem implements SimulationSystem
 
         $demandMg = $growth * $species->number('nitrate_per_size')
             + $plant->size * $species->number('upkeep_nitrate_per_hour') * $context->hours;
-        $consumedMg = $this->takeNitrogen($state, $demandMg);
+        $consumedMg = $onLand ? $this->takeSoilNitrogen($state, $demandMg) : $this->takeNitrogen($state, $demandMg);
 
         if ($demandMg > 0) {
             $growth *= $consumedMg / $demandMg;
@@ -63,6 +74,17 @@ final class PlantGrowthSystem implements SimulationSystem
 
         $plant->size += $growth;
         $plant->segments = max(1, (int) ceil($plant->size * $species->number('segments_per_size', 2)));
+    }
+
+    /**
+     * Take nitrogen for a land plant from decaying detritus. Returns milligrams taken.
+     */
+    private function takeSoilNitrogen(TankState $state, float $demandMg): float
+    {
+        $grams = min($state->detritus, $demandMg / self::DETRITUS_NITROGEN_MG_PER_GRAM);
+        $state->detritus -= $grams;
+
+        return $grams * self::DETRITUS_NITROGEN_MG_PER_GRAM;
     }
 
     /**
@@ -115,7 +137,11 @@ final class PlantGrowthSystem implements SimulationSystem
             fn (PlantState $other): bool => $other->speciesId === $plant->speciesId,
         ));
 
-        if ($sameSpecies >= $species->number('max_per_100l') * $state->volumeLitres / 100) {
+        $capacity = $species->habitat() === Habitat::Terrestrial
+            ? $species->number('max_per_100cm2') * $state->landAreaCm2 / 100
+            : $species->number('max_per_100l') * $state->volumeLitres / 100;
+
+        if ($sameSpecies >= $capacity) {
             return;
         }
 
@@ -158,9 +184,13 @@ final class PlantGrowthSystem implements SimulationSystem
     private function offshootPosition(PlantState $plant, TankState $state, StepContext $context): ?array
     {
         $species = $state->speciesOf($plant);
+        $habitat = $species->habitat();
 
         if ($plant->decorationId !== null) {
-            $freeAnchors = $state->freeAnchors($plant->decorationId);
+            $freeAnchors = array_values(array_filter(
+                $state->freeAnchors($plant->decorationId),
+                fn (int $index): bool => $state->rootSuits($habitat, $state->decorationAnchors[$plant->decorationId][$index][1]),
+            ));
 
             if ($freeAnchors !== []) {
                 $anchorIndex = $freeAnchors[(int) floor($context->between(0, count($freeAnchors) - 0.001))];
@@ -190,7 +220,10 @@ final class PlantGrowthSystem implements SimulationSystem
         $rootX = min(0.95, max(0.05, $plant->rootX + cos($angle) * $distance));
         $layer = min($state->layerCount - 1, max(0, $plant->layer + $layerShift));
 
-        if ($state->isSubstrateCovered($rootX, $layer)) {
+        [$x, $z] = TankGeometry::plantColumn($rootX, $layer, $state->layerCount, $state->gridWidth, $state->gridDepth);
+        $rootHeight = $state->substrateHeightAt($x, $z);
+
+        if ($state->isSubstrateCovered($rootX, $layer) || ! $state->rootSuits($habitat, $rootHeight)) {
             return null;
         }
 
@@ -199,7 +232,7 @@ final class PlantGrowthSystem implements SimulationSystem
             'layer' => $layer,
             'decorationId' => null,
             'anchorIndex' => null,
-            'rootHeight' => $plant->decorationId === null ? $plant->rootHeight : TankGeometry::DEFAULT_SUBSTRATE,
+            'rootHeight' => $rootHeight,
         ];
     }
 }

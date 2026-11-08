@@ -84,4 +84,19 @@ class ReproductionSystemTest extends TestCase
 
         $this->assertGreaterThanOrEqual(4, count($state->creatures));
     }
+
+    public function test_land_animals_stop_breeding_when_their_land_is_full(): void
+    {
+        $female = $this->creature('springtail', ['sex' => Sex::Female, 'hunger' => 0.1]);
+        $male = $this->creature('springtail', ['sex' => Sex::Male, 'hunger' => 0.1]);
+        $state = $this->tankState([
+            'species' => $this->catalogue(['springtail' => ['breeding' => ['chance_per_day' => 10_000]]]),
+            'creatures' => [$female, $male],
+            'landAreaCm2' => 25.0,
+        ]);
+
+        (new ReproductionSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertCount(2, $state->creatures);
+    }
 }

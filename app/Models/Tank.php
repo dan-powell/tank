@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Habitat;
 use App\Enums\TankEventType;
 use Database\Factories\TankFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -42,7 +43,11 @@ use Illuminate\Support\Carbon;
  * @property float $uneaten_food
  * @property float $algae
  * @property float $bacteria
+ * @property float $humidity Relative humidity of the air above the water, %.
+ * @property float $air_oxygen Oxygen in the air above the water, % by volume.
+ * @property float $air_co2 CO2 in the air above the water, ppm.
  * @property bool $light_on
+ * @property bool $is_sealed Whether the lid is sealed, cutting the tank off from the room.
  * @property bool $auto_feeder_installed
  * @property int $auto_feeder_feeds_per_day
  * @property bool $auto_feeder_unlimited
@@ -57,7 +62,8 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable([
     'name', 'volume_litres', 'grid_width', 'grid_height', 'grid_depth', 'water_level', 'layer_count', 'substrate_heights', 'temperature', 'target_temperature', 'ph', 'ammonia', 'nitrite',
-    'nitrate', 'oxygen', 'co2', 'detritus', 'uneaten_food', 'algae', 'bacteria', 'light_on',
+    'nitrate', 'oxygen', 'co2', 'detritus', 'uneaten_food', 'algae', 'bacteria', 'humidity', 'air_oxygen',
+    'air_co2', 'light_on', 'is_sealed',
     'auto_feeder_installed', 'auto_feeder_feeds_per_day', 'auto_feeder_unlimited', 'auto_feeder_portions',
     'is_active', 'sim_tick', 'sim_seconds', 'rng_seed', 'last_simulated_at',
 ])]
@@ -104,6 +110,15 @@ class Tank extends Model
     public function events(): HasMany
     {
         return $this->hasMany(TankEvent::class);
+    }
+
+    /**
+     * Whether any living animal here needs to live in the water.
+     */
+    public function hasAquaticAnimals(): bool
+    {
+        return $this->creatures()->alive()->with('species')->get()
+            ->contains(fn (Creature $creature): bool => Habitat::fromParams($creature->species->params) === Habitat::Aquatic);
     }
 
     /**
@@ -159,6 +174,10 @@ class Tank extends Model
             'uneaten_food' => 'float',
             'algae' => 'float',
             'bacteria' => 'float',
+            'humidity' => 'float',
+            'air_oxygen' => 'float',
+            'air_co2' => 'float',
+            'is_sealed' => 'boolean',
             'light_on' => 'boolean',
             'auto_feeder_installed' => 'boolean',
             'auto_feeder_feeds_per_day' => 'integer',

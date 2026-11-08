@@ -15,6 +15,10 @@ type Props = {
     substrate: number[];
     /** False when the tank is empty: no bubbles from the air stone. */
     hasWater: boolean;
+    /** A sealed tank gets a glass lid, and mists up as its air grows humid. */
+    isSealed: boolean;
+    /** Relative humidity of the air inside, %. */
+    humidity: number;
     /** Outline the glass edges (hidden in the flat 2D view). */
     showEdges?: boolean;
 };
@@ -25,9 +29,13 @@ export function TankEnvironment({
     grid,
     substrate,
     hasWater,
+    isSealed,
+    humidity,
     showEdges = true,
 }: Props) {
     const algae = Math.min(1, water.algae / 100);
+    // Condensation beads on the glass once sealed air nears saturation.
+    const mist = isSealed ? Math.min(1, Math.max(0, (humidity - 80) / 18)) : 0;
 
     return (
         <group>
@@ -66,6 +74,44 @@ export function TankEnvironment({
                 />
                 {showEdges && <Edges color="#a8c8d8" />}
             </mesh>
+
+            {mist > 0.01 && (
+                <mesh position={[0, TANK.height / 2, 0]} raycast={() => null}>
+                    <boxGeometry
+                        args={[
+                            TANK.width - 0.004,
+                            TANK.height - 0.004,
+                            TANK.depth - 0.004,
+                        ]}
+                    />
+                    <meshBasicMaterial
+                        color="#f2f8fb"
+                        transparent
+                        opacity={mist * 0.22}
+                        depthWrite={false}
+                        side={DoubleSide}
+                    />
+                </mesh>
+            )}
+
+            {isSealed && (
+                <mesh
+                    position={[0, TANK.height + 0.004, 0]}
+                    raycast={() => null}
+                >
+                    <boxGeometry
+                        args={[TANK.width + 0.02, 0.008, TANK.depth + 0.02]}
+                    />
+                    <meshPhysicalMaterial
+                        color="#dff4ff"
+                        transparent
+                        opacity={0.18}
+                        roughness={0.1}
+                        depthWrite={false}
+                    />
+                    <Edges color="#a8c8d8" />
+                </mesh>
+            )}
         </group>
     );
 }

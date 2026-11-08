@@ -38,6 +38,14 @@ class SpeciesFactory extends Factory
     }
 
     /**
+     * Any catalogue species, e.g. `springtail` or `cushion-moss`.
+     */
+    public function catalogue(string $slug): static
+    {
+        return $this->state(fn (array $attributes): array => $this->fromCatalogue($slug));
+    }
+
+    /**
      * Copy a catalogue entry under a unique slug.
      *
      * @return array<string, mixed>

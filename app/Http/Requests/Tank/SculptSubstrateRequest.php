@@ -45,8 +45,8 @@ class SculptSubstrateRequest extends FormRequest
                 $tank = $this->tank();
                 $reshaped = $tank->replicate()->forceFill(['substrate_heights' => $this->heights()]);
 
-                if (TankGeometry::isDry($reshaped) && $tank->creatures()->alive()->exists()) {
-                    $validator->errors()->add('heights', __('Leave some water for the animals.'));
+                if (TankGeometry::isDry($reshaped) && $tank->hasAquaticAnimals()) {
+                    $validator->errors()->add('heights', __('Leave some water for the water animals.'));
                 }
             },
         ];

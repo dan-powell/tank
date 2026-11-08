@@ -55,4 +55,35 @@ class HealthSystemTest extends TestCase
         $this->assertGreaterThan(0.5, $guppy->health);
         $this->assertNull($guppy->mainStressor);
     }
+
+    public function test_land_animals_dry_out_in_dry_air(): void
+    {
+        $springtail = $this->creature('springtail', ['health' => 1.0]);
+        $state = $this->tankState(['creatures' => [$springtail], 'humidity' => 30.0, 'landAreaCm2' => 100.0]);
+
+        (new HealthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertSame('drying out', $springtail->mainStressor);
+        $this->assertLessThan(1.0, $springtail->health);
+    }
+
+    public function test_land_animals_suffocate_in_stale_air(): void
+    {
+        $springtail = $this->creature('springtail', ['health' => 1.0]);
+        $state = $this->tankState(['creatures' => [$springtail], 'humidity' => 90.0, 'airOxygen' => 10.0, 'landAreaCm2' => 100.0]);
+
+        (new HealthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertSame('suffocation', $springtail->mainStressor);
+    }
+
+    public function test_land_animals_drown_without_dry_land(): void
+    {
+        $springtail = $this->creature('springtail', ['health' => 1.0]);
+        $state = $this->tankState(['creatures' => [$springtail], 'humidity' => 90.0, 'landAreaCm2' => 0.0]);
+
+        (new HealthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertSame('drowning', $springtail->mainStressor);
+    }
 }

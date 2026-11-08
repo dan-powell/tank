@@ -18,7 +18,8 @@ final class AutoFeederSystem implements SimulationSystem
     {
         $feeder = $state->autoFeeder;
 
-        if ($feeder === null) {
+        // A sealed lid covers the feeder's drop chute.
+        if ($feeder === null || $state->isSealed) {
             return;
         }
 

@@ -32,4 +32,18 @@ class MetabolismSystemTest extends TestCase
 
         $this->assertGreaterThan(1.0, $fry->size);
     }
+
+    public function test_land_animals_breathe_the_air_and_leave_their_waste_in_the_soil(): void
+    {
+        $isopod = $this->creature('dwarf-white-isopod');
+        $state = $this->tankState(['creatures' => [$isopod], 'airLitres' => 1.0]);
+
+        (new MetabolismSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertLessThan(20.9, $state->airOxygen);
+        $this->assertGreaterThan(420.0, $state->airCo2);
+        $this->assertSame(8.0, $state->oxygen);
+        $this->assertSame(0.0, $state->ammonia);
+        $this->assertGreaterThan(0.0, $state->detritus);
+    }
 }

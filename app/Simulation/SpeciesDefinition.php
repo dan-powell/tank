@@ -3,6 +3,7 @@
 namespace App\Simulation;
 
 use App\Enums\BreedingMode;
+use App\Enums\Habitat;
 use App\Enums\SpeciesKind;
 use Illuminate\Support\Arr;
 
@@ -36,6 +37,11 @@ final readonly class SpeciesDefinition
     public function number(string $key, float $default = 0.0): float
     {
         return (float) $this->param($key, $default);
+    }
+
+    public function habitat(): Habitat
+    {
+        return Habitat::fromParams($this->params);
     }
 
     public function breedingMode(): BreedingMode

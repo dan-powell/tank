@@ -54,4 +54,28 @@ class FeedingSystemTest extends TestCase
         $this->assertLessThan(20.0, $state->algae);
         $this->assertLessThan(0.8, $snail->hunger);
     }
+
+    public function test_a_hungry_toad_catches_and_eats_prey(): void
+    {
+        $toad = $this->creature('fire-bellied-toad', ['hunger' => 0.8]);
+        $springtail = $this->creature('springtail');
+        $state = $this->tankState(['creatures' => [$toad, $springtail]]);
+
+        (new FeedingSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertTrue($springtail->isDead);
+        $this->assertSame('eaten', $springtail->deathCause);
+        $this->assertLessThan(0.8, $toad->hunger);
+    }
+
+    public function test_food_in_the_water_is_out_of_reach_once_the_tank_is_empty(): void
+    {
+        $toad = $this->creature('fire-bellied-toad', ['hunger' => 0.8]);
+        $state = $this->tankState(['creatures' => [$toad], 'hasWater' => false, 'uneatenFood' => 0.5]);
+
+        (new FeedingSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertSame(0.5, $state->uneatenFood);
+        $this->assertSame(0.8, $toad->hunger);
+    }
 }

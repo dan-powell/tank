@@ -2,6 +2,7 @@
 
 namespace App\Actions\Tank;
 
+use App\Enums\Habitat;
 use App\Enums\Sex;
 use App\Enums\SpeciesKind;
 use App\Enums\TankEventType;
@@ -60,7 +61,7 @@ class StockTank
 
     private function addPlant(Tank $tank, Species $species): void
     {
-        [$rootX, $layer] = $this->chooseRoot($tank);
+        [$rootX, $layer] = $this->chooseRoot($tank, Habitat::fromParams($species->params));
 
         $tank->plants()->create([
             ...$this->youngPlant($species),
@@ -99,14 +100,28 @@ class StockTank
     }
 
     /**
-     * A random substrate position (normalised x, layer), avoiding the floor
-     * beneath decorations where possible.
+     * A random substrate position (normalised x, layer) suiting the plant's
+     * habitat and clear of decorations. Water plants keep to the back of the
+     * tank so the foreground stays open. When nowhere suits, any spot clear
+     * of decorations will do.
      *
      * @return array{0: float, 1: int}
      */
-    private function chooseRoot(Tank $tank): array
+    private function chooseRoot(Tank $tank, Habitat $habitat): array
     {
-        $footprints = TankGeometry::groundedFootprints($tank, $tank->decorations()->get());
+        $decorations = $tank->decorations()->get();
+        $spots = TankGeometry::rootSpots(
+            $tank,
+            $habitat,
+            $decorations,
+            $habitat === Habitat::Aquatic ? $this->backLayerLimit($tank) : null,
+        );
+
+        if ($spots !== []) {
+            return $spots[$this->random->getInt(0, count($spots) - 1)];
+        }
+
+        $footprints = TankGeometry::groundedFootprints($tank, $decorations);
 
         for ($attempt = 0; ; $attempt++) {
             $rootX = $this->random->getFloat(0.08, 0.92);
@@ -125,6 +140,19 @@ class StockTank
     {
         $params = $species->params;
         [$zoneYMin, $zoneYMax] = $params['zone']['y'];
+        $zoneX = $this->random->getFloat(0.2, 0.8);
+        $layer = $this->random->getInt(0, $tank->layer_count - 1);
+
+        if (Habitat::fromParams($params)->needsLand()) {
+            // Land animals start out on dry ground.
+            $land = TankGeometry::landColumns($tank, $tank->decorations()->get());
+
+            if ($land !== []) {
+                [$x, , $z] = $land[$this->random->getInt(0, count($land) - 1)];
+                $zoneX = TankGeometry::normalisedX($x, $tank->grid_width);
+                $layer = TankGeometry::layerAt($z, $tank->layer_count, $tank->grid_depth);
+            }
+        }
 
         $tank->creatures()->create([
             'species_id' => $species->id,
@@ -133,9 +161,10 @@ class StockTank
             'hunger' => 0.3,
             'health' => 0.9,
             'age_seconds' => (int) ($params['maturity_days'] * 86400 * $this->random->getFloat(0.6, 1.2)),
-            'zone_x' => $this->random->getFloat(0.2, 0.8),
-            'zone_y' => $this->random->getFloat($zoneYMin, $zoneYMax),
-            'layer' => $this->random->getInt(0, $tank->layer_count - 1),
+            'zone_x' => $zoneX,
+            // Land animals have a single zone height (they stand on whatever ground they are on).
+            'zone_y' => $zoneYMin >= $zoneYMax ? (float) $zoneYMin : $this->random->getFloat($zoneYMin, $zoneYMax),
+            'layer' => $layer,
             'zone_radius' => $params['zone']['radius'],
             'generation' => 1,
         ]);

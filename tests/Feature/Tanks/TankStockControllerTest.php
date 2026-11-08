@@ -176,7 +176,7 @@ class TankStockControllerTest extends TestCase
 
         $this->actingAs($tank->user)
             ->post(route('tanks.stock', $tank), ['species_id' => $species->id, 'quantity' => 1, 'decoration_id' => $decoration->id, 'anchor' => 0])
-            ->assertSessionHasErrors(['anchor' => 'That spot is above the water.']);
+            ->assertSessionHasErrors(['anchor' => 'That spot doesn\'t suit Hornwort.']);
     }
 
     public function test_rejects_an_anchor_the_decoration_does_not_have(): void
@@ -216,5 +216,81 @@ class TankStockControllerTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $tank->plants()->pluck('root_x')->each(fn (float $rootX) => $this->assertGreaterThanOrEqual(0.5, $rootX));
+    }
+
+    public function test_land_animals_need_dry_land(): void
+    {
+        $tank = Tank::factory()->create();
+        $springtail = Species::factory()->catalogue('springtail')->create(['name' => 'Springtail']);
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.stock', $tank), ['species_id' => $springtail->id, 'quantity' => 2])
+            ->assertSessionHasErrors(['species_id' => 'There is no dry land for Springtail.']);
+    }
+
+    public function test_land_animals_are_put_on_the_dry_land(): void
+    {
+        $tank = Tank::factory()->create(['substrate_heights' => $this->landOnTheLeft()]);
+        $springtail = Species::factory()->catalogue('springtail')->create();
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.stock', $tank), ['species_id' => $springtail->id, 'quantity' => 5])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(5, $tank->creatures()->count());
+        $tank->creatures()->pluck('zone_x')->each(fn (float $zoneX) => $this->assertLessThan(0.5, $zoneX));
+    }
+
+    public function test_amphibians_need_both_water_and_land(): void
+    {
+        $tank = Tank::factory()->withWaterDepth(0)->create();
+        $toad = Species::factory()->catalogue('fire-bellied-toad')->create(['name' => 'Fire-bellied Toad']);
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.stock', $tank), ['species_id' => $toad->id, 'quantity' => 1])
+            ->assertSessionHasErrors(['species_id' => 'Fire-bellied Toad needs both water and dry land.']);
+    }
+
+    public function test_land_plants_root_above_the_water(): void
+    {
+        $tank = Tank::factory()->create(['substrate_heights' => $this->landOnTheLeft()]);
+        $moss = Species::factory()->catalogue('cushion-moss')->create();
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.stock', $tank), ['species_id' => $moss->id, 'quantity' => 5])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(5, $tank->plants()->count());
+        $tank->plants()->pluck('root_x')->each(fn (float $rootX) => $this->assertLessThan(0.5, $rootX));
+    }
+
+    public function test_land_plants_need_somewhere_dry_to_grow(): void
+    {
+        $tank = Tank::factory()->create();
+        $moss = Species::factory()->catalogue('cushion-moss')->create(['name' => 'Cushion Moss']);
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.stock', $tank), ['species_id' => $moss->id, 'quantity' => 1])
+            ->assertSessionHasErrors(['species_id' => 'There is nowhere in the tank for Cushion Moss to grow.']);
+    }
+
+    /**
+     * A heightmap (60 x 28 columns) with gravel above the water on the left half.
+     *
+     * @return list<int>
+     */
+    private function landOnTheLeft(): array
+    {
+        $heights = [];
+
+        for ($row = 0; $row < 28; $row++) {
+            for ($column = 0; $column < 60; $column++) {
+                $heights[] = $column < 30 ? 61 : 4;
+            }
+        }
+
+        return $heights;
     }
 }

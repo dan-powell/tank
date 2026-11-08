@@ -57,10 +57,26 @@ async function loadModel(species: Species): Promise<VoxelModel> {
     }
 }
 
-/** A plain silhouette: an upright strip for plants, an ellipse for animals. */
+/**
+ * A plain silhouette in the species' catalogue colour: an upright strip for
+ * water plants, a low dome for cushion plants, a fan of fronds for ferns and
+ * edge plants, and an ellipse for animals.
+ */
 function placeholderSprite(species: Species): ImageData {
     const isPlant = species.kind === 'plant';
-    const [width, height] = isPlant ? [10, 64] : [28, 14];
+    const shape = !isPlant
+        ? 'body'
+        : species.behaviour === 'cushion'
+          ? 'cushion'
+          : species.behaviour === 'frond'
+            ? 'frond'
+            : 'strip';
+    const [width, height] = {
+        strip: [10, 64],
+        cushion: [26, 9],
+        frond: [24, 30],
+        body: [28, 14],
+    }[shape];
     const hex =
         species.render.color ??
         species.render.body ??
@@ -75,9 +91,17 @@ function placeholderSprite(species: Species): ImageData {
         for (let x = 0; x < width; x++) {
             const nx = (x + 0.5) / width - 0.5;
             const ny = (y + 0.5) / height - 0.5;
-            const filled = isPlant
-                ? Math.abs(nx) < 0.3 + 0.2 * (y / height)
-                : nx * nx + ny * ny * 1.2 < 0.25;
+            // Height above the base, 0 at the bottom row to 1 at the top.
+            const up = 1 - (y + 0.5) / height;
+            const filled = {
+                strip: Math.abs(nx) < 0.3 + 0.2 * (y / height),
+                cushion: nx * nx * 4 + up * up < 1,
+                frond:
+                    Math.abs(nx) < up * 0.5 + 0.04 &&
+                    (Math.abs(Math.sin((nx / Math.max(up, 0.05)) * 9)) > 0.3 ||
+                        Math.abs(nx) < 0.04),
+                body: nx * nx + ny * ny * 1.2 < 0.25,
+            }[shape];
 
             if (filled) {
                 pixels.data.set([r, g, b, 255], (y * width + x) * 4);

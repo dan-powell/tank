@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import type { SpeciesBehaviour } from '@/types';
+import type { Habitat, SpeciesBehaviour } from '@/types';
 import {
     bounds,
     DECOR_VOXEL,
@@ -15,6 +15,7 @@ import type { CreatureBody, TankWorld } from './world';
 export type SteeringProfile = {
     id: number;
     behaviour: SpeciesBehaviour;
+    habitat: Habitat;
     /** Cruising speed in world units per second. */
     speed: number;
     /** 0..1 tendency to stay with others of the same species. */
@@ -95,9 +96,7 @@ export function steer(
 ): void {
     const { position, velocity } = body;
     const dt = Math.min(delta, 0.05);
-    const isBottom =
-        profile.behaviour === 'bottom_dweller' ||
-        profile.behaviour === 'crawler';
+    const isBottom = walksOnGround(profile.behaviour);
     const maxSpeed =
         profile.speed *
         (0.35 + 0.65 * profile.health) *
@@ -312,7 +311,11 @@ function seekFood(
     world: TankWorld,
     maxSpeed: number,
 ): number | null {
-    if (profile.hunger < 0.15 || profile.behaviour === 'crawler') {
+    if (
+        profile.hunger < 0.15 ||
+        (profile.behaviour !== 'swimmer' &&
+            profile.behaviour !== 'bottom_dweller')
+    ) {
         return null;
     }
 
@@ -435,11 +438,32 @@ function keepOutOfTerrain(position: Vector3, terrain: TerrainField): void {
     terrain.moveToFreeCell(position);
 }
 
+/** Behaviours that walk on surfaces rather than swim. */
+export function walksOnGround(behaviour: SpeciesBehaviour): boolean {
+    return (
+        behaviour === 'bottom_dweller' ||
+        behaviour === 'crawler' ||
+        behaviour === 'walker' ||
+        behaviour === 'amphibian'
+    );
+}
+
+/** Behaviours drawn standing on their base rather than centred on their body. */
+export function standsOnBase(behaviour: SpeciesBehaviour): boolean {
+    return (
+        behaviour === 'crawler' ||
+        behaviour === 'walker' ||
+        behaviour === 'amphibian'
+    );
+}
+
 /**
  * Keep a bottom dweller on whatever is beneath it: the substrate or the top
- * of a decoration. Crawlers climb anything under water, slowly and clinging
- * to the face as they go; other bottom dwellers only take small steps and
- * turn round at anything taller.
+ * of a decoration. Crawlers and walkers climb anything, clinging to the face
+ * as they go; other bottom dwellers only take small steps and turn round at
+ * anything taller. Water animals keep below the waterline, land animals
+ * above it (hauling out if they find themselves under water), and
+ * amphibians go where they please.
  */
 function walkOnTerrain(
     body: CreatureBody,
@@ -450,8 +474,8 @@ function walkOnTerrain(
     dt: number,
 ): void {
     const { position, velocity } = body;
-    const isCrawler = profile.behaviour === 'crawler';
-    const lift = isCrawler ? 0 : BOTTOM_LIFT;
+    const isCrawler = profile.behaviour !== 'bottom_dweller';
+    const lift = standsOnBase(profile.behaviour) ? 0 : BOTTOM_LIFT;
 
     if (terrain === null) {
         position.y = TANK.substrate + lift;
@@ -465,12 +489,29 @@ function walkOnTerrain(
             probe.set(x, foot, z),
             isCrawler ? CRAWLER_CLIMB : BOTTOM_STEP,
         );
-    const submerged = (height: number) =>
-        height < terrain.waterLevel * DECOR_VOXEL - 0.01;
+    const waterLine = terrain.waterLevel * DECOR_VOXEL - 0.01;
+    const allowed = (height: number) =>
+        profile.habitat === 'terrestrial'
+            ? height >= waterLine
+            : profile.habitat === 'amphibious' || height < waterLine;
+
+    if (profile.habitat === 'terrestrial') {
+        const here = ground(previous.x, previous.z);
+
+        if (
+            here !== null &&
+            !allowed(here) &&
+            terrain.moveToLandNear(position)
+        ) {
+            previous.copy(position);
+
+            return;
+        }
+    }
 
     let surface = ground(position.x, position.z);
 
-    if (surface === null || !submerged(surface)) {
+    if (surface === null || !allowed(surface)) {
         position.x = previous.x;
         position.z = previous.z;
         wander.direction = wander.direction > 0 ? -1 : 1;
@@ -488,7 +529,12 @@ function walkOnTerrain(
         position.z = previous.z;
     }
 
-    const rate = (isCrawler ? maxSpeed * 1.5 : 0.6) * dt;
+    const rate =
+        (profile.behaviour === 'crawler'
+            ? maxSpeed * 1.5
+            : isCrawler
+              ? maxSpeed * 3
+              : 0.6) * dt;
     position.y =
         climb > 0
             ? Math.min(target, previous.y + rate)

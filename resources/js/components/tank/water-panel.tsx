@@ -1,5 +1,5 @@
 import { cn } from '@/lib/utils';
-import type { WaterParameters } from '@/types';
+import type { TankSnapshot, WaterParameters } from '@/types';
 import { PanelSection } from './panel-section';
 
 type Reading = {
@@ -81,29 +81,79 @@ const dot = {
 export function WaterPanel({ water }: { water: WaterParameters }) {
     return (
         <PanelSection id="water-heading" title="Water">
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
-                {readings(water).map((reading) => (
-                    <div
-                        key={reading.label}
-                        className="flex items-center justify-between gap-2"
-                    >
-                        <dt className="flex items-center gap-1.5 text-muted-foreground">
-                            <span
-                                aria-hidden
-                                className={cn(
-                                    'size-2 rounded-full',
-                                    dot[reading.status],
-                                )}
-                            />
-                            {reading.label}
-                        </dt>
-                        <dd className="font-medium tabular-nums">
-                            {reading.value}
-                            <span className="sr-only"> ({reading.status})</span>
-                        </dd>
-                    </div>
-                ))}
-            </dl>
+            <ReadingList readings={readings(water)} />
         </PanelSection>
+    );
+}
+
+function airReadings(air: TankSnapshot['air']): Reading[] {
+    return [
+        {
+            label: 'Humidity',
+            value: `${air.humidity.toFixed(0)}%`,
+            status:
+                air.humidity < 40 ? 'bad' : air.humidity < 60 ? 'warn' : 'good',
+        },
+        {
+            label: 'Oxygen',
+            value: `${air.oxygen.toFixed(1)}%`,
+            status: air.oxygen < 16 ? 'bad' : air.oxygen < 18 ? 'warn' : 'good',
+        },
+        {
+            label: 'CO₂',
+            value: `${air.co2.toFixed(0)} ppm`,
+            status: air.co2 > 5000 ? 'bad' : air.co2 > 2000 ? 'warn' : 'good',
+        },
+    ];
+}
+
+/** The air above the water, which land life breathes; sealed tanks keep their own. */
+export function AirPanel({
+    air,
+    isSealed,
+}: {
+    air: TankSnapshot['air'];
+    isSealed: boolean;
+}) {
+    return (
+        <PanelSection
+            id="air-heading"
+            title="Air"
+            action={
+                <span className="text-xs text-muted-foreground">
+                    {isSealed ? 'Sealed' : 'Open to the room'}
+                </span>
+            }
+        >
+            <ReadingList readings={airReadings(air)} />
+        </PanelSection>
+    );
+}
+
+function ReadingList({ readings }: { readings: Reading[] }) {
+    return (
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+            {readings.map((reading) => (
+                <div
+                    key={reading.label}
+                    className="flex items-center justify-between gap-2"
+                >
+                    <dt className="flex items-center gap-1.5 text-muted-foreground">
+                        <span
+                            aria-hidden
+                            className={cn(
+                                'size-2 rounded-full',
+                                dot[reading.status],
+                            )}
+                        />
+                        {reading.label}
+                    </dt>
+                    <dd className="font-medium tabular-nums">
+                        {reading.value}
+                        <span className="sr-only"> ({reading.status})</span>
+                    </dd>
+                </div>
+            ))}
+        </dl>
     );
 }

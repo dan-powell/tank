@@ -2,11 +2,12 @@
 
 namespace App\Simulation\Systems;
 
+use App\Simulation\Air;
 use App\Simulation\StepContext;
 use App\Simulation\TankState;
 
 /**
- * Heater, surface gas exchange and pH buffering.
+ * Heater, gas exchange with the air above the water, and pH buffering.
  */
 final class WaterQualitySystem implements RequiresWater, SimulationSystem
 {
@@ -24,9 +25,18 @@ final class WaterQualitySystem implements RequiresWater, SimulationSystem
     {
         $state->temperature += ($state->targetTemperature - $state->temperature) * $context->decay(self::HEATER_RATE);
 
-        $saturation = self::oxygenSaturation($state->temperature);
-        $state->oxygen += ($saturation - $state->oxygen) * $context->decay(self::OXYGEN_EXCHANGE_RATE);
-        $state->co2 += (self::CO2_EQUILIBRIUM - $state->co2) * $context->decay(self::CO2_EXCHANGE_RATE);
+        // Gases cross the surface towards balance with the air above, which
+        // gains or loses what the water does (an open tank's air is then
+        // refreshed from the room by the AirSystem).
+        $saturation = self::oxygenSaturation($state->temperature) * $state->airOxygen / Air::ROOM_OXYGEN;
+        $oxygenChange = ($saturation - $state->oxygen) * $context->decay(self::OXYGEN_EXCHANGE_RATE);
+        $state->oxygen += $oxygenChange;
+        $state->addAirOxygen(-$oxygenChange * $state->volumeLitres);
+
+        $co2Equilibrium = self::CO2_EQUILIBRIUM * $state->airCo2 / Air::ROOM_CO2;
+        $co2Change = ($co2Equilibrium - $state->co2) * $context->decay(self::CO2_EXCHANGE_RATE);
+        $state->co2 += $co2Change;
+        $state->addAirCo2(-$co2Change * $state->volumeLitres);
 
         $targetPh = 7.6 - 0.5 * log10(max($state->co2, 0.5) / self::CO2_EQUILIBRIUM) - 0.004 * $state->nitrate;
         $state->ph += ($targetPh - $state->ph) * $context->decay(self::PH_RATE);

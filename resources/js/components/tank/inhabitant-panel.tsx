@@ -33,6 +33,8 @@ type Props = {
     tankId: number;
     inhabitant: Inhabitant;
     world: TankWorld;
+    /** Nothing can be taken out through a sealed lid. */
+    isSealed: boolean;
     /** Deselect and return to the tank overview. */
     onBack: () => void;
 };
@@ -43,7 +45,13 @@ const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
  * Details of the inhabitant selected in the scene: its stats, a name, and
  * what can be done with it. Replaces the whole side panel while selected.
  */
-export function InhabitantPanel({ tankId, inhabitant, world, onBack }: Props) {
+export function InhabitantPanel({
+    tankId,
+    inhabitant,
+    world,
+    isSealed,
+    onBack,
+}: Props) {
     const { kind, entity, species } = inhabitant;
     const url =
         kind === 'creature'
@@ -103,6 +111,7 @@ export function InhabitantPanel({ tankId, inhabitant, world, onBack }: Props) {
             <RemoveButton
                 key={`remove-${kind}-${entity.id}`}
                 name={title}
+                disabled={isSealed}
                 onConfirm={() =>
                     router.delete(url.destroy, {
                         ...visitOptions,
@@ -291,15 +300,22 @@ function NameForm({
 
 function RemoveButton({
     name,
+    disabled,
     onConfirm,
 }: {
     name: string;
+    disabled: boolean;
     onConfirm: () => void;
 }) {
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
-                <Button size="sm" variant="outline">
+                <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={disabled}
+                    title={disabled ? 'Lift the lid first' : undefined}
+                >
                     <Trash2 /> Remove from tank
                 </Button>
             </AlertDialogTrigger>

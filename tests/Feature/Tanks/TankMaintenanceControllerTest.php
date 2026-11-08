@@ -187,14 +187,14 @@ class TankMaintenanceControllerTest extends TestCase
         $this->assertSame(21.0, $tank->temperature);
     }
 
-    public function test_cannot_empty_a_tank_with_animals_in_it(): void
+    public function test_cannot_empty_a_tank_with_water_animals_in_it(): void
     {
         $tank = Tank::factory()->create();
         Creature::factory()->for($tank)->create();
 
         $this->actingAs($tank->user)
             ->put(route('tanks.water-level', $tank), ['water_depth' => 0])
-            ->assertSessionHasErrors(['water_depth' => 'Take the animals out before emptying the tank.']);
+            ->assertSessionHasErrors(['water_depth' => 'Take the water animals out before emptying the tank.']);
 
         $this->assertSame(61, $tank->fresh()->water_level);
     }
@@ -258,5 +258,39 @@ class TankMaintenanceControllerTest extends TestCase
             ->assertForbidden();
 
         $this->assertSame(61, $tank->fresh()->water_level);
+    }
+
+    public function test_sealing_the_lid_cuts_the_tank_off_and_logs_it(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs($tank->user)->post(route('tanks.lid', $tank))->assertRedirect();
+
+        $this->assertTrue($tank->fresh()->is_sealed);
+        $event = $tank->events()->sole();
+        $this->assertSame(TankEventType::Lid, $event->type);
+        $this->assertSame('You sealed the tank.', $event->message);
+    }
+
+    public function test_lifting_the_lid_opens_a_sealed_tank(): void
+    {
+        $tank = Tank::factory()->sealed()->create();
+
+        $this->actingAs($tank->user)->post(route('tanks.lid', $tank))->assertRedirect();
+
+        $this->assertFalse($tank->fresh()->is_sealed);
+        $this->assertSame('You lifted the lid.', $tank->events()->sole()->message);
+    }
+
+    public function test_the_water_can_be_emptied_with_only_land_animals_in_the_tank(): void
+    {
+        $tank = Tank::factory()->create();
+        Creature::factory()->for($tank)->for(Species::factory()->catalogue('springtail'))->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.water-level', $tank), ['water_depth' => 0])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(4, $tank->fresh()->water_level);
     }
 }

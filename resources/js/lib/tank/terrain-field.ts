@@ -186,6 +186,54 @@ export class TerrainField {
         }
     }
 
+    /**
+     * Put a point on the nearest dry surface above the water (the substrate
+     * or a decoration), searching outwards in the horizontal plane. Returns
+     * false, leaving the point unchanged, when there is no dry ground nearby.
+     */
+    moveToLandNear(point: Vector3): boolean {
+        const [x, , z] = this.toCell(point);
+
+        for (let radius = 0; radius < 40; radius++) {
+            for (let dz = -radius; dz <= radius; dz++) {
+                for (let dx = -radius; dx <= radius; dx++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) {
+                        continue;
+                    }
+
+                    const top = this.topSurface(x + dx, z + dz);
+
+                    if (top !== null && top >= this.waterLevel) {
+                        point.set(
+                            (x + dx + 0.5) * DECOR_VOXEL - TANK.width / 2,
+                            top * DECOR_VOXEL,
+                            (z + dz + 0.5) * DECOR_VOXEL - TANK.depth / 2,
+                        );
+
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /** The row just above the highest solid cell of a column, or null outside the tank. */
+    private topSurface(x: number, z: number): number | null {
+        if (x < 0 || z < 0 || x >= this.width || z >= this.depth) {
+            return null;
+        }
+
+        for (let row = this.height - 1; row >= 0; row--) {
+            if (this.cells[this.index(x, row, z)] >= Cell.Substrate) {
+                return row + 1;
+            }
+        }
+
+        return 0;
+    }
+
     private toCell(point: Vector3): GridCell {
         return [
             Math.floor((point.x + TANK.width / 2) / DECOR_VOXEL),

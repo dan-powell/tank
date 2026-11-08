@@ -88,13 +88,21 @@ final class TankStateRepository
                 portions: $tank->auto_feeder_portions,
             ) : null,
             decorationAnchors: $decorations->mapWithKeys(fn (Decoration $decoration): array => [
-                $decoration->id => $this->submergedAnchors($tank, $decoration),
+                $decoration->id => $this->anchorCells($decoration),
             ])->all(),
             groundedFootprints: TankGeometry::groundedFootprints($tank, $decorations),
             gridWidth: $tank->grid_width,
             gridDepth: $tank->grid_depth,
             waterLevel: TankGeometry::waterLevel($tank),
             hasWater: ! TankGeometry::isDry($tank),
+            humidity: $tank->humidity,
+            airOxygen: $tank->air_oxygen,
+            airCo2: $tank->air_co2,
+            airLitres: TankGeometry::airLitres($tank),
+            landAreaCm2: TankGeometry::landAreaCm2($tank, $decorations),
+            waterSurfaceShare: TankGeometry::waterSurfaceShare($tank),
+            isSealed: $tank->is_sealed,
+            substrateHeights: $tank->substrate_heights === null ? [] : TankGeometry::substrateHeights($tank),
         );
     }
 
@@ -115,16 +123,12 @@ final class TankStateRepository
     /**
      * @return array<int, array{0: int, 1: int, 2: int}>
      */
-    private function submergedAnchors(Tank $tank, Decoration $decoration): array
+    private function anchorCells(Decoration $decoration): array
     {
         $anchors = [];
 
         foreach (array_keys($decoration->definition()->anchors) as $index) {
-            $cell = TankGeometry::anchorCell($decoration, $index);
-
-            if (TankGeometry::isSubmerged($tank, $cell[1])) {
-                $anchors[$index] = $cell;
-            }
+            $anchors[$index] = TankGeometry::anchorCell($decoration, $index);
         }
 
         return $anchors;
@@ -149,6 +153,9 @@ final class TankStateRepository
             'uneaten_food' => $state->uneatenFood,
             'algae' => $state->algae,
             'bacteria' => $state->bacteria,
+            'humidity' => $state->humidity,
+            'air_oxygen' => $state->airOxygen,
+            'air_co2' => $state->airCo2,
             'sim_tick' => $state->simTick,
             'sim_seconds' => $state->simSeconds,
             'auto_feeder_portions' => $state->autoFeeder->portions ?? $tank->auto_feeder_portions,

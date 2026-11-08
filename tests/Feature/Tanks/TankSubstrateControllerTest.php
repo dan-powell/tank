@@ -56,14 +56,14 @@ class TankSubstrateControllerTest extends TestCase
         $this->assertTrue(TankGeometry::isDry($tank));
     }
 
-    public function test_cannot_fill_all_the_water_with_gravel_while_animals_live_in_it(): void
+    public function test_cannot_fill_all_the_water_with_gravel_while_water_animals_live_in_it(): void
     {
         $tank = Tank::factory()->create();
         Creature::factory()->for($tank)->create();
 
         $this->actingAs($tank->user)
             ->put(route('tanks.substrate.update', $tank), ['heights' => array_fill(0, self::COLUMNS, 61)])
-            ->assertSessionHasErrors(['heights' => 'Leave some water for the animals.']);
+            ->assertSessionHasErrors(['heights' => 'Leave some water for the water animals.']);
 
         $this->assertNull($tank->fresh()->substrate_heights);
     }

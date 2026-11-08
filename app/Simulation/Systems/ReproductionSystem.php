@@ -12,9 +12,10 @@ use App\Simulation\TankState;
 
 /**
  * Healthy, well-fed adults breed when a mate is present, up to a population
- * cap that scales with tank volume.
+ * cap that scales with the water (for aquatic animals) or the dry land (for
+ * land and amphibious ones).
  */
-final class ReproductionSystem implements RequiresWater, SimulationSystem
+final class ReproductionSystem implements SimulationSystem
 {
     public function apply(TankState $state, StepContext $context): void
     {
@@ -108,7 +109,10 @@ final class ReproductionSystem implements RequiresWater, SimulationSystem
             $state->livingCreatures(),
             fn (CreatureState $creature): bool => $creature->speciesId === $species->id,
         ));
-        $room = (int) floor($species->number('max_per_100l') * $state->volumeLitres / 100) - $population;
+        $capacity = $species->habitat()->needsLand()
+            ? $species->number('max_per_100cm2') * $state->landAreaCm2 / 100
+            : $species->number('max_per_100l') * $state->volumeLitres / 100;
+        $room = (int) floor($capacity) - $population;
         [$min, $max] = $species->param('breeding.brood', [1, 3]);
         $brood = min($room, $context->random->getInt($min, $max));
         $father = $males === [] ? null : $males[$context->random->getInt(0, count($males) - 1)];
