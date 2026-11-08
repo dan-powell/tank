@@ -1,5 +1,6 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Ref } from 'react';
 import { Color, Group, Material, Mesh, Vector3 } from 'three';
 import {
     framesFor,
@@ -7,6 +8,13 @@ import {
     useSpeciesModel,
 } from '@/hooks/use-species-model';
 import type { ModelFrame } from '@/hooks/use-species-model';
+import {
+    advanceAnimation,
+    createAnimationState,
+    IDLE_CLIP,
+    MOVE_CLIP,
+} from '@/lib/tank/animator';
+import type { AnimationState } from '@/lib/tank/animator';
 import {
     laneOffset,
     layerToZ,
@@ -169,7 +177,9 @@ function Creature({
     const selectable = useSelectable(onSelect);
     const model = useSpeciesModel(species);
     const stage = stageFor(species, model, creature.size);
-    const frame = framesFor(model, stage, 'idle')[0];
+    const moveFrames = framesFor(model, stage, MOVE_CLIP);
+    const idleFrames = framesFor(model, stage, IDLE_CLIP);
+    const frame = idleFrames[0];
     const length = (frame?.size[0] ?? 1) * VOXEL;
     const height = (frame?.size[1] ?? 1) * VOXEL;
     const depth = (frame?.size[2] ?? 1) * VOXEL;
@@ -178,6 +188,9 @@ function Creature({
     const pop = useRef<Group>(null);
     const shownStage = useRef(stage);
     const popStarted = useRef<number | null>(null);
+    const animation = useRef<AnimationState>(createAnimationState(creature.id));
+    const bodyMesh = useRef<Mesh>(null);
+    const haloMesh = useRef<Mesh>(null);
     const wander = useRef<WanderState | null>(null);
     const homeLayer = Math.min(layerCount - 1, creature.zone.layer);
     const zoneCenter = useMemo(
@@ -289,10 +302,35 @@ function Creature({
         const pitch = Math.atan2(body.velocity.y, speed) * 0.6;
         turn.rotation.z += (pitch - turn.rotation.z) * Math.min(1, delta * 5);
 
-        const beat = 6 + body.velocity.length() * 40;
-        object.rotation.y =
-            Math.sin(state.clock.elapsedTime * beat + creature.id) *
-            (standsOnBase(species.behaviour) ? 0 : 0.12);
+        // Swap in the current animation frame's mesh (frames are shared, so nothing is allocated).
+        const { clip, frame: frameNumber } = advanceAnimation(
+            animation.current,
+            species.render.animation,
+            body.velocity.length(),
+            profile.speed,
+            delta,
+        );
+        const frames = clip === MOVE_CLIP ? moveFrames : idleFrames;
+        const shown = frames[frameNumber % Math.max(1, frames.length)];
+
+        if (shown !== undefined) {
+            const lift = standsOnBase(species.behaviour)
+                ? 0
+                : -shown.size[1] / 2;
+
+            for (const [mesh, geometry] of [
+                [bodyMesh.current, shown.geometry],
+                [
+                    haloMesh.current,
+                    haloMesh.current && haloGeometry(shown.geometry),
+                ],
+            ] as const) {
+                if (mesh !== null && geometry !== null) {
+                    mesh.geometry = geometry;
+                    mesh.position.y = lift * VOXEL;
+                }
+            }
+        }
 
         if (shownStage.current !== stage) {
             shownStage.current = stage;
@@ -324,6 +362,8 @@ function Creature({
                             tint={tailColour(species, creature.id)}
                             health={creature.health}
                             highlighted={isSelected}
+                            bodyRef={bodyMesh}
+                            haloRef={haloMesh}
                         />
                     )}
                 </group>
@@ -365,6 +405,9 @@ type VoxelCreatureProps = {
     opacity?: number;
     /** Selected: brightened and surrounded by a halo. */
     highlighted?: boolean;
+    /** The meshes, for swapping animation frames in place. */
+    bodyRef?: Ref<Mesh>;
+    haloRef?: Ref<Mesh>;
 };
 
 /**
@@ -379,6 +422,8 @@ function VoxelCreature({
     shade,
     opacity = 1,
     highlighted = false,
+    bodyRef,
+    haloRef,
 }: VoxelCreatureProps) {
     const tintHex = tint.getHexString();
     const shadeHex = shade?.getHexString();
@@ -416,6 +461,7 @@ function VoxelCreature({
     return (
         <>
             <mesh
+                ref={bodyRef}
                 geometry={frame.geometry}
                 material={material}
                 scale={VOXEL}
@@ -424,6 +470,7 @@ function VoxelCreature({
             />
             {halo !== null && (
                 <mesh
+                    ref={haloRef}
                     geometry={haloGeometry(frame.geometry)}
                     material={halo}
                     scale={VOXEL}
