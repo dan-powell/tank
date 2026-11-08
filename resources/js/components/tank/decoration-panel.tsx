@@ -32,6 +32,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { CELLS_PER_CM } from '@/lib/tank/space';
 import { rotatedSize } from '@/lib/tank/voxel-volume';
 import type { TankWorld } from '@/lib/tank/world';
 import { cn } from '@/lib/utils';
@@ -67,7 +68,7 @@ type Props = {
 };
 
 /** Cells moved per press of a nudge button (1 cm). */
-const NUDGE = 2;
+const NUDGE = CELLS_PER_CM;
 
 /**
  * The selected decoration: turning it, moving it in depth and height (the

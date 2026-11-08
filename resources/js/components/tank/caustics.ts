@@ -1,6 +1,6 @@
 import { Color, MeshStandardMaterial } from 'three';
 import type { WebGLProgramParametersWithUniforms } from 'three';
-import { TANK } from '@/lib/tank/space';
+import { TANK, VOXEL } from '@/lib/tank/space';
 import { sceneClock } from './scene-clock';
 
 /**
@@ -104,15 +104,45 @@ ${shader.fragmentShader}`.replace(
     );
 }
 
-/** A plain standard material that receives caustics (e.g. the substrate). */
+/** Brightness varies by up to this much from one gravel voxel to the next. */
+const GRAIN_JITTER = 0.12;
+
+/**
+ * Shade a surface as a block of grid voxels: each 0.2 cm cell it passes
+ * through gets its own brightness, like the voxels of a decoration, without
+ * the mesh needing a face per voxel. The cell is sampled half a voxel inside
+ * the surface so walls and tops agree.
+ */
+function applyVoxelGrain(shader: WebGLProgramParametersWithUniforms): void {
+    shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        vec3 grainCell = floor((vCausticWorld - vCausticNormal * ${(VOXEL / 2).toFixed(5)}) / ${VOXEL.toFixed(5)});
+        float grain = fract(sin(dot(grainCell, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+        diffuseColor.rgb *= 1.0 + (grain - 0.5) * ${(2 * GRAIN_JITTER).toFixed(3)};`,
+    );
+}
+
+/**
+ * A plain standard material that receives caustics (e.g. the substrate),
+ * optionally shaded voxel by voxel.
+ */
 export function createCausticMaterial(
     color: Color,
     roughness = 1,
+    { voxelGrain = false }: { voxelGrain?: boolean } = {},
 ): MeshStandardMaterial {
     const material = new MeshStandardMaterial({ color, roughness });
 
-    material.onBeforeCompile = applyCaustics;
-    material.customProgramCacheKey = () => 'caustic-standard';
+    material.onBeforeCompile = (shader) => {
+        applyCaustics(shader);
+
+        if (voxelGrain) {
+            applyVoxelGrain(shader);
+        }
+    };
+    material.customProgramCacheKey = () =>
+        voxelGrain ? 'caustic-standard-grain' : 'caustic-standard';
 
     return material;
 }

@@ -23,7 +23,7 @@ class StoreTankRequest extends FormRequest
             'width' => ['required', 'integer', 'between:'.implode(',', TankGeometry::WIDTH_CM)],
             'height' => ['required', 'integer', 'between:'.implode(',', TankGeometry::HEIGHT_CM)],
             'depth' => ['required', 'integer', 'between:'.implode(',', TankGeometry::DEPTH_CM)],
-            'water_depth' => ['nullable', 'numeric', 'multiple_of:0.5', 'min:0'],
+            'water_depth' => ['nullable', 'numeric', 'multiple_of:0.2', 'min:0'],
             'stocked' => ['boolean'],
         ];
     }

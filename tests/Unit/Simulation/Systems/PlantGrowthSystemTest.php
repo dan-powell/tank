@@ -69,7 +69,7 @@ class PlantGrowthSystemTest extends TestCase
         $state = $this->tankState([
             'species' => $this->catalogue(['hornwort' => ['spread' => ['chance_per_day' => 10_000]]]),
             'plants' => [$plant],
-            'decorationAnchors' => [3 => [0 => [53, 21, 11], 2 => [47, 15, 13]]],
+            'decorationAnchors' => [3 => [0 => [133, 53, 28], 2 => [118, 38, 33]]],
         ]);
 
         (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
@@ -77,7 +77,7 @@ class PlantGrowthSystemTest extends TestCase
         $offshoot = $state->plants[1];
         $this->assertSame(3, $offshoot->decorationId);
         $this->assertSame(2, $offshoot->anchorIndex);
-        $this->assertEqualsWithDelta(47.5 / 120, $offshoot->rootX, 0.0001);
+        $this->assertEqualsWithDelta(118.5 / 300, $offshoot->rootX, 0.0001);
     }
 
     public function test_plants_do_not_spread_beneath_a_decoration_resting_on_the_substrate(): void
@@ -86,7 +86,7 @@ class PlantGrowthSystemTest extends TestCase
         $state = $this->tankState([
             'species' => $this->catalogue(['vallisneria' => ['spread' => ['chance_per_day' => 10_000]]]),
             'plants' => [$plant],
-            'groundedFootprints' => [new GridBox(0, 4, 0, 120, 10, 55)],
+            'groundedFootprints' => [new GridBox(0, 10, 0, 300, 25, 138)],
         ]);
 
         (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
@@ -97,8 +97,8 @@ class PlantGrowthSystemTest extends TestCase
 
     public function test_plants_out_of_the_water_wilt_instead_of_growing(): void
     {
-        $plant = $this->plant(overrides: ['size' => 2.0, 'rootHeight' => 30]);
-        $state = $this->tankState(['plants' => [$plant], 'waterLevel' => 20, 'nitrate' => 10.0]);
+        $plant = $this->plant(overrides: ['size' => 2.0, 'rootHeight' => 75]);
+        $state = $this->tankState(['plants' => [$plant], 'waterLevel' => 50, 'nitrate' => 10.0]);
 
         (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
 
@@ -109,7 +109,7 @@ class PlantGrowthSystemTest extends TestCase
 
     public function test_land_plants_drown_with_their_roots_under_water(): void
     {
-        $moss = $this->plant('cushion-moss', ['rootHeight' => 10]);
+        $moss = $this->plant('cushion-moss', ['rootHeight' => 25]);
         $state = $this->tankState(['plants' => [$moss], 'humidity' => 90.0]);
 
         (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
@@ -119,7 +119,7 @@ class PlantGrowthSystemTest extends TestCase
 
     public function test_land_plants_dry_out_in_dry_air(): void
     {
-        $moss = $this->plant('cushion-moss', ['rootHeight' => 61]);
+        $moss = $this->plant('cushion-moss', ['rootHeight' => 153]);
         $state = $this->tankState(['plants' => [$moss], 'humidity' => 40.0]);
 
         (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
@@ -129,7 +129,7 @@ class PlantGrowthSystemTest extends TestCase
 
     public function test_land_plants_grow_on_detritus_in_humid_air(): void
     {
-        $moss = $this->plant('cushion-moss', ['rootHeight' => 61, 'size' => 1.0]);
+        $moss = $this->plant('cushion-moss', ['rootHeight' => 153, 'size' => 1.0]);
         $state = $this->tankState(['plants' => [$moss], 'humidity' => 90.0, 'detritus' => 1.0, 'nitrate' => 10.0]);
 
         (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
@@ -141,8 +141,8 @@ class PlantGrowthSystemTest extends TestCase
 
     public function test_edge_plants_thrive_only_near_the_waterline(): void
     {
-        $atEdge = $this->plant('dwarf-rush', ['rootHeight' => 58]);
-        $deep = $this->plant('dwarf-rush', ['rootHeight' => 20]);
+        $atEdge = $this->plant('dwarf-rush', ['rootHeight' => 145]);
+        $deep = $this->plant('dwarf-rush', ['rootHeight' => 50]);
         $state = $this->tankState(['plants' => [$atEdge, $deep]]);
 
         (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));

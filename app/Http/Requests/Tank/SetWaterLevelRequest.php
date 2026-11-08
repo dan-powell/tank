@@ -24,7 +24,7 @@ class SetWaterLevelRequest extends FormRequest
             'water_depth' => [
                 'required',
                 'numeric',
-                'multiple_of:0.5',
+                'multiple_of:0.2',
                 'between:0,'.TankGeometry::maxWaterDepthCm($this->tank()->grid_height),
             ],
         ];

@@ -6,6 +6,7 @@ import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CELLS_PER_CM, DEFAULT_SUBSTRATE_CELLS } from '@/lib/tank/space';
 import { waterLevel as waterLevelRoute } from '@/routes/tanks';
 import type { TankGrid } from '@/types';
 import { PanelSection } from './panel-section';
@@ -17,12 +18,8 @@ type Props = {
     hasWater: boolean;
 };
 
-/** Grid cells per centimetre, and an unsculpted substrate's depth in cells (match TankGeometry). */
-const CELLS_PER_CM = 2;
-const SUBSTRATE_CELLS = 4;
-
 const toDepth = (level: number) =>
-    Math.max(0, (level - SUBSTRATE_CELLS) / CELLS_PER_CM);
+    Math.max(0, (level - DEFAULT_SUBSTRATE_CELLS) / CELLS_PER_CM);
 
 /**
  * How much water the tank holds. Draining keeps the water as it is; topping
@@ -82,7 +79,7 @@ export function WaterLevelPanel({ tankId, grid, litres, hasWater }: Props) {
                         inputMode="decimal"
                         min={0}
                         max={deepest}
-                        step={0.5}
+                        step={0.2}
                         value={depth}
                         onChange={(event) => setDepth(event.target.value)}
                         className="h-8 bg-background"

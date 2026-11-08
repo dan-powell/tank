@@ -1,4 +1,5 @@
 import type { TankGrid } from '@/types';
+import { CELLS_PER_CM, DEFAULT_SUBSTRATE_CELLS } from './space';
 
 export type SculptTool = 'raise' | 'lower' | 'smooth' | 'flatten';
 
@@ -9,12 +10,8 @@ export type SculptBrush = {
     radiusCm: number;
 };
 
-/** Grid cells per centimetre, and an unsculpted substrate's depth in cells (match TankGeometry). */
-const CELLS_PER_CM = 2;
-const DEFAULT_SUBSTRATE = 4;
-
-/** How fast Raise and Lower change the gravel at the brush centre, in cells per second. */
-const RAISE_RATE = 14;
+/** How fast Raise and Lower change the gravel at the brush centre, in cells per second (7 cm). */
+const RAISE_RATE = 7 * CELLS_PER_CM;
 
 /** How quickly Smooth and Flatten pull the gravel towards their target, per second. */
 const BLEND_RATE = 5;
@@ -173,11 +170,11 @@ function shaped(
     shape: (u: number, v: number) => number,
 ): number[] {
     const { columns, rows } = heightmapSize(grid);
-    const low = DEFAULT_SUBSTRATE;
-    // Land stands a little proud of the water when the water is low enough.
+    const low = DEFAULT_SUBSTRATE_CELLS;
+    // Land stands a little proud (2 cm) of the water when the water is low enough.
     const high = Math.min(
         grid.max_water_level,
-        Math.max(grid.water_level + 4, low + 12),
+        Math.max(grid.water_level + 2 * CELLS_PER_CM, low + 6 * CELLS_PER_CM),
     );
     const heights: number[] = [];
 

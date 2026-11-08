@@ -2,7 +2,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Color, Vector3 } from 'three';
 import type { Mesh } from 'three';
-import { DECOR_VOXEL, worldToCell } from '@/lib/tank/space';
+import { CELLS_PER_CM, VOXEL, worldToCell } from '@/lib/tank/space';
 import { buildSubstrateGeometry } from '@/lib/tank/substrate-geometry';
 import {
     applyBrush,
@@ -54,7 +54,10 @@ export function Substrate({
     const scratch = useMemo(() => new Vector3(), []);
 
     const material = useMemo(
-        () => createCausticMaterial(new Color('#b49a72')),
+        () =>
+            createCausticMaterial(new Color('#b49a72'), 1, {
+                voxelGrain: true,
+            }),
         [],
     );
     const shown = draft ?? heights;
@@ -172,8 +175,8 @@ export function Substrate({
                 >
                     <ringGeometry
                         args={[
-                            brush.radiusCm * 2 * DECOR_VOXEL - 0.006,
-                            brush.radiusCm * 2 * DECOR_VOXEL,
+                            brush.radiusCm * CELLS_PER_CM * VOXEL - 0.006,
+                            brush.radiusCm * CELLS_PER_CM * VOXEL,
                             40,
                         ]}
                     />

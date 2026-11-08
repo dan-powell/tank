@@ -40,8 +40,8 @@ class TankDecorationControllerTest extends TestCase
         $this->assertSame('boulder', $decoration->type);
         $this->assertSame(0, $decoration->rotation);
         $this->assertSame(TankGeometry::DEFAULT_SUBSTRATE, $decoration->y);
-        $this->assertLessThanOrEqual(20, $decoration->z);
-        $this->assertLessThanOrEqual(120, $decoration->x + 26);
+        $this->assertLessThanOrEqual(50, $decoration->z);
+        $this->assertLessThanOrEqual(300, $decoration->x + 65);
         $event = $tank->events()->sole();
         $this->assertSame(TankEventType::Aquascaping, $event->type);
         $this->assertSame('You added a Boulder to the tank.', $event->message);
@@ -51,7 +51,7 @@ class TankDecorationControllerTest extends TestCase
     public function test_new_decorations_keep_clear_of_existing_ones_while_there_is_floor_space(): void
     {
         $tank = Tank::factory()->create();
-        $existing = Decoration::factory()->for($tank)->at(40, 4, 0)->create();
+        $existing = Decoration::factory()->for($tank)->at(100, 10, 0)->create();
 
         $this->actingAs($tank->user)
             ->post(route('tanks.decorations.store', $tank), ['type' => 'boulder'])
@@ -65,33 +65,33 @@ class TankDecorationControllerTest extends TestCase
     public function test_decorations_are_stacked_once_the_floor_is_full(): void
     {
         $tank = Tank::factory()->create();
-        $this->coverFloorWithSlabs($tank, y: 4);
+        $this->coverFloorWithSlabs($tank, y: 10);
 
         $this->actingAs($tank->user)
             ->post(route('tanks.decorations.store', $tank), ['type' => 'pebble'])
             ->assertRedirect();
 
-        $this->assertSame(12, $tank->decorations()->where('type', 'pebble')->sole()->y);
+        $this->assertSame(30, $tank->decorations()->where('type', 'pebble')->sole()->y);
     }
 
     public function test_stacked_decorations_may_rise_above_the_water(): void
     {
         $tank = Tank::factory()->create();
-        $this->coverFloorWithSlabs($tank, y: 20);
+        $this->coverFloorWithSlabs($tank, y: 50);
 
         $this->actingAs($tank->user)
             ->post(route('tanks.decorations.store', $tank), ['type' => 'coral-wall'])
             ->assertRedirect();
 
         $wall = $tank->decorations()->where('type', 'coral-wall')->sole();
-        $this->assertSame(28, $wall->y);
-        $this->assertGreaterThan(61, $wall->y + 36);
+        $this->assertSame(70, $wall->y);
+        $this->assertGreaterThan(153, $wall->y + 90);
     }
 
     public function test_adding_a_decoration_that_would_poke_out_of_the_tank_is_rejected(): void
     {
         $tank = Tank::factory()->create();
-        $this->coverFloorWithSlabs($tank, y: 30);
+        $this->coverFloorWithSlabs($tank, y: 75);
 
         $this->actingAs($tank->user)
             ->post(route('tanks.decorations.store', $tank), ['type' => 'coral-wall'])
@@ -103,18 +103,18 @@ class TankDecorationControllerTest extends TestCase
 
     public function test_decorations_rest_on_raised_substrate(): void
     {
-        $tank = Tank::factory()->create(['substrate_heights' => array_fill(0, 60 * 28, 10)]);
+        $tank = Tank::factory()->create(['substrate_heights' => array_fill(0, 60 * 28, 25)]);
 
         $this->actingAs($tank->user)
             ->post(route('tanks.decorations.store', $tank), ['type' => 'pebble'])
             ->assertRedirect();
 
-        $this->assertSame(10, $tank->decorations()->sole()->y);
+        $this->assertSame(25, $tank->decorations()->sole()->y);
     }
 
     public function test_decorations_too_big_for_the_tank_are_rejected(): void
     {
-        $tank = Tank::factory()->sized(40, 40, 30)->create();
+        $tank = Tank::factory()->sized(100, 100, 75)->create();
 
         $this->actingAs($tank->user)
             ->post(route('tanks.decorations.store', $tank), ['type' => 'coral-wall'])
@@ -123,18 +123,18 @@ class TankDecorationControllerTest extends TestCase
 
     public function test_moving_a_decoration_is_bounded_by_its_own_tanks_size(): void
     {
-        $tank = Tank::factory()->sized(200, 100, 100)->create();
-        $decoration = Decoration::factory()->for($tank)->at(4, 4, 0)->create();
+        $tank = Tank::factory()->sized(500, 250, 250)->create();
+        $decoration = Decoration::factory()->for($tank)->at(10, 10, 0)->create();
 
         $this->actingAs($tank->user)
-            ->patch(route('tanks.decorations.update', [$tank, $decoration]), ['x' => 174, 'y' => 4, 'z' => 78, 'rotation' => 0])
+            ->patch(route('tanks.decorations.update', [$tank, $decoration]), ['x' => 435, 'y' => 10, 'z' => 195, 'rotation' => 0])
             ->assertSessionHasNoErrors();
 
         $this->actingAs($tank->user)
-            ->patch(route('tanks.decorations.update', [$tank, $decoration]), ['x' => 175, 'y' => 4, 'z' => 0, 'rotation' => 0])
+            ->patch(route('tanks.decorations.update', [$tank, $decoration]), ['x' => 436, 'y' => 10, 'z' => 0, 'rotation' => 0])
             ->assertSessionHasErrors(['x' => 'The decoration must stay inside the tank.']);
 
-        $this->assertSame(174, $decoration->fresh()->x);
+        $this->assertSame(435, $decoration->fresh()->x);
     }
 
     public function test_rejects_an_unknown_decoration(): void
@@ -172,7 +172,7 @@ class TankDecorationControllerTest extends TestCase
 
     public function test_moving_a_decoration_updates_its_position_and_rotation_without_logging(): void
     {
-        $decoration = Decoration::factory()->at(4, 4, 0)->create();
+        $decoration = Decoration::factory()->at(10, 10, 0)->create();
 
         $this->actingAs($decoration->tank->user)
             ->patch(route('tanks.decorations.update', [$decoration->tank, $decoration]), ['x' => 50, 'y' => 20, 'z' => 10, 'rotation' => 1])
@@ -185,30 +185,30 @@ class TankDecorationControllerTest extends TestCase
     }
 
     /**
-     * A boulder is 26 cells wide and 22 deep; a quarter turn swaps the two.
+     * A boulder is 65 cells wide and 55 deep; a quarter turn swaps the two.
      */
-    #[TestWith([96, 0])]
-    #[TestWith([100, 1])]
+    #[TestWith([236, 0])]
+    #[TestWith([246, 1])]
     public function test_rejects_moving_a_decoration_outside_the_tank(int $x, int $rotation): void
     {
-        $decoration = Decoration::factory()->at(4, 4, 0)->create();
+        $decoration = Decoration::factory()->at(10, 10, 0)->create();
 
         $this->actingAs($decoration->tank->user)
-            ->patch(route('tanks.decorations.update', [$decoration->tank, $decoration]), ['x' => $x, 'y' => 4, 'z' => 0, 'rotation' => $rotation])
+            ->patch(route('tanks.decorations.update', [$decoration->tank, $decoration]), ['x' => $x, 'y' => 10, 'z' => 0, 'rotation' => $rotation])
             ->assertSessionHasErrors(['x' => 'The decoration must stay inside the tank.']);
 
-        $this->assertSame(4, $decoration->fresh()->x);
+        $this->assertSame(10, $decoration->fresh()->x);
     }
 
     public function test_a_quarter_turn_lets_a_decoration_fit_where_it_otherwise_would_not(): void
     {
-        $decoration = Decoration::factory()->at(4, 4, 0)->create();
+        $decoration = Decoration::factory()->at(10, 10, 0)->create();
 
         $this->actingAs($decoration->tank->user)
-            ->patch(route('tanks.decorations.update', [$decoration->tank, $decoration]), ['x' => 96, 'y' => 4, 'z' => 0, 'rotation' => 1])
+            ->patch(route('tanks.decorations.update', [$decoration->tank, $decoration]), ['x' => 240, 'y' => 10, 'z' => 0, 'rotation' => 1])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame(96, $decoration->fresh()->x);
+        $this->assertSame(240, $decoration->fresh()->x);
     }
 
     public function test_rejects_an_invalid_rotation(): void
@@ -216,26 +216,26 @@ class TankDecorationControllerTest extends TestCase
         $decoration = Decoration::factory()->create();
 
         $this->actingAs($decoration->tank->user)
-            ->patch(route('tanks.decorations.update', [$decoration->tank, $decoration]), ['x' => 4, 'y' => 4, 'z' => 0, 'rotation' => 4])
+            ->patch(route('tanks.decorations.update', [$decoration->tank, $decoration]), ['x' => 10, 'y' => 10, 'z' => 0, 'rotation' => 4])
             ->assertSessionHasErrors(['rotation' => 'The rotation field must be between 0 and 3.']);
     }
 
     public function test_cannot_move_a_decoration_through_another_tank(): void
     {
         $tank = Tank::factory()->create();
-        $decoration = Decoration::factory()->at(4, 4, 0)->create();
+        $decoration = Decoration::factory()->at(10, 10, 0)->create();
 
         $this->actingAs($tank->user)
-            ->patch(route('tanks.decorations.update', [$tank, $decoration]), ['x' => 50, 'y' => 4, 'z' => 0, 'rotation' => 0])
+            ->patch(route('tanks.decorations.update', [$tank, $decoration]), ['x' => 50, 'y' => 10, 'z' => 0, 'rotation' => 0])
             ->assertNotFound();
 
-        $this->assertSame(4, $decoration->fresh()->x);
+        $this->assertSame(10, $decoration->fresh()->x);
     }
 
     public function test_removing_a_decoration_drops_its_plants_to_the_substrate_beneath_them(): void
     {
         $tank = Tank::factory()->create(['layer_count' => 5]);
-        $decoration = Decoration::factory()->for($tank)->at(40, 4, 0)->create();
+        $decoration = Decoration::factory()->for($tank)->at(100, 10, 0)->create();
         $plant = Plant::factory()->for($tank)->for(Species::factory()->decorPlant())->create([
             'decoration_id' => $decoration->id,
             'anchor_index' => 0,
@@ -252,18 +252,18 @@ class TankDecorationControllerTest extends TestCase
         $this->assertNull($plant->decoration_id);
         $this->assertNull($plant->anchor_index);
         $this->assertNull($plant->died_at);
-        $this->assertEqualsWithDelta(53.5 / 120, $plant->root_x, 0.0001);
+        $this->assertEqualsWithDelta(133.5 / 300, $plant->root_x, 0.0001);
         $this->assertSame(0, $plant->layer);
         $this->assertSame('You removed the Boulder from the tank.', $tank->events()->sole()->message);
     }
 
     /**
-     * Cover the whole floor with slate slabs (36 x 8 x 20 cells) at a given height.
+     * Cover the whole floor with slate slabs (90 x 20 x 50 cells) at a given height.
      */
     private function coverFloorWithSlabs(Tank $tank, int $y): void
     {
-        foreach ([0, 36, 72, 84] as $x) {
-            foreach ([0, 20, 35] as $z) {
+        foreach ([0, 90, 180, 210] as $x) {
+            foreach ([0, 50, 88] as $z) {
                 Decoration::factory()->for($tank)->at($x, $y, $z)->create(['type' => 'slate-slab']);
             }
         }

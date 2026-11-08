@@ -25,7 +25,7 @@ class CreateTank
     public function __construct(private StockTank $stockTank) {}
 
     /**
-     * Set up a cycled tank with the given interior size (in 0.5 cm grid
+     * Set up a cycled tank with the given interior size (in 0.2 cm grid
      * cells), filled to `$waterLevel` (or the top), optionally planted and
      * stocked in proportion to the water it holds.
      */

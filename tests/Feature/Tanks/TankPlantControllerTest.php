@@ -122,7 +122,7 @@ class TankPlantControllerTest extends TestCase
 
         for ($row = 0; $row < 28; $row++) {
             for ($column = 0; $column < 60; $column++) {
-                $heights[] = $column < 30 ? 61 : 4;
+                $heights[] = $column < 30 ? 153 : 10;
             }
         }
 

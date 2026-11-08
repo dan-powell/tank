@@ -5,7 +5,7 @@ import { Color, Vector3 } from 'three';
 import type { Group, Object3D } from 'three';
 import { useDecorModels } from '@/hooks/use-decor-model';
 import type { DecorModel } from '@/hooks/use-decor-model';
-import { cellToWorld, DECOR_VOXEL, worldToCell } from '@/lib/tank/space';
+import { cellToWorld, VOXEL, worldToCell } from '@/lib/tank/space';
 import { TerrainField } from '@/lib/tank/terrain-field';
 import { rotateCell } from '@/lib/tank/voxel-volume';
 import type { TankWorld } from '@/lib/tank/world';
@@ -252,9 +252,9 @@ function DecorationContent({
                 );
 
                 return new Vector3(
-                    (x + 0.5) * DECOR_VOXEL,
-                    y * DECOR_VOXEL,
-                    (z + 0.5) * DECOR_VOXEL,
+                    (x + 0.5) * VOXEL,
+                    y * VOXEL,
+                    (z + 0.5) * VOXEL,
                 );
             }),
         [definition, decoration.rotation],
@@ -266,7 +266,7 @@ function DecorationContent({
             <mesh
                 geometry={model.geometry}
                 material={material}
-                scale={DECOR_VOXEL}
+                scale={VOXEL}
                 renderOrder={halo !== null ? SELECTED_RENDER_ORDER : 0}
                 userData={PLACEABLE}
                 {...selectable}
@@ -276,7 +276,7 @@ function DecorationContent({
                     <mesh
                         geometry={haloGeometry(model.geometry)}
                         material={halo}
-                        scale={DECOR_VOXEL}
+                        scale={VOXEL}
                         renderOrder={HALO_RENDER_ORDER}
                         raycast={() => null}
                     />

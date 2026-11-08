@@ -40,11 +40,11 @@ class DecorationCatalogueTest extends TestCase
     {
         $definition = DecorationCatalogue::find('boulder');
 
-        $this->assertSame([22, 18, 26], $definition->rotatedSize(1));
-        $this->assertSame([11, 17, 12], $definition->rotateCell([13, 17, 11], 1));
-        $this->assertSame([12, 17, 10], $definition->rotateCell([13, 17, 11], 2));
-        $this->assertSame([10, 17, 13], $definition->rotateCell([13, 17, 11], 3));
-        $this->assertSame([0, 0, 25], $definition->rotateCell([0, 0, 0], 1));
+        $this->assertSame([55, 45, 65], $definition->rotatedSize(1));
+        $this->assertSame([28, 43, 31], $definition->rotateCell([33, 43, 28], 1));
+        $this->assertSame([31, 43, 26], $definition->rotateCell([33, 43, 28], 2));
+        $this->assertSame([26, 43, 33], $definition->rotateCell([33, 43, 28], 3));
+        $this->assertSame([0, 0, 64], $definition->rotateCell([0, 0, 0], 1));
     }
 
     /**

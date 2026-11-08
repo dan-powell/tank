@@ -25,7 +25,7 @@ use Illuminate\Support\Carbon;
  * @property int $user_id
  * @property string $name
  * @property int $volume_litres Water held, derived from the dimensions (see TankGeometry::waterLitres()).
- * @property int $grid_width Interior width in 0.5 cm decoration grid cells.
+ * @property int $grid_width Interior width in 0.2 cm grid cells.
  * @property int $grid_height Interior height (glass floor to rim) in grid cells.
  * @property int $grid_depth Interior depth in grid cells.
  * @property int $water_level First grid cell row above the water (at or below the substrate when empty).

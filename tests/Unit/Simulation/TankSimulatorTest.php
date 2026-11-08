@@ -51,7 +51,7 @@ class TankSimulatorTest extends TestCase
         $plant = $this->plant(overrides: ['health' => 1.0]);
         $state = $this->tankState([
             'hasWater' => false,
-            'waterLevel' => 4,
+            'waterLevel' => 10,
             'ammonia' => 1.0,
             'temperature' => 18.0,
             'uneatenFood' => 0.5,
@@ -114,11 +114,11 @@ class TankSimulatorTest extends TestCase
         $state = $this->tankState([
             'hasWater' => false,
             'isSealed' => true,
-            'waterLevel' => 4,
+            'waterLevel' => 10,
             'humidity' => 90.0,
             'detritus' => 2.0,
             'landAreaCm2' => 1600.0,
-            'plants' => [$this->plant('cushion-moss', ['rootHeight' => 4]), $this->plant('cushion-moss', ['rootHeight' => 4])],
+            'plants' => [$this->plant('cushion-moss', ['rootHeight' => 10]), $this->plant('cushion-moss', ['rootHeight' => 10])],
             'creatures' => [
                 $this->creature('springtail', ['ageSeconds' => 30 * 86400]),
                 $this->creature('springtail', ['sex' => Sex::Male, 'ageSeconds' => 30 * 86400]),

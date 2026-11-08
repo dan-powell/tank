@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import type { GridCell, TankGrid } from '@/types';
-import { DECOR_VOXEL, TANK } from './space';
+import { VOXEL, TANK } from './space';
 import type { VoxelVolume } from './voxel-volume';
 import { voxelAt } from './voxel-volume';
 
@@ -24,11 +24,20 @@ export type Placement = {
 /** Which cells a creature may occupy. */
 export type Medium = 'water' | 'air';
 
+/** How far (in cells) moveToFreeCell searches sideways: 12 cm. */
+const FREE_SEARCH_RADIUS = 60;
+
+/** How far (in cells) moveToLandNear searches: 20 cm. */
+const LAND_SEARCH_RADIUS = 100;
+
 /**
  * Everything solid in the tank (substrate and decorations) and where the
- * water ends, on the decoration grid. Steering asks it what is underfoot and
- * what lies ahead, so creatures neither sink into the gravel nor swim
- * through rocks, and land-dwellers can later use the same field above water.
+ * water ends, on the grid. Steering asks it what is underfoot and what lies
+ * ahead, so creatures neither sink into the gravel nor swim through rocks.
+ *
+ * Each x/z column stores its substrate height plus a short list of solid
+ * decoration spans, rather than one byte per cell: at 0.2 cm a large tank
+ * has tens of millions of cells but only a few spans per column.
  */
 export class TerrainField {
     readonly width: number;
@@ -39,10 +48,11 @@ export class TerrainField {
 
     readonly waterLevel: number;
 
-    private readonly cells: Uint8Array;
+    /** Substrate height (cells) per x/z column. */
+    private readonly ground: Uint16Array;
 
-    /** Which placement fills each cell: its index + 1 (0 = none). Decorations per tank are capped well below 255. */
-    private readonly owners: Uint8Array;
+    /** Decoration spans per x/z column, flattened as [start, end, owner, ...] with end exclusive. Owner is the placement index + 1. */
+    private readonly spans: (number[] | undefined)[];
 
     private readonly placements: Placement[] = [];
 
@@ -51,26 +61,18 @@ export class TerrainField {
         this.height = grid.height;
         this.depth = grid.depth;
         this.waterLevel = grid.water_level;
-        this.cells = new Uint8Array(this.width * this.height * this.depth);
-        this.owners = new Uint8Array(this.cells.length);
+        this.ground = new Uint16Array(this.width * this.depth);
+        this.spans = Array.from({ length: this.width * this.depth });
 
         const columns = Math.ceil(this.width / grid.substrate_column);
 
         for (let z = 0; z < this.depth; z++) {
             for (let x = 0; x < this.width; x++) {
-                const column =
-                    Math.floor(z / grid.substrate_column) * columns +
-                    Math.floor(x / grid.substrate_column);
-                const ground = substrate[column] ?? 0;
-
-                for (let y = 0; y < this.height; y++) {
-                    this.cells[this.index(x, y, z)] =
-                        y < ground
-                            ? Cell.Substrate
-                            : y < this.waterLevel
-                              ? Cell.Water
-                              : Cell.Air;
-                }
+                this.ground[this.column(x, z)] =
+                    substrate[
+                        Math.floor(z / grid.substrate_column) * columns +
+                            Math.floor(x / grid.substrate_column)
+                    ] ?? 0;
             }
         }
 
@@ -93,7 +95,17 @@ export class TerrainField {
             return y >= this.height ? Cell.Air : Cell.Substrate;
         }
 
-        return this.cells[this.index(x, y, z)] as CellType;
+        const column = this.column(x, z);
+
+        if (y < this.ground[column]) {
+            return Cell.Substrate;
+        }
+
+        if (this.ownerAt(column, y) !== 0) {
+            return Cell.Decor;
+        }
+
+        return y < this.waterLevel ? Cell.Water : Cell.Air;
     }
 
     /** Whether a world-space point is inside the substrate or a decoration. */
@@ -128,27 +140,20 @@ export class TerrainField {
      */
     surfaceBelow(point: Vector3, maxClimb = 0): number | null {
         const [x, y, z] = this.toCell(point);
-        const solid = (row: number) => this.cellAt(x, row, z) >= Cell.Substrate;
 
-        if (solid(y)) {
-            const limit = y + Math.ceil(maxClimb / DECOR_VOXEL);
-
-            for (let row = y + 1; row <= limit; row++) {
-                if (!solid(row)) {
-                    return row * DECOR_VOXEL;
-                }
-            }
-
-            return null;
+        if (x < 0 || z < 0 || x >= this.width || z >= this.depth) {
+            return this.cellAt(x, y, z) >= Cell.Substrate ? null : 0;
         }
 
-        for (let row = y - 1; row >= 0; row--) {
-            if (solid(row)) {
-                return (row + 1) * DECOR_VOXEL;
-            }
+        const column = this.column(x, z);
+
+        if (this.cellAt(x, y, z) >= Cell.Substrate) {
+            const top = this.solidTopFrom(column, y);
+
+            return top <= y + Math.ceil(maxClimb / VOXEL) ? top * VOXEL : null;
         }
 
-        return 0;
+        return this.highestTopBelow(column, y) * VOXEL;
     }
 
     /**
@@ -162,13 +167,13 @@ export class TerrainField {
 
         for (let row = y + 1; row < this.height; row++) {
             if (this.cellAt(x, row, z) === wanted) {
-                point.y = (row + 0.5) * DECOR_VOXEL;
+                point.y = (row + 0.5) * VOXEL;
 
                 return;
             }
         }
 
-        for (let radius = 1; radius < 24; radius++) {
+        for (let radius = 1; radius < FREE_SEARCH_RADIUS; radius++) {
             for (let dz = -radius; dz <= radius; dz++) {
                 for (let dx = -radius; dx <= radius; dx++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) {
@@ -176,8 +181,8 @@ export class TerrainField {
                     }
 
                     if (this.cellAt(x + dx, y, z + dz) === wanted) {
-                        point.x = (x + dx + 0.5) * DECOR_VOXEL - TANK.width / 2;
-                        point.z = (z + dz + 0.5) * DECOR_VOXEL - TANK.depth / 2;
+                        point.x = (x + dx + 0.5) * VOXEL - TANK.width / 2;
+                        point.z = (z + dz + 0.5) * VOXEL - TANK.depth / 2;
 
                         return;
                     }
@@ -194,7 +199,7 @@ export class TerrainField {
     moveToLandNear(point: Vector3): boolean {
         const [x, , z] = this.toCell(point);
 
-        for (let radius = 0; radius < 40; radius++) {
+        for (let radius = 0; radius < LAND_SEARCH_RADIUS; radius++) {
             for (let dz = -radius; dz <= radius; dz++) {
                 for (let dx = -radius; dx <= radius; dx++) {
                     if (Math.max(Math.abs(dx), Math.abs(dz)) !== radius) {
@@ -205,9 +210,9 @@ export class TerrainField {
 
                     if (top !== null && top >= this.waterLevel) {
                         point.set(
-                            (x + dx + 0.5) * DECOR_VOXEL - TANK.width / 2,
-                            top * DECOR_VOXEL,
-                            (z + dz + 0.5) * DECOR_VOXEL - TANK.depth / 2,
+                            (x + dx + 0.5) * VOXEL - TANK.width / 2,
+                            top * VOXEL,
+                            (z + dz + 0.5) * VOXEL - TANK.depth / 2,
                         );
 
                         return true;
@@ -217,33 +222,6 @@ export class TerrainField {
         }
 
         return false;
-    }
-
-    /** The row just above the highest solid cell of a column, or null outside the tank. */
-    private topSurface(x: number, z: number): number | null {
-        if (x < 0 || z < 0 || x >= this.width || z >= this.depth) {
-            return null;
-        }
-
-        for (let row = this.height - 1; row >= 0; row--) {
-            if (this.cells[this.index(x, row, z)] >= Cell.Substrate) {
-                return row + 1;
-            }
-        }
-
-        return 0;
-    }
-
-    private toCell(point: Vector3): GridCell {
-        return [
-            Math.floor((point.x + TANK.width / 2) / DECOR_VOXEL),
-            Math.floor(point.y / DECOR_VOXEL),
-            Math.floor((point.z + TANK.depth / 2) / DECOR_VOXEL),
-        ];
-    }
-
-    private index(x: number, y: number, z: number): number {
-        return (y * this.depth + z) * this.width + x;
     }
 
     /**
@@ -265,10 +243,18 @@ export class TerrainField {
         const { volume, position } = placement;
         const [width, height, depth] = volume.size;
         const [px, py, pz] = position;
+        const limit = Math.min(this.height, py + height) - 1;
         let rest = 0;
 
         for (let z = 0; z < depth; z++) {
             for (let x = 0; x < width; x++) {
+                const tx = px + x;
+                const tz = pz + z;
+
+                if (tx < 0 || tz < 0 || tx >= this.width || tz >= this.depth) {
+                    continue;
+                }
+
                 let lowest = -1;
 
                 for (let y = 0; y < height && lowest < 0; y++) {
@@ -281,20 +267,21 @@ export class TerrainField {
                     continue;
                 }
 
-                for (
-                    let row = Math.min(this.height, py + height) - 1;
-                    row >= 0;
-                    row--
-                ) {
-                    const index = this.index(px + x, row, pz + z);
+                const column = this.column(tx, tz);
+                let highest = Math.min(this.ground[column], limit + 1) - 1;
+                const spans = this.spans[column] ?? [];
 
-                    if (
-                        this.cells[index] >= Cell.Substrate &&
-                        this.owners[index] !== owner
-                    ) {
-                        rest = Math.max(rest, row + 1 - lowest);
-                        break;
+                for (let i = 0; i < spans.length; i += 3) {
+                    if (spans[i + 2] !== owner && spans[i] <= limit) {
+                        highest = Math.max(
+                            highest,
+                            Math.min(spans[i + 1] - 1, limit),
+                        );
                     }
+                }
+
+                if (highest >= 0) {
+                    rest = Math.max(rest, highest + 1 - lowest);
                 }
             }
         }
@@ -302,30 +289,124 @@ export class TerrainField {
         return Math.min(rest, this.height - height);
     }
 
+    /** The row just above the highest solid cell of a column, or null outside the tank. */
+    private topSurface(x: number, z: number): number | null {
+        if (x < 0 || z < 0 || x >= this.width || z >= this.depth) {
+            return null;
+        }
+
+        const column = this.column(x, z);
+        let top: number = this.ground[column];
+        const spans = this.spans[column] ?? [];
+
+        for (let i = 0; i < spans.length; i += 3) {
+            top = Math.max(top, spans[i + 1]);
+        }
+
+        return top;
+    }
+
+    /** The first open row at or above a solid row, climbing through touching spans. */
+    private solidTopFrom(column: number, row: number): number {
+        const spans = this.spans[column] ?? [];
+        let top = row;
+        let moved = true;
+
+        while (moved) {
+            moved = false;
+
+            if (top < this.ground[column]) {
+                top = this.ground[column];
+                moved = true;
+            }
+
+            for (let i = 0; i < spans.length; i += 3) {
+                if (spans[i] <= top && top < spans[i + 1]) {
+                    top = spans[i + 1];
+                    moved = true;
+                }
+            }
+        }
+
+        return top;
+    }
+
+    /** The row just above the highest solid cell below an open row (0 on bare glass). */
+    private highestTopBelow(column: number, row: number): number {
+        let top = Math.min(this.ground[column], row);
+        const spans = this.spans[column] ?? [];
+
+        for (let i = 0; i < spans.length; i += 3) {
+            if (spans[i + 1] <= row) {
+                top = Math.max(top, spans[i + 1]);
+            }
+        }
+
+        return top;
+    }
+
+    /** The placement filling a cell above the substrate (index + 1), or 0. */
+    private ownerAt(column: number, y: number): number {
+        const spans = this.spans[column];
+
+        if (spans === undefined) {
+            return 0;
+        }
+
+        for (let i = 0; i < spans.length; i += 3) {
+            if (spans[i] <= y && y < spans[i + 1]) {
+                return spans[i + 2];
+            }
+        }
+
+        return 0;
+    }
+
+    private toCell(point: Vector3): GridCell {
+        return [
+            Math.floor((point.x + TANK.width / 2) / VOXEL),
+            Math.floor(point.y / VOXEL),
+            Math.floor((point.z + TANK.depth / 2) / VOXEL),
+        ];
+    }
+
+    private column(x: number, z: number): number {
+        return z * this.width + x;
+    }
+
+    /** Record each vertical run of a placement's solid voxels as a span in its tank column. */
     private stamp(
         { volume, position: [px, py, pz] }: Placement,
         owner: number,
     ): void {
         const [width, height, depth] = volume.size;
 
-        for (let y = 0; y < height; y++) {
-            for (let z = 0; z < depth; z++) {
-                for (let x = 0; x < width; x++) {
-                    const tx = px + x;
-                    const ty = py + y;
-                    const tz = pz + z;
+        for (let z = 0; z < depth; z++) {
+            for (let x = 0; x < width; x++) {
+                const tx = px + x;
+                const tz = pz + z;
 
-                    if (
-                        voxelAt(volume, x, y, z) !== 0 &&
-                        tx >= 0 &&
-                        ty >= 0 &&
-                        tz >= 0 &&
-                        tx < this.width &&
-                        ty < this.height &&
-                        tz < this.depth
-                    ) {
-                        this.cells[this.index(tx, ty, tz)] = Cell.Decor;
-                        this.owners[this.index(tx, ty, tz)] = owner;
+                if (tx < 0 || tz < 0 || tx >= this.width || tz >= this.depth) {
+                    continue;
+                }
+
+                const column = this.column(tx, tz);
+                let start = -1;
+
+                for (let y = 0; y <= height; y++) {
+                    const solid = y < height && voxelAt(volume, x, y, z) !== 0;
+
+                    if (solid && start < 0) {
+                        start = y;
+                    } else if (!solid && start >= 0) {
+                        const from = Math.max(0, py + start);
+                        const to = Math.min(this.height, py + y);
+
+                        if (from < to) {
+                            (this.spans[column] ??= []).push(from, to, owner);
+                        }
+
+                        start = -1;
                     }
                 }
             }
@@ -347,7 +428,7 @@ export function substrateHeightAt(
         Math.max(
             0,
             Math.floor(
-                (worldX + TANK.width / 2) / DECOR_VOXEL / grid.substrate_column,
+                (worldX + TANK.width / 2) / VOXEL / grid.substrate_column,
             ),
         ),
     );
@@ -356,10 +437,10 @@ export function substrateHeightAt(
         Math.max(
             0,
             Math.floor(
-                (worldZ + TANK.depth / 2) / DECOR_VOXEL / grid.substrate_column,
+                (worldZ + TANK.depth / 2) / VOXEL / grid.substrate_column,
             ),
         ),
     );
 
-    return (substrate[row * columns + column] ?? 0) * DECOR_VOXEL;
+    return (substrate[row * columns + column] ?? 0) * VOXEL;
 }

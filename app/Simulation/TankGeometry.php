@@ -9,7 +9,7 @@ use App\Models\Tank;
 /**
  * The tank's physical layout on the decoration grid.
  *
- * The grid divides a tank's interior into 0.5 cm cells, from the glass floor
+ * The grid divides a tank's interior into 0.2 cm cells, from the glass floor
  * (y = 0) to the rim, with x running left to right and z from the back glass
  * (z = 0) to the front. Decorations, the substrate and the water level are all
  * measured in these cells, so none of them depends on the others.
@@ -17,14 +17,14 @@ use App\Models\Tank;
 final class TankGeometry
 {
     /** Grid cells per centimetre. */
-    public const int CELLS_PER_CM = 2;
+    public const int CELLS_PER_CM = 5;
 
-    /** Interior size of a starter tank (60 x 32.5 x 27.5 cm), in cells. */
-    public const int DEFAULT_WIDTH = 120;
+    /** Interior size of a starter tank (60 x 32.6 x 27.6 cm), in cells. */
+    public const int DEFAULT_WIDTH = 300;
 
-    public const int DEFAULT_HEIGHT = 65;
+    public const int DEFAULT_HEIGHT = 163;
 
-    public const int DEFAULT_DEPTH = 55;
+    public const int DEFAULT_DEPTH = 138;
 
     /** Allowed interior sizes, in whole centimetres: [min, max]. */
     public const array WIDTH_CM = [20, 120];
@@ -34,28 +34,28 @@ final class TankGeometry
     public const array DEPTH_CM = [15, 50];
 
     /** Smallest gap between a full tank's water line and the rim, in cells. */
-    public const int RIM_GAP = 4;
+    public const int RIM_GAP = 10;
 
-    /** The substrate heightmap holds one height per square of this many cells. */
-    public const int SUBSTRATE_COLUMN = 2;
+    /** The substrate heightmap holds one height per square of this many cells (1 cm). */
+    public const int SUBSTRATE_COLUMN = 5;
 
-    /** Substrate depth of an unsculpted tank, in cells. */
-    public const int DEFAULT_SUBSTRATE = 4;
+    /** Substrate depth of an unsculpted tank, in cells (2 cm). */
+    public const int DEFAULT_SUBSTRATE = 10;
 
-    /** Target thickness of one depth layer, in cells (5.5 cm). */
-    private const int LAYER_CELLS = 11;
+    /** Target thickness of one depth layer, in cells (5.6 cm). */
+    private const int LAYER_CELLS = 28;
 
-    /** Wall clearance used when dividing the depth into layers (matches the client's MARGIN). */
-    private const int LAYER_MARGIN = 4;
+    /** Wall clearance used when dividing the depth into layers, 2 cm (matches the client's MARGIN). */
+    private const int LAYER_MARGIN = 10;
 
     /** How far below the water line an emergent plant's roots may sit, in cells (3 cm). */
-    private const int EMERGENT_BELOW = 6;
+    private const int EMERGENT_BELOW = 15;
 
     /** How far above the water line an emergent plant's roots may sit, in cells (2 cm). */
-    private const int EMERGENT_ABOVE = 4;
+    private const int EMERGENT_ABOVE = 10;
 
-    /** Litres held by one grid cell (0.5 cm cubed). */
-    private const float LITRES_PER_CELL = 0.000125;
+    /** Litres held by one grid cell (0.2 cm cubed). */
+    private const float LITRES_PER_CELL = 0.000008;
 
     /**
      * The grid dimensions sent to the browser.

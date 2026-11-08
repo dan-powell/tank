@@ -22,7 +22,7 @@ class DecorationFactory extends Factory
         return [
             'tank_id' => Tank::factory(),
             'type' => 'boulder',
-            'x' => 4,
+            'x' => 10,
             'y' => TankGeometry::DEFAULT_SUBSTRATE,
             'z' => 0,
             'rotation' => 0,

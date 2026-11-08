@@ -127,7 +127,7 @@ export function NewTankDialog({ limits, defaultName, trigger }: Props) {
                                     inputMode="decimal"
                                     min={0}
                                     max={deepest}
-                                    step={0.5}
+                                    step={0.2}
                                     value={water}
                                     onChange={(event) =>
                                         setWaterDepth(

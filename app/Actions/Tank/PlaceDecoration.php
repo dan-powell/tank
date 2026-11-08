@@ -18,10 +18,10 @@ class PlaceDecoration
     use MutatesTank;
 
     /** Spacing between candidate positions, in grid cells. */
-    private const int STEP = 4;
+    private const int STEP = 10;
 
     /** Gap below which neighbouring decorations count as crowded, in grid cells. */
-    private const int COMFORTABLE_GAP = 6;
+    private const int COMFORTABLE_GAP = 15;
 
     public function __construct(private Randomizer $random = new Randomizer) {}
 

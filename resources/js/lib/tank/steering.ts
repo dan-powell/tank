@@ -2,7 +2,7 @@ import { Vector3 } from 'three';
 import type { Habitat, SpeciesBehaviour } from '@/types';
 import {
     bounds,
-    DECOR_VOXEL,
+    VOXEL,
     laneOffset,
     layerDepth,
     layerToZ,
@@ -372,7 +372,7 @@ function avoidTerrain(
         const startY = probe.y;
         let clearAbove = false;
 
-        for (let rise = DECOR_VOXEL; rise <= SWIM_OVER; rise += DECOR_VOXEL) {
+        for (let rise = VOXEL; rise <= SWIM_OVER; rise += VOXEL) {
             probe.y = startY + rise;
 
             if (probe.y > bounds.maxY) {
@@ -489,7 +489,7 @@ function walkOnTerrain(
             probe.set(x, foot, z),
             isCrawler ? CRAWLER_CLIMB : BOTTOM_STEP,
         );
-    const waterLine = terrain.waterLevel * DECOR_VOXEL - 0.01;
+    const waterLine = terrain.waterLevel * VOXEL - 0.01;
     const allowed = (height: number) =>
         profile.habitat === 'terrestrial'
             ? height >= waterLine

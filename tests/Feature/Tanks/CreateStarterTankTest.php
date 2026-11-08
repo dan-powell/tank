@@ -19,7 +19,7 @@ class CreateStarterTankTest extends TestCase
 
         $this->assertSame("Ada's Tank", $tank->name);
         $this->assertSame(0.3, $tank->bacteria);
-        $this->assertSame([120, 65, 55], [$tank->grid_width, $tank->grid_height, $tank->grid_depth]);
+        $this->assertSame([300, 163, 138], [$tank->grid_width, $tank->grid_height, $tank->grid_depth]);
         $this->assertSame(47, $tank->volume_litres);
         $this->assertSame(5, $tank->layer_count);
         $this->assertSame(7, $tank->plants()->count());

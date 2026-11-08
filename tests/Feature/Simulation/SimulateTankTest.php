@@ -123,8 +123,8 @@ class SimulateTankTest extends TestCase
 
     public function test_plants_on_gravel_raised_above_the_water_wilt(): void
     {
-        $heights = array_fill(0, 60 * 28, 4);
-        array_splice($heights, 0, 60 * 8, array_fill(0, 60 * 8, 50));
+        $heights = array_fill(0, 60 * 28, 10);
+        array_splice($heights, 0, 60 * 8, array_fill(0, 60 * 8, 125));
         $tank = Tank::factory()->withWaterDepth(10)->create([
             'substrate_heights' => $heights,
             'last_simulated_at' => now()->subHour(),

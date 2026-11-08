@@ -171,7 +171,7 @@ class TankStockControllerTest extends TestCase
     public function test_rejects_an_anchor_above_the_water(): void
     {
         $tank = Tank::factory()->create();
-        $decoration = Decoration::factory()->for($tank)->at(40, 46, 0)->create();
+        $decoration = Decoration::factory()->for($tank)->at(100, 115, 0)->create();
         $species = Species::factory()->decorPlant()->create();
 
         $this->actingAs($tank->user)
@@ -287,7 +287,7 @@ class TankStockControllerTest extends TestCase
 
         for ($row = 0; $row < 28; $row++) {
             for ($column = 0; $column < 60; $column++) {
-                $heights[] = $column < 30 ? 61 : 4;
+                $heights[] = $column < 30 ? 153 : 10;
             }
         }
 

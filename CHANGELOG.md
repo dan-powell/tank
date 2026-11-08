@@ -29,7 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Selected decorations show move arrows (depth only in 3D) and panel controls to turn, nudge, drop onto what's below, or remove them.
 - Fish swim over or turn away from decorations, bottom dwellers walk over low ones, snails climb them, and food settles on them.
 - Plants that can grow on decorations (Hornwort) can be planted on a decoration's plant spots and spread to its free spots.
-- Shared 0.5 cm grid for the tank, with a substrate heightmap that plants, litter, food and bottom dwellers follow.
+- Shared 0.2 cm grid for the tank (the size of every voxel), with a substrate heightmap that plants, litter, food and bottom dwellers follow; existing tanks are converted, and gravel is shaded voxel by voxel.
 - Tanks have their own size: a New tank dialog on the dashboard sets the name, inside measurements (20–120 × 20–60 × 15–50 cm) and optional starter stock scaled to the water; each user may keep up to 6 tanks.
 - Adjustable water level, set when a tank is created and from Management (fill to the top, a chosen depth, or empty): draining keeps the water as it is, topping up mixes in tap water.
 - Empty tanks: water chemistry pauses; feeding, water changes and adding water animals are refused, and a tank can't be emptied while water animals live in it.
@@ -48,7 +48,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tank panels use shadcn/ui components throughout; removing an inhabitant now asks for confirmation in a dialog.
 - New look from a shadcn preset: Lyra style, teal theme and Source Sans 3 font.
 - Feeding is done from the Care panel only; clicking the water no longer drops food.
-- A tank's litres now come from the water it holds (existing tanks: 60 L → 47 L) and its depth layers from its depth (about one per 5.5 cm).
+- A tank's litres now come from the water it holds (existing tanks: 60 L → 47 L) and its depth layers from its depth (about one per 5.6 cm).
 
 ### Fixed
 

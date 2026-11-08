@@ -3,7 +3,7 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { DECOR_VOXEL, CM } from '@/lib/tank/space';
+import { VOXEL, CM } from '@/lib/tank/space';
 import decorationRoutes from '@/routes/tanks/decorations';
 import type { DecorationDefinition } from '@/types';
 import { PanelSection } from './panel-section';
@@ -103,7 +103,7 @@ export function DecorCatalogue({
 
 /** "24 × 18 × 6 cm" (width × height × depth). */
 function formatSize(definition: DecorationDefinition): string {
-    const cm = (cells: number) => Math.round((cells * DECOR_VOXEL) / CM);
+    const cm = (cells: number) => Math.round((cells * VOXEL) / CM);
 
     return definition.size.map(cm).join(' × ') + ' cm';
 }

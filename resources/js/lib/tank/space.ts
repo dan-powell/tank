@@ -32,11 +32,18 @@ export const PLANT_HEIGHT_UNIT = 1.3;
 export const MARGIN = 0.08;
 
 /**
- * Size of one decoration grid cell in world units (0.5 cm). The grid spans
- * the tank's interior from the glass floor (y = 0) to the rim, with z = 0 at
- * the back glass; decorations, the substrate and the water level all use it.
+ * Size of one grid cell, and of every voxel, in world units (0.2 cm). The grid
+ * spans the tank's interior from the glass floor (y = 0) to the rim, with
+ * z = 0 at the back glass; decorations, the substrate, the water level and
+ * every animal and plant model all use it.
  */
-export const DECOR_VOXEL = 0.02;
+export const VOXEL = 0.008;
+
+/** Grid cells per centimetre (matches TankGeometry). */
+export const CELLS_PER_CM = 5;
+
+/** Substrate depth of an unsculpted tank, in grid cells (matches TankGeometry). */
+export const DEFAULT_SUBSTRATE_CELLS = 10;
 
 /** The world-space corner of a decoration grid cell (its minimum x, y and z). */
 export function cellToWorld(
@@ -46,18 +53,18 @@ export function cellToWorld(
     target = new Vector3(),
 ): Vector3 {
     return target.set(
-        x * DECOR_VOXEL - TANK.width / 2,
-        y * DECOR_VOXEL,
-        z * DECOR_VOXEL - TANK.depth / 2,
+        x * VOXEL - TANK.width / 2,
+        y * VOXEL,
+        z * VOXEL - TANK.depth / 2,
     );
 }
 
 /** The (fractional) decoration grid position of a world-space point. */
 export function worldToCell(point: Vector3, target = new Vector3()): Vector3 {
     return target.set(
-        (point.x + TANK.width / 2) / DECOR_VOXEL,
-        point.y / DECOR_VOXEL,
-        (point.z + TANK.depth / 2) / DECOR_VOXEL,
+        (point.x + TANK.width / 2) / VOXEL,
+        point.y / VOXEL,
+        (point.z + TANK.depth / 2) / VOXEL,
     );
 }
 
@@ -136,19 +143,16 @@ export const bounds = {
     maxZ: 0,
 };
 
-/** Substrate depth of an unsculpted tank, in grid cells (matches TankGeometry). */
-const DEFAULT_SUBSTRATE_CELLS = 4;
-
 /**
  * Size the shared tank space for the tank about to be shown. Call before
  * rendering its scene (and remount the scene if the size changes).
  */
 export function configureTankSpace(grid: TankGrid): void {
-    TANK.width = grid.width * DECOR_VOXEL;
-    TANK.height = grid.height * DECOR_VOXEL;
-    TANK.depth = grid.depth * DECOR_VOXEL;
-    TANK.substrate = DEFAULT_SUBSTRATE_CELLS * DECOR_VOXEL;
-    TANK.waterLine = grid.water_level * DECOR_VOXEL;
+    TANK.width = grid.width * VOXEL;
+    TANK.height = grid.height * VOXEL;
+    TANK.depth = grid.depth * VOXEL;
+    TANK.substrate = DEFAULT_SUBSTRATE_CELLS * VOXEL;
+    TANK.waterLine = grid.water_level * VOXEL;
 
     bounds.minX = -TANK.width / 2 + MARGIN;
     bounds.maxX = TANK.width / 2 - MARGIN;
@@ -159,12 +163,12 @@ export function configureTankSpace(grid: TankGrid): void {
 }
 
 configureTankSpace({
-    width: 120,
-    height: 65,
-    depth: 55,
-    water_level: 61,
-    max_water_level: 61,
-    substrate_column: 2,
+    width: 300,
+    height: 163,
+    depth: 138,
+    water_level: 153,
+    max_water_level: 153,
+    substrate_column: 5,
 });
 
 /** Format the simulation clock as "Day 3, 14:05". */

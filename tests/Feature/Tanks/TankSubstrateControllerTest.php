@@ -29,16 +29,16 @@ class TankSubstrateControllerTest extends TestCase
     public function test_sculpting_stores_the_heightmap_and_the_gravel_displaces_water(): void
     {
         $tank = Tank::factory()->create();
-        $decoration = Decoration::factory()->for($tank)->at(4, 4, 0)->create();
+        $decoration = Decoration::factory()->for($tank)->at(10, 10, 0)->create();
 
         $this->actingAs($tank->user)
-            ->put(route('tanks.substrate.update', $tank), ['heights' => array_fill(0, self::COLUMNS, 10)])
+            ->put(route('tanks.substrate.update', $tank), ['heights' => array_fill(0, self::COLUMNS, 25)])
             ->assertRedirect();
 
         $tank->refresh();
-        $this->assertSame(array_fill(0, self::COLUMNS, 10), $tank->substrate_heights);
+        $this->assertSame(array_fill(0, self::COLUMNS, 25), $tank->substrate_heights);
         $this->assertSame(42, $tank->volume_litres);
-        $this->assertSame(4, $decoration->fresh()->y);
+        $this->assertSame(10, $decoration->fresh()->y);
         $this->assertSame(0, $tank->events()->count());
         Event::assertDispatched(TankUpdated::class);
     }
@@ -48,7 +48,7 @@ class TankSubstrateControllerTest extends TestCase
         $tank = Tank::factory()->create();
 
         $this->actingAs($tank->user)
-            ->put(route('tanks.substrate.update', $tank), ['heights' => array_fill(0, self::COLUMNS, 61)])
+            ->put(route('tanks.substrate.update', $tank), ['heights' => array_fill(0, self::COLUMNS, 153)])
             ->assertSessionHasNoErrors();
 
         $tank->refresh();
@@ -62,7 +62,7 @@ class TankSubstrateControllerTest extends TestCase
         Creature::factory()->for($tank)->create();
 
         $this->actingAs($tank->user)
-            ->put(route('tanks.substrate.update', $tank), ['heights' => array_fill(0, self::COLUMNS, 61)])
+            ->put(route('tanks.substrate.update', $tank), ['heights' => array_fill(0, self::COLUMNS, 153)])
             ->assertSessionHasErrors(['heights' => 'Leave some water for the water animals.']);
 
         $this->assertNull($tank->fresh()->substrate_heights);
@@ -80,12 +80,12 @@ class TankSubstrateControllerTest extends TestCase
     public function test_rejects_gravel_above_the_highest_water_level(): void
     {
         $tank = Tank::factory()->create();
-        $heights = array_fill(0, self::COLUMNS, 4);
-        $heights[0] = 62;
+        $heights = array_fill(0, self::COLUMNS, 10);
+        $heights[0] = 154;
 
         $this->actingAs($tank->user)
             ->put(route('tanks.substrate.update', $tank), ['heights' => $heights])
-            ->assertSessionHasErrors(['heights.0' => 'The heights.0 field must be between 0 and 61.']);
+            ->assertSessionHasErrors(['heights.0' => 'The heights.0 field must be between 0 and 153.']);
     }
 
     public function test_other_users_cannot_sculpt_the_tank(): void
@@ -93,7 +93,7 @@ class TankSubstrateControllerTest extends TestCase
         $tank = Tank::factory()->create();
 
         $this->actingAs(User::factory()->create())
-            ->put(route('tanks.substrate.update', $tank), ['heights' => array_fill(0, self::COLUMNS, 10)])
+            ->put(route('tanks.substrate.update', $tank), ['heights' => array_fill(0, self::COLUMNS, 25)])
             ->assertForbidden();
 
         $this->assertNull($tank->fresh()->substrate_heights);

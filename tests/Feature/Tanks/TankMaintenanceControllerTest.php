@@ -135,7 +135,7 @@ class TankMaintenanceControllerTest extends TestCase
             ->assertRedirect();
 
         $tank->refresh();
-        $this->assertSame(24, $tank->water_level);
+        $this->assertSame(60, $tank->water_level);
         $this->assertSame(17, $tank->volume_litres);
         $this->assertSame(20.0, $tank->nitrate);
         $this->assertSame(25.0, $tank->temperature);
@@ -150,14 +150,14 @@ class TankMaintenanceControllerTest extends TestCase
         $tank = Tank::factory()->withWaterDepth(10)->create(['nitrate' => 20.0]);
 
         $this->actingAs($tank->user)
-            ->put(route('tanks.water-level', $tank), ['water_depth' => 28.5])
+            ->put(route('tanks.water-level', $tank), ['water_depth' => 28.6])
             ->assertRedirect();
 
         $tank->refresh();
-        $this->assertSame(61, $tank->water_level);
+        $this->assertSame(153, $tank->water_level);
         $this->assertSame(47, $tank->volume_litres);
         $this->assertEqualsWithDelta(20.0 * 17 / 47, $tank->nitrate, 0.001);
-        $this->assertSame('You topped the tank up to 28.5 cm of water (47 L).', $tank->events()->sole()->message);
+        $this->assertSame('You topped the tank up to 28.6 cm of water (47 L).', $tank->events()->sole()->message);
     }
 
     public function test_emptying_a_tank_without_animals_leaves_it_dry(): void
@@ -169,7 +169,7 @@ class TankMaintenanceControllerTest extends TestCase
             ->assertRedirect();
 
         $tank->refresh();
-        $this->assertSame(4, $tank->water_level);
+        $this->assertSame(10, $tank->water_level);
         $this->assertSame(0, $tank->volume_litres);
         $this->assertSame('You emptied the tank.', $tank->events()->sole()->message);
     }
@@ -196,7 +196,7 @@ class TankMaintenanceControllerTest extends TestCase
             ->put(route('tanks.water-level', $tank), ['water_depth' => 0])
             ->assertSessionHasErrors(['water_depth' => 'Take the water animals out before emptying the tank.']);
 
-        $this->assertSame(61, $tank->fresh()->water_level);
+        $this->assertSame(153, $tank->fresh()->water_level);
     }
 
     public function test_rejects_water_deeper_than_the_tank_allows(): void
@@ -205,16 +205,16 @@ class TankMaintenanceControllerTest extends TestCase
 
         $this->actingAs($tank->user)
             ->put(route('tanks.water-level', $tank), ['water_depth' => 29])
-            ->assertSessionHasErrors(['water_depth' => 'The water depth field must be between 0 and 28.5.']);
+            ->assertSessionHasErrors(['water_depth' => 'The water depth field must be between 0 and 28.6.']);
     }
 
-    public function test_rejects_water_depths_finer_than_half_a_centimetre(): void
+    public function test_rejects_water_depths_finer_than_two_millimetres(): void
     {
         $tank = Tank::factory()->create();
 
         $this->actingAs($tank->user)
             ->put(route('tanks.water-level', $tank), ['water_depth' => 10.3])
-            ->assertSessionHasErrors(['water_depth' => 'The water depth field must be a multiple of 0.5.']);
+            ->assertSessionHasErrors(['water_depth' => 'The water depth field must be a multiple of 0.2.']);
     }
 
     public function test_an_empty_tank_cannot_be_fed(): void
@@ -257,7 +257,7 @@ class TankMaintenanceControllerTest extends TestCase
             ->put(route('tanks.water-level', $tank), ['water_depth' => 10])
             ->assertForbidden();
 
-        $this->assertSame(61, $tank->fresh()->water_level);
+        $this->assertSame(153, $tank->fresh()->water_level);
     }
 
     public function test_sealing_the_lid_cuts_the_tank_off_and_logs_it(): void
@@ -291,7 +291,7 @@ class TankMaintenanceControllerTest extends TestCase
             ->put(route('tanks.water-level', $tank), ['water_depth' => 0])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame(4, $tank->fresh()->water_level);
+        $this->assertSame(10, $tank->fresh()->water_level);
     }
 
     public function test_setting_a_gradient_background_stores_both_colours_without_logging(): void

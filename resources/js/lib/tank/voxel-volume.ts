@@ -6,6 +6,7 @@ import {
 } from 'three';
 import { VOXLoader } from 'three/examples/jsm/loaders/VOXLoader.js';
 import type { DecorationDefinition, GridCell } from '@/types';
+import { CELLS_PER_CM } from './space';
 
 /**
  * A fully 3D voxel model on the decoration grid. Each cell holds a palette
@@ -287,6 +288,15 @@ export function volumeFromVox(buffer: ArrayBuffer): VoxelVolume {
     return volume;
 }
 
+/** Rock shaping, in cells: lumps about 2 cm across, colour bands 1.25 cm tall with 1.5 cm waves. */
+const NOISE_CELLS = 2 * CELLS_PER_CM;
+const BAND_NOISE_CELLS = 3 * CELLS_PER_CM;
+const BAND_WAVE_CELLS = 1.5 * CELLS_PER_CM;
+const BAND_CELLS = 1.25 * CELLS_PER_CM;
+
+/** Half-width of the solid ledge kept under each plant anchor (0.4 cm). */
+const LEDGE_CELLS = 2;
+
 /**
  * A rock built from a seed: a noisy, slightly tilted dome with banded
  * colours, flattened on top by `flatness`. Every anchor is kept as an empty
@@ -321,13 +331,20 @@ export function generateRock(
                 const dy = (y + 0.5) / top;
                 const shape =
                     dx * dx + dz * dz + Math.pow(Math.min(dy, 2), exponent);
-                const wobble = noise(x / 4, y / 4, z / 4) * roughness;
+                const wobble =
+                    noise(x / NOISE_CELLS, y / NOISE_CELLS, z / NOISE_CELLS) *
+                    roughness;
 
                 if (shape > 1 - roughness * 0.4 + wobble) {
                     continue;
                 }
 
-                const band = Math.floor((y + noise(x / 6, 0, z / 6) * 3) / 2.5);
+                const band = Math.floor(
+                    (y +
+                        noise(x / BAND_NOISE_CELLS, 0, z / BAND_NOISE_CELLS) *
+                            BAND_WAVE_CELLS) /
+                        BAND_CELLS,
+                );
                 setVoxel(
                     volume,
                     x,
@@ -348,8 +365,8 @@ export function generateRock(
             }
         }
 
-        for (let dz = -1; dz <= 1; dz++) {
-            for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -LEDGE_CELLS; dz <= LEDGE_CELLS; dz++) {
+            for (let dx = -LEDGE_CELLS; dx <= LEDGE_CELLS; dx++) {
                 if (voxelAt(volume, ax + dx, ay - 1, az + dz) === 0) {
                     setVoxel(volume, ax + dx, ay - 1, az + dz, 1);
                 }
