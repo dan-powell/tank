@@ -165,8 +165,8 @@ export default function ShowTank({ tank, species, events }: Props) {
     return (
         <>
             <Head title={tank.name} />
-            <div className="relative flex h-svh w-full overflow-hidden bg-background">
-                <main className="relative min-w-0 flex-1">
+            <div className="relative h-svh w-full overflow-hidden bg-background">
+                <main className="absolute inset-0">
                     <TankScene
                         tank={tank}
                         species={species}
@@ -176,7 +176,8 @@ export default function ShowTank({ tank, species, events }: Props) {
                         onSelect={select}
                     />
 
-                    <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-3">
+                    {/* Above the side panel, which slides in underneath it. */}
+                    <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-3">
                         <div className="flex items-start gap-2">
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -278,48 +279,44 @@ export default function ShowTank({ tank, species, events }: Props) {
                     </div>
                 </main>
 
-                <div
+                <aside
+                    id="tank-panel"
+                    aria-label="Tank details"
+                    inert={!isPanelOpen}
                     className={cn(
-                        'absolute inset-y-0 right-0 z-10 shrink-0 overflow-hidden transition-[width] duration-300 ease-in-out lg:relative',
-                        isPanelOpen ? 'w-[min(20rem,85vw)]' : 'w-0',
+                        'absolute inset-y-0 right-0 z-10 flex w-[min(20rem,85vw)] flex-col gap-6 overflow-y-auto border-l border-sidebar-border/60 bg-sidebar/70 p-4 pt-16 text-sidebar-foreground shadow-xl backdrop-blur-md transition-transform duration-300 ease-in-out',
+                        isPanelOpen ? 'translate-x-0' : 'translate-x-full',
                     )}
                 >
-                    <aside
-                        id="tank-panel"
-                        aria-label="Tank details"
-                        inert={!isPanelOpen}
-                        className="flex h-full w-[min(20rem,85vw)] flex-col gap-6 overflow-y-auto border-l border-sidebar-border bg-sidebar p-4 text-sidebar-foreground"
-                    >
-                        {inhabitant === null ? (
-                            <>
-                                <WaterPanel water={tank.water} />
-                                <PopulationPanel
-                                    creatures={tank.creatures}
-                                    plants={tank.plants}
-                                    species={species}
-                                />
-                                <MaintenancePanel
-                                    tankId={tank.id}
-                                    lightOn={tank.light_on}
-                                    species={species}
-                                    onFeedRandomly={feedRandomly}
-                                />
-                                <AutoFeederPanel
-                                    tankId={tank.id}
-                                    feeder={tank.auto_feeder}
-                                />
-                                <EventLog events={events} />
-                            </>
-                        ) : (
-                            <InhabitantPanel
-                                tankId={tank.id}
-                                inhabitant={inhabitant}
-                                world={world}
-                                onBack={() => setSelection(null)}
+                    {inhabitant === null ? (
+                        <>
+                            <WaterPanel water={tank.water} />
+                            <PopulationPanel
+                                creatures={tank.creatures}
+                                plants={tank.plants}
+                                species={species}
                             />
-                        )}
-                    </aside>
-                </div>
+                            <MaintenancePanel
+                                tankId={tank.id}
+                                lightOn={tank.light_on}
+                                species={species}
+                                onFeedRandomly={feedRandomly}
+                            />
+                            <AutoFeederPanel
+                                tankId={tank.id}
+                                feeder={tank.auto_feeder}
+                            />
+                            <EventLog events={events} />
+                        </>
+                    ) : (
+                        <InhabitantPanel
+                            tankId={tank.id}
+                            inhabitant={inhabitant}
+                            world={world}
+                            onBack={() => setSelection(null)}
+                        />
+                    )}
+                </aside>
             </div>
         </>
     );

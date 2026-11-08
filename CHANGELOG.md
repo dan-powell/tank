@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tank view: 2.5D depth layers with voxel artwork from PNG sprites (detailed placeholder art included), and spotlights.
 - 2D (default) and 3D view toggle; left-drag pans, right-drag rotates. The 2D view hides the glass edge lines.
 - Tank page panels: water, inhabitants, care, activity log.
-- Full-window tank view with a collapsible side panel (toggle button or `P`); the choice is remembered.
+- Full-window tank view with a frosted side panel that slides over the tank (toggle button or `P`); the choice is remembered.
 - Unit and feature tests.
 - Redis (DDEV add-on) for queue, cache and sessions; Horizon runs the queue workers.
 - Octane (FrankenPHP) for production, installed on deploy by Deployer 8.
