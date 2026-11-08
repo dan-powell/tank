@@ -4,15 +4,24 @@ import type { Group } from 'three';
 import { useVoxelModel } from '@/hooks/use-voxel-model';
 import { laneOffset, layerToZ, TANK, toWorld } from '@/lib/tank/space';
 import type { PlantSnapshot, Species } from '@/types';
+import { SelectionMarker, useSelectable } from './selection';
 import { createSwayMaterial, healthTint } from './sway-material';
 
 type Props = {
     plants: PlantSnapshot[];
     species: Map<number, Species>;
     layerCount: number;
+    selectedId: number | null;
+    onSelect: (plantId: number) => void;
 };
 
-export function Plants({ plants, species, layerCount }: Props) {
+export function Plants({
+    plants,
+    species,
+    layerCount,
+    selectedId,
+    onSelect,
+}: Props) {
     return (
         <group>
             {plants.map((plant) => {
@@ -28,6 +37,8 @@ export function Plants({ plants, species, layerCount }: Props) {
                         plant={plant}
                         species={definition}
                         layerCount={layerCount}
+                        isSelected={plant.id === selectedId}
+                        onSelect={() => onSelect(plant.id)}
                     />
                 );
             })}
@@ -42,6 +53,8 @@ type PlantProps = {
     plant: PlantSnapshot;
     species: Species;
     layerCount: number;
+    isSelected: boolean;
+    onSelect: () => void;
 };
 
 /**
@@ -49,8 +62,15 @@ type PlantProps = {
  * sprite is the fully grown plant and is scaled to the current height. A
  * second copy turned 90° keeps it looking full when the tank is rotated.
  */
-function Plant({ plant, species, layerCount }: PlantProps) {
+function Plant({
+    plant,
+    species,
+    layerCount,
+    isSelected,
+    onSelect,
+}: PlantProps) {
     const group = useRef<Group>(null);
+    const selectable = useSelectable(onSelect);
     const growIn = useRef(0);
     const model = useVoxelModel(species);
     const height =
@@ -91,17 +111,21 @@ function Plant({ plant, species, layerCount }: PlantProps) {
 
     return (
         <group ref={group} position={position} scale={0}>
-            <mesh
-                geometry={model.geometry}
-                material={material}
-                scale={[scale * mirror, scale, scale]}
-            />
-            <mesh
-                geometry={model.geometry}
-                material={material}
-                rotation={[0, Math.PI / 2, 0]}
-                scale={[scale * 0.8 * mirror, scale * 0.92, scale]}
-            />
+            {/* Clicks hit the voxels themselves, so gaps between leaves stay see-through. */}
+            <group {...selectable}>
+                <mesh
+                    geometry={model.geometry}
+                    material={material}
+                    scale={[scale * mirror, scale, scale]}
+                />
+                <mesh
+                    geometry={model.geometry}
+                    material={material}
+                    rotation={[0, Math.PI / 2, 0]}
+                    scale={[scale * 0.8 * mirror, scale * 0.92, scale]}
+                />
+            </group>
+            {isSelected && <SelectionMarker height={height + 0.03} />}
         </group>
     );
 }

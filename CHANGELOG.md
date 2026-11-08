@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Volumetric water: rippling surface (food drops send out rings), refraction, depth-tinted absorption, light shafts and total internal reflection from below.
 - Caustics on the substrate, plants and creatures.
 - Air stone with a rising bubble stream.
+- Left-click a fish or plant to select it: the Care panel swaps to its stats, a name field and a Remove button (`Esc` deselects).
 
 ### Changed
 

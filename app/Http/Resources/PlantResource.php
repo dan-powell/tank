@@ -21,11 +21,13 @@ class PlantResource extends JsonResource
         return [
             'id' => $this->id,
             'species_id' => $this->species_id,
+            'nickname' => $this->nickname,
             'root' => [round($this->root_x, 3), round($this->root_y, 3)],
             'layer' => $this->layer,
             'size' => round($this->size, 2),
             'segments' => $this->segments,
             'health' => round($this->health, 2),
+            'age_days' => round($this->age_seconds / 86400, 1),
         ];
     }
 }

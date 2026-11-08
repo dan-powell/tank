@@ -18,12 +18,14 @@ export type WaterParameters = {
 export type PlantSnapshot = {
     id: number;
     species_id: number;
+    nickname: string | null;
     root: PlanePoint;
     /** Depth layer, 0 = back glass. */
     layer: number;
     size: number;
     segments: number;
     health: number;
+    age_days: number;
 };
 
 export type CreatureSnapshot = {
@@ -43,6 +45,12 @@ export type CreatureSnapshot = {
         layer: number;
         radius: number;
     };
+};
+
+/** The tank inhabitant picked out in the scene. */
+export type TankSelection = {
+    kind: 'creature' | 'plant';
+    id: number;
 };
 
 export type AutoFeeder = {
@@ -121,6 +129,7 @@ export type TankEventType =
     | 'algae_scrub'
     | 'light_toggled'
     | 'livestock_added'
+    | 'removed'
     | 'warning';
 
 export type TankEvent = {

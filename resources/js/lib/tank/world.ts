@@ -51,6 +51,9 @@ export class TankWorld {
 
     creatures = new Map<number, CreatureBody>();
 
+    /** Creatures the user took out, so they vanish rather than float up as if dead. */
+    removedCreatures = new Set<number>();
+
     private nextFoodId = 1;
 
     /** Sprinkle food at a point on the surface (world coordinates). */

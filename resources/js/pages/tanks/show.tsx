@@ -11,6 +11,8 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { AutoFeederPanel } from '@/components/tank/auto-feeder-panel';
 import { EventLog } from '@/components/tank/event-log';
+import { InhabitantPanel } from '@/components/tank/inhabitant-panel';
+import type { Inhabitant } from '@/components/tank/inhabitant-panel';
 import { MaintenancePanel } from '@/components/tank/maintenance-panel';
 import type { TankViewMode } from '@/components/tank/tank-camera-rig';
 import { PopulationPanel } from '@/components/tank/population-panel';
@@ -34,7 +36,7 @@ import { cn } from '@/lib/utils';
 import { TankWorld } from '@/lib/tank/world';
 import { dashboard } from '@/routes';
 import { feed } from '@/routes/tanks';
-import type { Species, TankEvent, TankSnapshot } from '@/types';
+import type { Species, TankEvent, TankSelection, TankSnapshot } from '@/types';
 import { Vector3 } from 'three';
 
 type Props = {
@@ -80,8 +82,23 @@ export default function ShowTank({ tank, species, events }: Props) {
     const world = useMemo(() => new TankWorld(), []);
     const [viewMode, setViewMode] = useState<TankViewMode>('flat');
     const [isPanelOpen, setIsPanelOpen] = useState(initialPanelOpen);
+    const [selection, setSelection] = useState<TankSelection | null>(null);
 
     const togglePanel = () => setIsPanelOpen((open) => !open);
+
+    const select = (next: TankSelection | null) => {
+        setSelection(next);
+
+        if (next !== null) {
+            setIsPanelOpen(true);
+        }
+    };
+
+    /** The selected inhabitant, if it is still in the tank. */
+    const inhabitant = useMemo(
+        () => findInhabitant(tank, species, selection),
+        [tank, species, selection],
+    );
 
     useEffect(() => {
         try {
@@ -99,17 +116,15 @@ export default function ShowTank({ tank, species, events }: Props) {
                 (target.isContentEditable ||
                     ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
 
-            if (
-                isTyping ||
-                event.metaKey ||
-                event.ctrlKey ||
-                event.altKey ||
-                event.key.toLowerCase() !== PANEL_SHORTCUT
-            ) {
+            if (isTyping || event.metaKey || event.ctrlKey || event.altKey) {
                 return;
             }
 
-            setIsPanelOpen((open) => !open);
+            if (event.key === 'Escape') {
+                setSelection(null);
+            } else if (event.key.toLowerCase() === PANEL_SHORTCUT) {
+                setIsPanelOpen((open) => !open);
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -148,6 +163,8 @@ export default function ShowTank({ tank, species, events }: Props) {
                         species={species}
                         world={world}
                         viewMode={viewMode}
+                        selection={selection}
+                        onSelect={select}
                     />
 
                     <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-3">
@@ -263,12 +280,21 @@ export default function ShowTank({ tank, species, events }: Props) {
                             plants={tank.plants}
                             species={species}
                         />
-                        <MaintenancePanel
-                            tankId={tank.id}
-                            lightOn={tank.light_on}
-                            species={species}
-                            onFeedRandomly={feedRandomly}
-                        />
+                        {inhabitant === null ? (
+                            <MaintenancePanel
+                                tankId={tank.id}
+                                lightOn={tank.light_on}
+                                species={species}
+                                onFeedRandomly={feedRandomly}
+                            />
+                        ) : (
+                            <InhabitantPanel
+                                tankId={tank.id}
+                                inhabitant={inhabitant}
+                                world={world}
+                                onClose={() => setSelection(null)}
+                            />
+                        )}
                         <AutoFeederPanel
                             tankId={tank.id}
                             feeder={tank.auto_feeder}
@@ -279,4 +305,32 @@ export default function ShowTank({ tank, species, events }: Props) {
             </div>
         </>
     );
+}
+
+function findInhabitant(
+    tank: TankSnapshot,
+    species: Species[],
+    selection: TankSelection | null,
+): Inhabitant | null {
+    if (selection === null) {
+        return null;
+    }
+
+    if (selection.kind === 'creature') {
+        const entity = tank.creatures.find(
+            (creature) => creature.id === selection.id,
+        );
+        const definition = species.find((s) => s.id === entity?.species_id);
+
+        return entity && definition
+            ? { kind: 'creature', entity, species: definition }
+            : null;
+    }
+
+    const entity = tank.plants.find((plant) => plant.id === selection.id);
+    const definition = species.find((s) => s.id === entity?.species_id);
+
+    return entity && definition
+        ? { kind: 'plant', entity, species: definition }
+        : null;
 }

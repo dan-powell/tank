@@ -14,6 +14,7 @@ import { createWanderState, steer } from '@/lib/tank/steering';
 import type { SteeringProfile, WanderState } from '@/lib/tank/steering';
 import type { CreatureBody, TankWorld } from '@/lib/tank/world';
 import type { CreatureSnapshot, Species } from '@/types';
+import { SelectionMarker, useSelectable } from './selection';
 import { createVoxelMaterial } from './voxel-material';
 
 type Props = {
@@ -23,6 +24,8 @@ type Props = {
     layerCount: number;
     isLit: boolean;
     lowOxygen: boolean;
+    selectedId: number | null;
+    onSelect: (creatureId: number) => void;
 };
 
 type Departed = {
@@ -44,6 +47,8 @@ export function Creatures({
     layerCount,
     isLit,
     lowOxygen,
+    selectedId,
+    onSelect,
 }: Props) {
     const [departed, setDeparted] = useState<Departed[]>([]);
     const previous = useRef<CreatureSnapshot[]>(creatures);
@@ -59,7 +64,8 @@ export function Creatures({
             if (
                 !currentIds.has(creature.id) &&
                 body !== undefined &&
-                definition !== undefined
+                definition !== undefined &&
+                !world.removedCreatures.has(creature.id)
             ) {
                 gone.push({
                     id: creature.id,
@@ -97,6 +103,8 @@ export function Creatures({
                         layerCount={layerCount}
                         isLit={isLit}
                         lowOxygen={lowOxygen}
+                        isSelected={creature.id === selectedId}
+                        onSelect={() => onSelect(creature.id)}
                     />
                 );
             })}
@@ -122,7 +130,12 @@ type CreatureProps = {
     layerCount: number;
     isLit: boolean;
     lowOxygen: boolean;
+    isSelected: boolean;
+    onSelect: () => void;
 };
+
+/** Smallest hit box (world units), so fry stay clickable. */
+const MIN_HIT_SIZE = 0.06;
 
 /** Seconds a creature takes to turn round (the sprite faces right). */
 const TURN_SECONDS = 0.4;
@@ -134,8 +147,15 @@ function Creature({
     layerCount,
     isLit,
     lowOxygen,
+    isSelected,
+    onSelect,
 }: CreatureProps) {
     const group = useRef<Group>(null);
+    const selectable = useSelectable(onSelect);
+    const model = useVoxelModel(species);
+    const length = Math.max(creature.size, 0.3) * CM;
+    const height = (model.height * length) / model.width;
+    const centreY = species.behaviour === 'crawler' ? height / 2 : 0;
     const yaw = useRef<Group>(null);
     const wander = useRef<WanderState | null>(null);
     const homeLayer = Math.min(layerCount - 1, creature.zone.layer);
@@ -244,11 +264,28 @@ function Creature({
             <group ref={yaw}>
                 <VoxelCreature
                     species={species}
-                    length={Math.max(creature.size, 0.3) * CM}
+                    length={length}
                     tint={tailColour(species, creature.id)}
                     health={creature.health}
                 />
+                {/* Invisible, slightly generous hit box: cheaper to raycast than the voxels. */}
+                <mesh
+                    position={[0, centreY, 0]}
+                    visible={false}
+                    {...selectable}
+                >
+                    <boxGeometry
+                        args={[
+                            Math.max(length * 1.1, MIN_HIT_SIZE),
+                            Math.max(height * 1.2, MIN_HIT_SIZE),
+                            Math.max(height * 0.8, MIN_HIT_SIZE),
+                        ]}
+                    />
+                </mesh>
             </group>
+            {isSelected && (
+                <SelectionMarker height={centreY + height / 2 + 0.03} />
+            )}
         </group>
     );
 }

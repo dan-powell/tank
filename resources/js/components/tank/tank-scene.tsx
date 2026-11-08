@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useRef } from 'react';
 import type { ComponentRef } from 'react';
 import { MOUSE } from 'three';
 import type { TankWorld } from '@/lib/tank/world';
-import type { Species, TankSnapshot } from '@/types';
+import type { Species, TankSelection, TankSnapshot } from '@/types';
 import { AutoFeederModel } from './auto-feeder-model';
 import { Creatures } from './creatures';
 import { FoodParticles } from './food-particles';
@@ -21,6 +21,8 @@ type Props = {
     species: Species[];
     world: TankWorld;
     viewMode: TankViewMode;
+    selection: TankSelection | null;
+    onSelect: (selection: TankSelection | null) => void;
 };
 
 /** Low-oxygen threshold (mg/L) below which fish gasp at the surface. */
@@ -32,7 +34,14 @@ const LOW_OXYGEN = 4;
  */
 const MOUSE_BUTTONS = { MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE };
 
-export function TankScene({ tank, species, world, viewMode }: Props) {
+export function TankScene({
+    tank,
+    species,
+    world,
+    viewMode,
+    selection,
+    onSelect,
+}: Props) {
     const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
     const speciesById = useMemo(
         () => new Map(species.map((definition) => [definition.id, definition])),
@@ -52,6 +61,7 @@ export function TankScene({ tank, species, world, viewMode }: Props) {
             camera={{ position: ORBIT_START.position, fov: ORBIT_START.fov }}
             dpr={[1, 2]}
             gl={{ antialias: true }}
+            onPointerMissed={() => onSelect(null)}
         >
             <color
                 attach="background"
@@ -68,6 +78,10 @@ export function TankScene({ tank, species, world, viewMode }: Props) {
                     plants={tank.plants}
                     species={speciesById}
                     layerCount={tank.layer_count}
+                    selectedId={
+                        selection?.kind === 'plant' ? selection.id : null
+                    }
+                    onSelect={(id) => onSelect({ kind: 'plant', id })}
                 />
                 <Creatures
                     creatures={tank.creatures}
@@ -76,6 +90,10 @@ export function TankScene({ tank, species, world, viewMode }: Props) {
                     layerCount={tank.layer_count}
                     isLit={tank.is_lit}
                     lowOxygen={tank.water.oxygen < LOW_OXYGEN}
+                    selectedId={
+                        selection?.kind === 'creature' ? selection.id : null
+                    }
+                    onSelect={(id) => onSelect({ kind: 'creature', id })}
                 />
             </Suspense>
             <FoodParticles world={world} />
