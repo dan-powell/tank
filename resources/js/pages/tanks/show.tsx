@@ -274,32 +274,34 @@ export default function ShowTank({ tank, species, events }: Props) {
                         inert={!isPanelOpen}
                         className="flex h-full w-[min(20rem,85vw)] flex-col gap-6 overflow-y-auto border-l border-sidebar-border bg-sidebar p-4 text-sidebar-foreground"
                     >
-                        <WaterPanel water={tank.water} />
-                        <PopulationPanel
-                            creatures={tank.creatures}
-                            plants={tank.plants}
-                            species={species}
-                        />
                         {inhabitant === null ? (
-                            <MaintenancePanel
-                                tankId={tank.id}
-                                lightOn={tank.light_on}
-                                species={species}
-                                onFeedRandomly={feedRandomly}
-                            />
+                            <>
+                                <WaterPanel water={tank.water} />
+                                <PopulationPanel
+                                    creatures={tank.creatures}
+                                    plants={tank.plants}
+                                    species={species}
+                                />
+                                <MaintenancePanel
+                                    tankId={tank.id}
+                                    lightOn={tank.light_on}
+                                    species={species}
+                                    onFeedRandomly={feedRandomly}
+                                />
+                                <AutoFeederPanel
+                                    tankId={tank.id}
+                                    feeder={tank.auto_feeder}
+                                />
+                                <EventLog events={events} />
+                            </>
                         ) : (
                             <InhabitantPanel
                                 tankId={tank.id}
                                 inhabitant={inhabitant}
                                 world={world}
-                                onClose={() => setSelection(null)}
+                                onBack={() => setSelection(null)}
                             />
                         )}
-                        <AutoFeederPanel
-                            tankId={tank.id}
-                            feeder={tank.auto_feeder}
-                        />
-                        <EventLog events={events} />
                     </aside>
                 </div>
             </div>

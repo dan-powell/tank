@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { Trash2, X } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import InputError from '@/components/input-error';
@@ -20,16 +20,17 @@ type Props = {
     tankId: number;
     inhabitant: Inhabitant;
     world: TankWorld;
-    onClose: () => void;
+    /** Deselect and return to the tank overview. */
+    onBack: () => void;
 };
 
 const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
 
 /**
  * Details of the inhabitant selected in the scene: its stats, a name, and
- * what can be done with it. Shown in place of the Care panel.
+ * what can be done with it. Replaces the whole side panel while selected.
  */
-export function InhabitantPanel({ tankId, inhabitant, world, onClose }: Props) {
+export function InhabitantPanel({ tankId, inhabitant, world, onBack }: Props) {
     const { kind, entity, species } = inhabitant;
     const url =
         kind === 'creature'
@@ -44,33 +45,37 @@ export function InhabitantPanel({ tankId, inhabitant, world, onClose }: Props) {
     const title = entity.nickname ?? species.name;
 
     return (
-        <section aria-labelledby="inhabitant-heading" className="space-y-3">
-            <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                    <h2
-                        id="inhabitant-heading"
-                        className="truncate text-sm font-semibold"
-                    >
-                        {title}
-                    </h2>
-                    <p className="truncate text-xs text-muted-foreground">
-                        {entity.nickname !== null && `${species.name} · `}
-                        {species.scientific_name !== null && (
-                            <i>{species.scientific_name}</i>
-                        )}
-                    </p>
-                </div>
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    className="size-7 shrink-0"
-                    onClick={onClose}
-                    aria-label="Back to care"
-                    title="Back to care (Esc)"
+        <section aria-labelledby="inhabitant-heading" className="space-y-4">
+            <Button
+                size="sm"
+                variant="ghost"
+                className="-ml-2"
+                onClick={onBack}
+                title="Back to the tank (Esc)"
+            >
+                <ArrowLeft /> Back to tank
+            </Button>
+
+            <div className="min-w-0">
+                <h2
+                    id="inhabitant-heading"
+                    className="truncate text-base font-semibold"
                 >
-                    <X />
-                </Button>
+                    {title}
+                </h2>
+                <p className="truncate text-xs text-muted-foreground">
+                    {entity.nickname !== null && `${species.name} · `}
+                    {species.scientific_name !== null && (
+                        <i>{species.scientific_name}</i>
+                    )}
+                </p>
             </div>
+
+            {species.description !== null && (
+                <p className="text-sm text-muted-foreground">
+                    {species.description}
+                </p>
+            )}
 
             <dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1.5 text-sm">
                 {inhabitant.kind === 'creature' ? (

@@ -1,5 +1,5 @@
 import { OrbitControls } from '@react-three/drei';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import type { ComponentRef } from 'react';
 import { MOUSE } from 'three';
@@ -8,6 +8,7 @@ import type { Species, TankSelection, TankSnapshot } from '@/types';
 import { AutoFeederModel } from './auto-feeder-model';
 import { Creatures } from './creatures';
 import { FoodParticles } from './food-particles';
+import { haloUniforms } from './halo-material';
 import { Plants } from './plants';
 import { sceneClock } from './scene-clock';
 import { ORBIT_START, TankCameraRig } from './tank-camera-rig';
@@ -68,6 +69,7 @@ export function TankScene({
                 args={[tank.is_lit ? '#2c3e52' : '#0e1626']}
             />
             <SceneClock />
+            <HaloResolution />
             <TankEnvironment
                 water={tank.water}
                 isLit={tank.is_lit}
@@ -118,6 +120,17 @@ function SceneClock() {
     useFrame((_, delta) => {
         sceneClock.value += delta;
     });
+
+    return null;
+}
+
+/** Keeps selection halos a fixed number of pixels wide. */
+function HaloResolution() {
+    const size = useThree((state) => state.size);
+
+    useEffect(() => {
+        haloUniforms.uHaloResolution.value.set(size.width, size.height);
+    }, [size]);
 
     return null;
 }

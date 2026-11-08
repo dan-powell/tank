@@ -4,8 +4,18 @@ import type { Group } from 'three';
 import { useVoxelModel } from '@/hooks/use-voxel-model';
 import { laneOffset, layerToZ, TANK, toWorld } from '@/lib/tank/space';
 import type { PlantSnapshot, Species } from '@/types';
-import { SelectionMarker, useSelectable } from './selection';
-import { createSwayMaterial, healthTint } from './sway-material';
+import {
+    createHaloMaterial,
+    HALO_RENDER_ORDER,
+    haloGeometry,
+    SELECTED_RENDER_ORDER,
+} from './halo-material';
+import { useSelectable } from './selection';
+import {
+    createSwayMaterial,
+    healthTint,
+    HIGHLIGHT_BRIGHTNESS,
+} from './sway-material';
 
 type Props = {
     plants: PlantSnapshot[];
@@ -88,17 +98,35 @@ function Plant({
         [plant.id, plant.root, layer, layerCount],
     );
 
+    const swayAmplitude = species.behaviour === 'whorl' ? 0.08 : 0.12;
     const material = useMemo(
         () =>
             createSwayMaterial(
-                healthTint(plant.health),
-                species.behaviour === 'whorl' ? 0.08 : 0.12,
+                healthTint(plant.health).multiplyScalar(
+                    isSelected ? HIGHLIGHT_BRIGHTNESS : 1,
+                ),
+                swayAmplitude,
                 model.height,
             ),
-        [species.behaviour, plant.health, model.height],
+        [swayAmplitude, plant.health, model.height, isSelected],
     );
 
     useEffect(() => () => material.dispose(), [material]);
+
+    const halo = useMemo(
+        () =>
+            isSelected
+                ? createHaloMaterial({
+                      sway: {
+                          amplitude: swayAmplitude,
+                          unitHeight: model.height,
+                      },
+                  })
+                : null,
+        [isSelected, swayAmplitude, model.height],
+    );
+
+    useEffect(() => () => halo?.dispose(), [halo]);
 
     useFrame((_, delta) => {
         if (group.current !== null && growIn.current < 1) {
@@ -117,15 +145,35 @@ function Plant({
                     geometry={model.geometry}
                     material={material}
                     scale={[scale * mirror, scale, scale]}
+                    renderOrder={isSelected ? SELECTED_RENDER_ORDER : 0}
                 />
                 <mesh
                     geometry={model.geometry}
                     material={material}
                     rotation={[0, Math.PI / 2, 0]}
                     scale={[scale * 0.8 * mirror, scale * 0.92, scale]}
+                    renderOrder={isSelected ? SELECTED_RENDER_ORDER : 0}
                 />
             </group>
-            {isSelected && <SelectionMarker height={height + 0.03} />}
+            {halo !== null && (
+                <>
+                    <mesh
+                        geometry={haloGeometry(model.geometry)}
+                        material={halo}
+                        scale={[scale * mirror, scale, scale]}
+                        renderOrder={HALO_RENDER_ORDER}
+                        raycast={() => null}
+                    />
+                    <mesh
+                        geometry={haloGeometry(model.geometry)}
+                        material={halo}
+                        rotation={[0, Math.PI / 2, 0]}
+                        scale={[scale * 0.8 * mirror, scale * 0.92, scale]}
+                        renderOrder={HALO_RENDER_ORDER}
+                        raycast={() => null}
+                    />
+                </>
+            )}
         </group>
     );
 }

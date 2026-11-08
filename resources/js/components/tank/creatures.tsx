@@ -14,7 +14,14 @@ import { createWanderState, steer } from '@/lib/tank/steering';
 import type { SteeringProfile, WanderState } from '@/lib/tank/steering';
 import type { CreatureBody, TankWorld } from '@/lib/tank/world';
 import type { CreatureSnapshot, Species } from '@/types';
-import { SelectionMarker, useSelectable } from './selection';
+import {
+    createHaloMaterial,
+    HALO_RENDER_ORDER,
+    haloGeometry,
+    SELECTED_RENDER_ORDER,
+} from './halo-material';
+import { useSelectable } from './selection';
+import { HIGHLIGHT_BRIGHTNESS } from './sway-material';
 import { createVoxelMaterial } from './voxel-material';
 
 type Props = {
@@ -267,6 +274,7 @@ function Creature({
                     length={length}
                     tint={tailColour(species, creature.id)}
                     health={creature.health}
+                    highlighted={isSelected}
                 />
                 {/* Invisible, slightly generous hit box: cheaper to raycast than the voxels. */}
                 <mesh
@@ -283,9 +291,6 @@ function Creature({
                     />
                 </mesh>
             </group>
-            {isSelected && (
-                <SelectionMarker height={centreY + height / 2 + 0.03} />
-            )}
         </group>
     );
 }
@@ -308,6 +313,8 @@ type VoxelCreatureProps = {
     /** Overall colour multiplier override (e.g. for the dead). */
     shade?: Color;
     opacity?: number;
+    /** Selected: brightened and surrounded by a halo. */
+    highlighted?: boolean;
 };
 
 /**
@@ -321,6 +328,7 @@ function VoxelCreature({
     health,
     shade,
     opacity = 1,
+    highlighted = false,
 }: VoxelCreatureProps) {
     const model = useVoxelModel(species);
     const tintHex = tint.getHexString();
@@ -333,25 +341,50 @@ function VoxelCreature({
                       (1 - health) * 0.6,
                   )
                 : new Color(`#${shadeHex}`);
+
+        if (highlighted) {
+            colour.multiplyScalar(HIGHLIGHT_BRIGHTNESS);
+        }
+
         const created = createVoxelMaterial(new Color(`#${tintHex}`), colour);
         created.transparent = opacity < 1;
         created.opacity = opacity;
 
         return created;
-    }, [tintHex, shadeHex, health, opacity]);
+    }, [tintHex, shadeHex, health, opacity, highlighted]);
 
     useEffect(() => () => material.dispose(), [material]);
+
+    const halo = useMemo(
+        () => (highlighted ? createHaloMaterial() : null),
+        [highlighted],
+    );
+
+    useEffect(() => () => halo?.dispose(), [halo]);
 
     const scale = length / model.width;
     const lift = species.behaviour === 'crawler' ? 0 : -model.height / 2;
 
     return (
-        <mesh
-            geometry={model.geometry}
-            material={material}
-            scale={scale}
-            position={[0, lift * scale, 0]}
-        />
+        <>
+            <mesh
+                geometry={model.geometry}
+                material={material}
+                scale={scale}
+                position={[0, lift * scale, 0]}
+                renderOrder={highlighted ? SELECTED_RENDER_ORDER : 0}
+            />
+            {halo !== null && (
+                <mesh
+                    geometry={haloGeometry(model.geometry)}
+                    material={halo}
+                    scale={scale}
+                    position={[0, lift * scale, 0]}
+                    renderOrder={HALO_RENDER_ORDER}
+                    raycast={() => null}
+                />
+            )}
+        </>
     );
 }
 
