@@ -1,9 +1,10 @@
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
-import type { Group } from 'three';
+import type { Group, Vector3 } from 'three';
 import { useVoxelModel } from '@/hooks/use-voxel-model';
 import { laneOffset, layerToZ, TANK, toWorld } from '@/lib/tank/space';
-import type { PlantSnapshot, Species } from '@/types';
+import { substrateHeightAt } from '@/lib/tank/terrain-field';
+import type { PlantSnapshot, Species, TankGrid } from '@/types';
 import {
     createHaloMaterial,
     HALO_RENDER_ORDER,
@@ -18,9 +19,12 @@ import {
 } from './sway-material';
 
 type Props = {
+    /** Plants rooted in the substrate (attached plants render with their decoration). */
     plants: PlantSnapshot[];
     species: Map<number, Species>;
     layerCount: number;
+    grid: TankGrid;
+    substrate: number[];
     selectedId: number | null;
     onSelect: (plantId: number) => void;
 };
@@ -29,6 +33,8 @@ export function Plants({
     plants,
     species,
     layerCount,
+    grid,
+    substrate,
     selectedId,
     onSelect,
 }: Props) {
@@ -42,11 +48,13 @@ export function Plants({
                 }
 
                 return (
-                    <Plant
+                    <RootedPlant
                         key={plant.id}
                         plant={plant}
                         species={definition}
                         layerCount={layerCount}
+                        grid={grid}
+                        substrate={substrate}
                         isSelected={plant.id === selectedId}
                         onSelect={() => onSelect(plant.id)}
                     />
@@ -56,26 +64,52 @@ export function Plants({
     );
 }
 
+/** A plant rooted in its depth layer, standing on the substrate's surface. */
+function RootedPlant({
+    plant,
+    layerCount,
+    grid,
+    substrate,
+    ...props
+}: Omit<PlantProps, 'position'> & {
+    layerCount: number;
+    grid: TankGrid;
+    substrate: number[];
+}) {
+    const layer = Math.min(layerCount - 1, plant.layer);
+    const position = useMemo(() => {
+        const root = toWorld(plant.root[0], 0, 0.5).setZ(
+            layerToZ(layer, layerCount) +
+                laneOffset(plant.id, layerCount, PLANT_LANE_SALT),
+        );
+
+        return root.setY(substrateHeightAt(grid, substrate, root.x, root.z));
+    }, [plant.id, plant.root, layer, layerCount, grid, substrate]);
+
+    return <Plant plant={plant} position={position} {...props} />;
+}
+
 /** Offsets plant lanes from creature lanes, whose ids come from another table. */
 const PLANT_LANE_SALT = 0.31;
 
 type PlantProps = {
     plant: PlantSnapshot;
     species: Species;
-    layerCount: number;
+    /** Where its roots are, relative to the parent group. */
+    position: Vector3;
     isSelected: boolean;
     onSelect: () => void;
 };
 
 /**
- * A plant sprite as a swaying voxel mesh, rooted in its depth layer. The
- * sprite is the fully grown plant and is scaled to the current height. A
- * second copy turned 90° keeps it looking full when the tank is rotated.
+ * A plant sprite as a swaying voxel mesh, rooted at `position`. The sprite is
+ * the fully grown plant and is scaled to the current height. A second copy
+ * turned 90° keeps it looking full when the tank is rotated.
  */
-function Plant({
+export function Plant({
     plant,
     species,
-    layerCount,
+    position,
     isSelected,
     onSelect,
 }: PlantProps) {
@@ -86,17 +120,6 @@ function Plant({
     const height =
         plant.segments * (species.render.segment_height ?? 0.06) * TANK.height;
     const scale = height / model.height;
-    const layer = Math.min(layerCount - 1, plant.layer);
-    const position = useMemo(
-        () =>
-            toWorld(plant.root[0], 0, 0.5)
-                .setY(TANK.substrate)
-                .setZ(
-                    layerToZ(layer, layerCount) +
-                        laneOffset(plant.id, layerCount, PLANT_LANE_SALT),
-                ),
-        [plant.id, plant.root, layer, layerCount],
-    );
 
     const swayAmplitude = species.behaviour === 'whorl' ? 0.08 : 0.12;
     const material = useMemo(

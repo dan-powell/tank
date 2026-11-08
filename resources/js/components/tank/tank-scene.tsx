@@ -4,9 +4,16 @@ import { Suspense, useEffect, useMemo, useRef } from 'react';
 import type { ComponentRef } from 'react';
 import { MOUSE } from 'three';
 import type { TankWorld } from '@/lib/tank/world';
-import type { Species, TankSelection, TankSnapshot } from '@/types';
+import type {
+    DecorationDefinition,
+    GridCell,
+    Species,
+    TankSelection,
+    TankSnapshot,
+} from '@/types';
 import { AutoFeederModel } from './auto-feeder-model';
 import { Creatures } from './creatures';
+import { Decorations } from './decorations';
 import { FoodParticles } from './food-particles';
 import { haloUniforms } from './halo-material';
 import { Plants } from './plants';
@@ -22,9 +29,16 @@ type Props = {
     species: Species[];
     world: TankWorld;
     viewMode: TankViewMode;
+    decorationCatalogue: DecorationDefinition[];
     selection: TankSelection | null;
     onSelect: (selection: TankSelection | null) => void;
+    /** A free anchor on a decoration was picked, to plant something there. */
+    onSelectAnchor: (decorationId: number, anchor: number) => void;
+    onMoveDecoration: (decorationId: number, position: GridCell) => void;
 };
+
+/** Clicks this soon (ms) after a gizmo drag ends belong to the gizmo, not the empty water. */
+const GIZMO_CLICK_GRACE = 300;
 
 /** Low-oxygen threshold (mg/L) below which fish gasp at the surface. */
 const LOW_OXYGEN = 4;
@@ -40,14 +54,48 @@ export function TankScene({
     species,
     world,
     viewMode,
+    decorationCatalogue,
     selection,
     onSelect,
+    onSelectAnchor,
+    onMoveDecoration,
 }: Props) {
     const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
+    const lastGizmoUse = useRef(0);
     const speciesById = useMemo(
         () => new Map(species.map((definition) => [definition.id, definition])),
         [species],
     );
+    const catalogue = useMemo(
+        () =>
+            new Map(
+                decorationCatalogue.map((definition) => [
+                    definition.slug,
+                    definition,
+                ]),
+            ),
+        [decorationCatalogue],
+    );
+    const placedIds = new Set(
+        tank.decorations.map((decoration) => decoration.id),
+    );
+    const attachedPlants = tank.plants.filter(
+        (plant) =>
+            plant.attachment !== null &&
+            placedIds.has(plant.attachment.decoration_id),
+    );
+    const rootedPlants = tank.plants.filter(
+        (plant) => !attachedPlants.includes(plant),
+    );
+
+    /** While dragging a decoration, orbiting and panning (which checks `enabled`) stand aside. */
+    const setGizmoDragging = (isDragging: boolean) => {
+        lastGizmoUse.current = performance.now();
+
+        if (controls.current !== null) {
+            controls.current.enabled = !isDragging;
+        }
+    };
 
     useEffect(() => {
         world.scatterSunkenFood(
@@ -62,7 +110,14 @@ export function TankScene({
             camera={{ position: ORBIT_START.position, fov: ORBIT_START.fov }}
             dpr={[1, 2]}
             gl={{ antialias: true }}
-            onPointerMissed={() => onSelect(null)}
+            onPointerMissed={() => {
+                if (
+                    performance.now() - lastGizmoUse.current >
+                    GIZMO_CLICK_GRACE
+                ) {
+                    onSelect(null);
+                }
+            }}
         >
             <color
                 attach="background"
@@ -73,13 +128,42 @@ export function TankScene({
             <TankEnvironment
                 water={tank.water}
                 isLit={tank.is_lit}
+                grid={tank.grid}
+                substrate={tank.substrate}
                 showEdges={viewMode === 'orbit'}
             />
             <Suspense fallback={null}>
+                <Decorations
+                    decorations={tank.decorations}
+                    catalogue={catalogue}
+                    plants={attachedPlants}
+                    species={speciesById}
+                    world={world}
+                    grid={tank.grid}
+                    substrate={tank.substrate}
+                    viewMode={viewMode}
+                    selectedDecorationId={
+                        selection?.kind === 'decoration' ? selection.id : null
+                    }
+                    selectedPlantId={
+                        selection?.kind === 'plant' ? selection.id : null
+                    }
+                    onSelectDecoration={(id) =>
+                        onSelect({ kind: 'decoration', id })
+                    }
+                    onSelectPlant={(id) => onSelect({ kind: 'plant', id })}
+                    onSelectAnchor={onSelectAnchor}
+                    onMove={onMoveDecoration}
+                    onDragChange={setGizmoDragging}
+                />
+            </Suspense>
+            <Suspense fallback={null}>
                 <Plants
-                    plants={tank.plants}
+                    plants={rootedPlants}
                     species={speciesById}
                     layerCount={tank.layer_count}
+                    grid={tank.grid}
+                    substrate={tank.substrate}
                     selectedId={
                         selection?.kind === 'plant' ? selection.id : null
                     }

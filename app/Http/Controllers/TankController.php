@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Tank\CreateStarterTank;
+use App\Http\Resources\DecorationDefinitionResource;
 use App\Http\Resources\SpeciesResource;
 use App\Http\Resources\TankEventResource;
 use App\Http\Resources\TankResource;
 use App\Models\Species;
 use App\Models\Tank;
+use App\Simulation\DecorationCatalogue;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -23,12 +25,16 @@ class TankController extends Controller
         $tank->load([
             'plants' => fn ($query) => $query->alive()->orderBy('id'),
             'creatures' => fn ($query) => $query->alive()->orderBy('id'),
+            'decorations' => fn ($query) => $query->orderBy('id'),
         ]);
 
         return Inertia::render('tanks/show', [
             'tank' => TankResource::make($tank)->resolve(),
             'species' => fn () => SpeciesResource::collection(
                 Species::query()->orderBy('kind')->orderBy('name')->get(),
+            )->resolve(),
+            'decorationCatalogue' => fn () => DecorationDefinitionResource::collection(
+                array_values(DecorationCatalogue::definitions()),
             )->resolve(),
             'events' => TankEventResource::collection(
                 $tank->events()->orderByDesc('id')->limit(30)->get(),

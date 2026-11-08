@@ -5,9 +5,12 @@ namespace App\Actions\Tank;
 use App\Enums\Sex;
 use App\Enums\SpeciesKind;
 use App\Enums\TankEventType;
+use App\Models\Decoration;
 use App\Models\Species;
 use App\Models\Tank;
+use App\Simulation\GridBox;
 use App\Simulation\SimEvent;
+use App\Simulation\TankGeometry;
 use Random\Randomizer;
 
 class StockTank
@@ -16,13 +19,21 @@ class StockTank
 
     public function __construct(private Randomizer $random = new Randomizer) {}
 
+    /** Attempts at finding substrate that no decoration is resting on. */
+    private const int ROOTING_ATTEMPTS = 12;
+
     /**
-     * Add shop-bought plants or animals to the tank.
+     * Add shop-bought plants or animals to the tank, optionally attaching a
+     * plant to one of a decoration's anchors.
      */
-    public function handle(Tank $tank, Species $species, int $quantity): void
+    public function handle(Tank $tank, Species $species, int $quantity, ?Decoration $decoration = null, ?int $anchor = null): void
     {
-        $this->mutate($tank, function (Tank $tank) use ($species, $quantity): SimEvent {
-            $this->addSpecimens($tank, $species, $quantity);
+        $this->mutate($tank, function (Tank $tank) use ($species, $quantity, $decoration, $anchor): SimEvent {
+            if ($decoration !== null && $anchor !== null) {
+                $this->attachPlant($tank, $species, $decoration, $anchor);
+            } else {
+                $this->addSpecimens($tank, $species, $quantity);
+            }
 
             $label = $quantity === 1 ? "a {$species->name}" : "{$quantity} {$species->name}";
 
@@ -49,17 +60,65 @@ class StockTank
 
     private function addPlant(Tank $tank, Species $species): void
     {
-        $size = (float) ($species->params['starting_size'] ?? 1.0);
+        [$rootX, $layer] = $this->chooseRoot($tank);
 
         $tank->plants()->create([
+            ...$this->youngPlant($species),
+            'root_x' => $rootX,
+            'layer' => $layer,
+        ]);
+    }
+
+    private function attachPlant(Tank $tank, Species $species, Decoration $decoration, int $anchor): void
+    {
+        [$x, , $z] = TankGeometry::anchorCell($decoration, $anchor);
+
+        $tank->plants()->create([
+            ...$this->youngPlant($species),
+            'root_x' => TankGeometry::normalisedX($x),
+            'layer' => TankGeometry::layerAt($z, $tank->layer_count),
+            'decoration_id' => $decoration->id,
+            'anchor_index' => $anchor,
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function youngPlant(Species $species): array
+    {
+        $size = (float) ($species->params['starting_size'] ?? 1.0);
+
+        return [
             'species_id' => $species->id,
-            'root_x' => $this->random->getFloat(0.08, 0.92),
             'root_y' => 0.0,
-            'layer' => $this->random->getInt(0, $this->backLayerLimit($tank)),
             'size' => $size,
             'segments' => max(1, (int) ceil($size * ($species->params['segments_per_size'] ?? 2))),
             'health' => 1.0,
-        ]);
+        ];
+    }
+
+    /**
+     * A random substrate position (normalised x, layer), avoiding the floor
+     * beneath decorations where possible.
+     *
+     * @return array{0: float, 1: int}
+     */
+    private function chooseRoot(Tank $tank): array
+    {
+        $footprints = TankGeometry::groundedFootprints($tank, $tank->decorations()->get());
+
+        for ($attempt = 0; ; $attempt++) {
+            $rootX = $this->random->getFloat(0.08, 0.92);
+            $layer = $this->random->getInt(0, $this->backLayerLimit($tank));
+            [$x, $z] = TankGeometry::plantColumn($rootX, $layer, $tank->layer_count);
+
+            $isCovered = array_any($footprints, fn (GridBox $box): bool => $box->coversColumn($x, $z));
+
+            if (! $isCovered || $attempt >= self::ROOTING_ATTEMPTS) {
+                return [$rootX, $layer];
+            }
+        }
     }
 
     private function addCreature(Tank $tank, Species $species, Sex $sex): void

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Tanks;
 
 use App\Models\Creature;
+use App\Models\Decoration;
 use App\Models\Plant;
 use App\Models\Tank;
 use App\Models\User;
@@ -43,6 +44,32 @@ class TankControllerTest extends TestCase
                 ->has('tank.plants.0.root', 2)
                 ->has('species')
                 ->has('events'));
+    }
+
+    public function test_snapshot_includes_decorations_attachments_and_the_tank_layout(): void
+    {
+        $tank = Tank::factory()->create();
+        $decoration = Decoration::factory()->for($tank)->at(10, 4, 2, rotation: 3)->create(['seed' => 99]);
+        Plant::factory()->for($tank)->create(['decoration_id' => $decoration->id, 'anchor_index' => 1]);
+
+        $this->actingAs($tank->user)
+            ->get(route('tanks.show', $tank))
+            ->assertOk()
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('tank.decorations.0', [
+                    'id' => $decoration->id,
+                    'type' => 'boulder',
+                    'position' => [10, 4, 2],
+                    'rotation' => 3,
+                    'seed' => 99,
+                ])
+                ->where('tank.plants.0.attachment', ['decoration_id' => $decoration->id, 'anchor' => 1])
+                ->where('tank.grid', ['width' => 120, 'height' => 65, 'depth' => 55, 'water_level' => 61, 'substrate_column' => 4])
+                ->has('tank.substrate', 30 * 14)
+                ->where('tank.substrate.0', 4)
+                ->has('decorationCatalogue', 6)
+                ->where('decorationCatalogue.1.slug', 'boulder')
+                ->where('decorationCatalogue.1.anchors.0', [13, 17, 11]));
     }
 
     public function test_other_users_cannot_view_the_tank(): void

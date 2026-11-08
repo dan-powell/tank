@@ -8,6 +8,7 @@ import {
     Fish,
     History,
     LayoutDashboard,
+    Mountain,
     Square,
     Wrench,
 } from 'lucide-react';
@@ -15,6 +16,8 @@ import { useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { AutoFeederPanel } from '@/components/tank/auto-feeder-panel';
+import { DecorCatalogue } from '@/components/tank/decor-catalogue';
+import { DecorationPanel } from '@/components/tank/decoration-panel';
 import { EventLog } from '@/components/tank/event-log';
 import { InhabitantList } from '@/components/tank/inhabitant-list';
 import { InhabitantPanel } from '@/components/tank/inhabitant-panel';
@@ -45,12 +48,21 @@ import { cn } from '@/lib/utils';
 import { TankWorld } from '@/lib/tank/world';
 import { dashboard } from '@/routes';
 import { feed } from '@/routes/tanks';
-import type { Species, TankEvent, TankSelection, TankSnapshot } from '@/types';
+import decorationRoutes from '@/routes/tanks/decorations';
+import type {
+    DecorationDefinition,
+    GridCell,
+    Species,
+    TankEvent,
+    TankSelection,
+    TankSnapshot,
+} from '@/types';
 import { Vector3 } from 'three';
 
 type Props = {
     tank: TankSnapshot;
     species: Species[];
+    decorationCatalogue: DecorationDefinition[];
     events: TankEvent[];
 };
 
@@ -64,6 +76,7 @@ type PanelTab =
     | 'activity'
     | 'inhabitants'
     | 'management'
+    | 'decor'
     | 'equipment';
 
 /** Which way new tab content slides in: from the side of the tab chosen. */
@@ -74,6 +87,7 @@ const PANEL_TABS: { value: PanelTab; label: string; icon: LucideIcon }[] = [
     { value: 'activity', label: 'Activity', icon: History },
     { value: 'inhabitants', label: 'Inhabitants', icon: Fish },
     { value: 'management', label: 'Management', icon: Wrench },
+    { value: 'decor', label: 'Aquascaping', icon: Mountain },
     { value: 'equipment', label: 'Equipment', icon: Cog },
 ];
 
@@ -122,11 +136,17 @@ function initialPanelOpen(): boolean {
     return window.matchMedia('(min-width: 1024px)').matches;
 }
 
-export default function ShowTank({ tank, species, events }: Props) {
+export default function ShowTank({
+    tank,
+    species,
+    decorationCatalogue,
+    events,
+}: Props) {
     const world = useMemo(() => new TankWorld(), []);
     const [viewMode, setViewMode] = useState<TankViewMode>('flat');
     const [isPanelOpen, setIsPanelOpen] = useState(initialPanelOpen);
     const [selection, setSelection] = useState<TankSelection | null>(null);
+    const [selectedAnchor, setSelectedAnchor] = useState<number | null>(null);
     const [tab, setTab] = useState<PanelTab>('summary');
     const [tabDirection, setTabDirection] = useState<TabDirection>('right');
 
@@ -142,10 +162,69 @@ export default function ShowTank({ tank, species, events }: Props) {
 
     const select = (next: TankSelection | null) => {
         setSelection(next);
+        setSelectedAnchor(null);
 
         if (next !== null) {
             setIsPanelOpen(true);
         }
+    };
+
+    const selectAnchor = (decorationId: number, anchor: number) => {
+        select({ kind: 'decoration', id: decorationId });
+        setSelectedAnchor(anchor);
+    };
+
+    /** The selected decoration and its catalogue entry, if it is still in the tank. */
+    const decoration = useMemo(() => {
+        if (selection?.kind !== 'decoration') {
+            return null;
+        }
+
+        const placed = tank.decorations.find((d) => d.id === selection.id);
+        const definition = decorationCatalogue.find(
+            (candidate) => candidate.slug === placed?.type,
+        );
+
+        return placed && definition ? { placed, definition } : null;
+    }, [tank.decorations, decorationCatalogue, selection]);
+
+    /** Move (and/or turn) a decoration, showing it there before the server confirms. */
+    const moveDecoration = (
+        decorationId: number,
+        position: GridCell,
+        rotation?: number,
+    ) => {
+        const current = tank.decorations.find((d) => d.id === decorationId);
+
+        if (current === undefined) {
+            return;
+        }
+
+        const [x, y, z] = position;
+        const nextRotation = rotation ?? current.rotation;
+
+        router.patch(
+            decorationRoutes.update.url([tank.id, decorationId]),
+            { x, y, z, rotation: nextRotation },
+            {
+                preserveScroll: true,
+                only: ['tank'],
+                optimistic: (props) => {
+                    const snapshot = props.tank as TankSnapshot;
+
+                    return {
+                        tank: {
+                            ...snapshot,
+                            decorations: snapshot.decorations.map((d) =>
+                                d.id === decorationId
+                                    ? { ...d, position, rotation: nextRotation }
+                                    : d,
+                            ),
+                        },
+                    };
+                },
+            },
+        );
     };
 
     /** The selected inhabitant, if it is still in the tank. */
@@ -224,8 +303,11 @@ export default function ShowTank({ tank, species, events }: Props) {
                         species={species}
                         world={world}
                         viewMode={viewMode}
+                        decorationCatalogue={decorationCatalogue}
                         selection={selection}
                         onSelect={select}
+                        onSelectAnchor={selectAnchor}
+                        onMoveDecoration={moveDecoration}
                     />
 
                     <div className="pointer-events-none absolute top-3 left-3 flex items-start gap-2">
@@ -340,10 +422,11 @@ export default function ShowTank({ tank, species, events }: Props) {
                             }
                             className={cn(
                                 'min-h-0 flex-1 gap-0 motion-safe:animate-in motion-safe:duration-200 motion-safe:fade-in-0',
-                                inhabitant !== null && 'hidden',
+                                (inhabitant !== null || decoration !== null) &&
+                                    'hidden',
                             )}
                         >
-                            <TabsList className="grid w-full shrink-0 grid-cols-5 gap-0 border-b border-sidebar-border bg-sidebar/60 p-0 group-data-horizontal/tabs:h-11">
+                            <TabsList className="grid w-full shrink-0 grid-cols-6 gap-0 border-b border-sidebar-border bg-sidebar/60 p-0 group-data-horizontal/tabs:h-11">
                                 {PANEL_TABS.map(
                                     ({ value, label, icon: Icon }) => (
                                         <Tooltip key={value}>
@@ -419,6 +502,20 @@ export default function ShowTank({ tank, species, events }: Props) {
                             </PanelTabContent>
 
                             <PanelTabContent
+                                value="decor"
+                                direction={tabDirection}
+                            >
+                                <DecorCatalogue
+                                    tankId={tank.id}
+                                    catalogue={decorationCatalogue}
+                                    placedCount={tank.decorations.length}
+                                    onPlaced={(id) =>
+                                        select({ kind: 'decoration', id })
+                                    }
+                                />
+                            </PanelTabContent>
+
+                            <PanelTabContent
                                 value="equipment"
                                 direction={tabDirection}
                             >
@@ -436,6 +533,38 @@ export default function ShowTank({ tank, species, events }: Props) {
                                     inhabitant={inhabitant}
                                     world={world}
                                     onBack={() => setSelection(null)}
+                                />
+                            </div>
+                        )}
+
+                        {decoration !== null && (
+                            <div className="min-h-0 flex-1 overflow-y-auto p-4 motion-safe:animate-in motion-safe:duration-200 motion-safe:fade-in-0 motion-safe:slide-in-from-right-4">
+                                <DecorationPanel
+                                    key={decoration.placed.id}
+                                    tankId={tank.id}
+                                    decoration={decoration.placed}
+                                    definition={decoration.definition}
+                                    plants={tank.plants.filter(
+                                        (plant) =>
+                                            plant.attachment?.decoration_id ===
+                                            decoration.placed.id,
+                                    )}
+                                    species={species}
+                                    grid={tank.grid}
+                                    world={world}
+                                    selectedAnchor={selectedAnchor}
+                                    onSelectAnchor={setSelectedAnchor}
+                                    onMove={(position, rotation) =>
+                                        moveDecoration(
+                                            decoration.placed.id,
+                                            position,
+                                            rotation,
+                                        )
+                                    }
+                                    onSelectPlant={(id) =>
+                                        select({ kind: 'plant', id })
+                                    }
+                                    onBack={() => select(null)}
                                 />
                             </div>
                         )}
@@ -483,7 +612,7 @@ function findInhabitant(
     species: Species[],
     selection: TankSelection | null,
 ): Inhabitant | null {
-    if (selection === null) {
+    if (selection === null || selection.kind === 'decoration') {
         return null;
     }
 

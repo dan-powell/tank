@@ -3,6 +3,7 @@
 namespace Tests\Unit\Simulation\Systems;
 
 use App\Enums\TankEventType;
+use App\Simulation\GridBox;
 use App\Simulation\Systems\PlantGrowthSystem;
 use PHPUnit\Framework\TestCase;
 use Tests\Unit\Simulation\BuildsSimulationState;
@@ -60,5 +61,37 @@ class PlantGrowthSystemTest extends TestCase
         $this->assertEqualsWithDelta(0.5, $offshoot->rootX, 0.12);
         $this->assertContains($offshoot->layer, [0, 1]);
         $this->assertSame(TankEventType::PlantSpread, $context->events()[0]->type);
+    }
+
+    public function test_attached_plants_spread_onto_a_free_anchor_of_the_same_decoration(): void
+    {
+        $plant = $this->plant('hornwort', ['id' => 7, 'size' => 8.0, 'decorationId' => 3, 'anchorIndex' => 0]);
+        $state = $this->tankState([
+            'species' => $this->catalogue(['hornwort' => ['spread' => ['chance_per_day' => 10_000]]]),
+            'plants' => [$plant],
+            'decorationAnchors' => [3 => [0 => [53, 21, 11], 2 => [47, 15, 13]]],
+        ]);
+
+        (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $offshoot = $state->plants[1];
+        $this->assertSame(3, $offshoot->decorationId);
+        $this->assertSame(2, $offshoot->anchorIndex);
+        $this->assertEqualsWithDelta(47.5 / 120, $offshoot->rootX, 0.0001);
+    }
+
+    public function test_plants_do_not_spread_beneath_a_decoration_resting_on_the_substrate(): void
+    {
+        $plant = $this->plant(overrides: ['id' => 7, 'size' => 6.0, 'layer' => 0]);
+        $state = $this->tankState([
+            'species' => $this->catalogue(['vallisneria' => ['spread' => ['chance_per_day' => 10_000]]]),
+            'plants' => [$plant],
+            'groundedFootprints' => [new GridBox(0, 4, 0, 120, 10, 55)],
+        ]);
+
+        (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertCount(1, $state->plants);
+        $this->assertSame(6.0, $plant->size);
     }
 }

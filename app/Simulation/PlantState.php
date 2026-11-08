@@ -20,6 +20,8 @@ final class PlantState
         public int $segments,
         public float $health,
         public int $ageSeconds,
+        public ?int $decorationId = null,
+        public ?int $anchorIndex = null,
     ) {}
 
     /**

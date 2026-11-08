@@ -17,6 +17,8 @@ final class TankState
      * @param  array<int, SpeciesDefinition>  $species  Keyed by species id.
      * @param  list<PlantState>  $plants
      * @param  list<CreatureState>  $creatures
+     * @param  array<int, array<int, array{0: int, 1: int, 2: int}>>  $decorationAnchors  Submerged anchor cells, keyed by decoration id then anchor index.
+     * @param  list<GridBox>  $groundedFootprints  Decorations resting on the substrate, where plants cannot root.
      */
     public function __construct(
         public int $volumeLitres,
@@ -41,6 +43,8 @@ final class TankState
         public array $plants = [],
         public array $creatures = [],
         public ?AutoFeederState $autoFeeder = null,
+        public array $decorationAnchors = [],
+        public array $groundedFootprints = [],
     ) {}
 
     /**
@@ -75,6 +79,31 @@ final class TankState
     public function livingCreatures(): array
     {
         return array_values(array_filter($this->creatures, fn (CreatureState $creature): bool => ! $creature->isDead));
+    }
+
+    /**
+     * Anchor indexes of a decoration that no living plant is growing from.
+     *
+     * @return list<int>
+     */
+    public function freeAnchors(int $decorationId): array
+    {
+        $taken = array_map(
+            fn (PlantState $plant): ?int => $plant->anchorIndex,
+            array_filter($this->livingPlants(), fn (PlantState $plant): bool => $plant->decorationId === $decorationId),
+        );
+
+        return array_values(array_diff(array_keys($this->decorationAnchors[$decorationId] ?? []), $taken));
+    }
+
+    /**
+     * Whether a decoration rests on the substrate at a plant's root position.
+     */
+    public function isSubstrateCovered(float $rootX, int $layer): bool
+    {
+        [$x, $z] = TankGeometry::plantColumn($rootX, $layer, $this->layerCount);
+
+        return array_any($this->groundedFootprints, fn (GridBox $box): bool => $box->coversColumn($x, $z));
     }
 
     /**

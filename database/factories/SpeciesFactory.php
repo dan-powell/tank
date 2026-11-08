@@ -30,6 +30,14 @@ class SpeciesFactory extends Factory
     }
 
     /**
+     * A plant that can grow on decorations as well as the substrate, based on the catalogue Hornwort.
+     */
+    public function decorPlant(): static
+    {
+        return $this->state(fn (array $attributes): array => $this->fromCatalogue('hornwort'));
+    }
+
+    /**
      * Copy a catalogue entry under a unique slug.
      *
      * @return array<string, mixed>

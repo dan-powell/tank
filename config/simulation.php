@@ -73,4 +73,6 @@ return [
 
     'max_plants_per_tank' => 60,
 
+    'max_decorations_per_tank' => 24,
+
 ];

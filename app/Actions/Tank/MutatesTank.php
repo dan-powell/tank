@@ -35,6 +35,20 @@ trait MutatesTank
     }
 
     /**
+     * Like mutate(), for small adjustments not worth an entry in the event log.
+     *
+     * @param  Closure(Tank): void  $mutation
+     */
+    protected function mutateQuietly(Tank $tank, Closure $mutation): void
+    {
+        DB::transaction(function () use ($tank, $mutation): void {
+            $mutation(Tank::query()->lockForUpdate()->findOrFail($tank->id));
+        });
+
+        TankUpdated::dispatch($tank);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      */
     protected function event(Tank $tank, TankEventType $type, string $message, array $payload = []): SimEvent

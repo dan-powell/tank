@@ -12,6 +12,7 @@ const OWN_ACTIONS: TankEventType[] = [
     'algae_scrub',
     'light_toggled',
     'livestock_added',
+    'aquascaping',
 ];
 
 /**

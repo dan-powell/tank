@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TankAutoFeederController;
 use App\Http\Controllers\TankController;
 use App\Http\Controllers\TankCreatureController;
+use App\Http\Controllers\TankDecorationController;
 use App\Http\Controllers\TankMaintenanceController;
 use App\Http\Controllers\TankPlantController;
 use App\Http\Controllers\TankStockController;
@@ -35,6 +36,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::delete('creatures/{creature}', [TankCreatureController::class, 'destroy'])->name('creatures.destroy');
             Route::patch('plants/{plant}', [TankPlantController::class, 'update'])->name('plants.update');
             Route::delete('plants/{plant}', [TankPlantController::class, 'destroy'])->name('plants.destroy');
+            Route::post('decorations', [TankDecorationController::class, 'store'])->name('decorations.store');
+            Route::patch('decorations/{decoration}', [TankDecorationController::class, 'update'])->name('decorations.update');
+            Route::delete('decorations/{decoration}', [TankDecorationController::class, 'destroy'])->name('decorations.destroy');
         });
 });
 

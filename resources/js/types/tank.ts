@@ -15,6 +15,9 @@ export type WaterParameters = {
     algae: number;
 };
 
+/** A decoration grid cell: x (left to right), y (up from the glass floor), z (back to front). */
+export type GridCell = [number, number, number];
+
 export type PlantSnapshot = {
     id: number;
     species_id: number;
@@ -22,6 +25,8 @@ export type PlantSnapshot = {
     root: PlanePoint;
     /** Depth layer, 0 = back glass. */
     layer: number;
+    /** Set when the plant grows from a decoration's anchor instead of the substrate. */
+    attachment: { decoration_id: number; anchor: number } | null;
     size: number;
     segments: number;
     health: number;
@@ -47,9 +52,47 @@ export type CreatureSnapshot = {
     };
 };
 
-/** The tank inhabitant picked out in the scene. */
+/** A placed decoration; `position` is the minimum corner of its rotated box. */
+export type DecorationSnapshot = {
+    id: number;
+    type: string;
+    position: GridCell;
+    /** Quarter turns about the vertical axis (0-3). */
+    rotation: number;
+    seed: number;
+};
+
+export type DecorationDefinition = {
+    slug: string;
+    name: string;
+    description: string;
+    /** `vox`: a MagicaVoxel file in resources/models/decor; `rock`: generated from the seed. */
+    source: 'vox' | 'rock';
+    /** Width, height and depth in grid cells, unrotated. */
+    size: GridCell;
+    /** Empty cells directly above solid voxels where plants can attach, unrotated. */
+    anchors: GridCell[];
+    params: {
+        colors?: string[];
+        roughness?: number;
+        flatness?: number;
+    };
+};
+
+/** The decoration grid (0.5 cm cells) shared by decorations, substrate and water. */
+export type TankGrid = {
+    width: number;
+    height: number;
+    depth: number;
+    /** First cell row above the water. */
+    water_level: number;
+    /** Cells per side of one substrate heightmap column. */
+    substrate_column: number;
+};
+
+/** The tank inhabitant or decoration picked out in the scene. */
 export type TankSelection = {
-    kind: 'creature' | 'plant';
+    kind: 'creature' | 'plant' | 'decoration';
     id: number;
 };
 
@@ -69,6 +112,9 @@ export type TankSnapshot = {
     volume_litres: number;
     /** Number of depth layers the tank is divided into. */
     layer_count: number;
+    grid: TankGrid;
+    /** Substrate height in cells per heightmap column, row by row from the back glass. */
+    substrate: number[];
     water: WaterParameters;
     light_on: boolean;
     is_lit: boolean;
@@ -78,6 +124,7 @@ export type TankSnapshot = {
     last_simulated_at: string | null;
     plants: PlantSnapshot[];
     creatures: CreatureSnapshot[];
+    decorations: DecorationSnapshot[];
 };
 
 export type SpeciesBehaviour =
@@ -113,6 +160,8 @@ export type Species = {
     description: string | null;
     adult_size: number | null;
     max_size: number | null;
+    /** Where a plant can grow; null for animals. */
+    anchorage: 'substrate' | 'decor' | 'any' | null;
     render: SpeciesRender;
 };
 
@@ -130,6 +179,7 @@ export type TankEventType =
     | 'light_toggled'
     | 'livestock_added'
     | 'removed'
+    | 'aquascaping'
     | 'warning';
 
 export type TankEvent = {

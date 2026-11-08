@@ -17,5 +17,6 @@ enum TankEventType: string
     case LightToggled = 'light_toggled';
     case LivestockAdded = 'livestock_added';
     case Removed = 'removed';
+    case Aquascaping = 'aquascaping';
     case Warning = 'warning';
 }

@@ -19,6 +19,36 @@ export const CM = 0.04;
 export const MARGIN = 0.08;
 
 /**
+ * Size of one decoration grid cell in world units (0.5 cm). The grid spans
+ * the tank's interior from the glass floor (y = 0) to the rim, with z = 0 at
+ * the back glass; decorations, the substrate and the water level all use it.
+ */
+export const DECOR_VOXEL = 0.02;
+
+/** The world-space corner of a decoration grid cell (its minimum x, y and z). */
+export function cellToWorld(
+    x: number,
+    y: number,
+    z: number,
+    target = new Vector3(),
+): Vector3 {
+    return target.set(
+        x * DECOR_VOXEL - TANK.width / 2,
+        y * DECOR_VOXEL,
+        z * DECOR_VOXEL - TANK.depth / 2,
+    );
+}
+
+/** The (fractional) decoration grid position of a world-space point. */
+export function worldToCell(point: Vector3, target = new Vector3()): Vector3 {
+    return target.set(
+        (point.x + TANK.width / 2) / DECOR_VOXEL,
+        point.y / DECOR_VOXEL,
+        (point.z + TANK.depth / 2) / DECOR_VOXEL,
+    );
+}
+
+/**
  * Convert normalised tank coordinates (0..1; y = height above the
  * substrate, z = 0 at the back) into world space.
  */

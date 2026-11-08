@@ -3,6 +3,7 @@
 namespace App\Simulation;
 
 use App\Models\Creature;
+use App\Models\Decoration;
 use App\Models\Plant;
 use App\Models\Species;
 use App\Models\Tank;
@@ -31,7 +32,11 @@ final class TankStateRepository
                 segments: $plant->segments,
                 health: $plant->health,
                 ageSeconds: $plant->age_seconds,
+                decorationId: $plant->decoration_id,
+                anchorIndex: $plant->anchor_index,
             ))->all();
+
+        $decorations = $tank->decorations()->get();
 
         $creatures = Creature::query()->whereBelongsTo($tank)->alive()->orderBy('id')->get()
             ->map(fn (Creature $creature): CreatureState => new CreatureState(
@@ -81,7 +86,29 @@ final class TankStateRepository
                 unlimited: $tank->auto_feeder_unlimited,
                 portions: $tank->auto_feeder_portions,
             ) : null,
+            decorationAnchors: $decorations->mapWithKeys(fn (Decoration $decoration): array => [
+                $decoration->id => $this->submergedAnchors($tank, $decoration),
+            ])->all(),
+            groundedFootprints: TankGeometry::groundedFootprints($tank, $decorations),
         );
+    }
+
+    /**
+     * @return array<int, array{0: int, 1: int, 2: int}>
+     */
+    private function submergedAnchors(Tank $tank, Decoration $decoration): array
+    {
+        $anchors = [];
+
+        foreach (array_keys($decoration->definition()->anchors) as $index) {
+            $cell = TankGeometry::anchorCell($decoration, $index);
+
+            if (TankGeometry::isSubmerged($tank, $cell[1])) {
+                $anchors[$index] = $cell;
+            }
+        }
+
+        return $anchors;
     }
 
     /**
@@ -135,6 +162,8 @@ final class TankStateRepository
             'root_x' => $plant->rootX,
             'root_y' => $plant->rootY,
             'layer' => $plant->layer,
+            'decoration_id' => $plant->decorationId,
+            'anchor_index' => $plant->anchorIndex,
             'size' => $plant->size,
             'segments' => $plant->segments,
             'health' => $plant->health,

@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property string $name
  * @property int $volume_litres
  * @property int $layer_count Number of depth layers the tank is divided into.
+ * @property list<int>|null $substrate_heights Substrate depth per heightmap column, in grid cells (null = flat; see TankGeometry).
  * @property float $temperature
  * @property float $target_temperature
  * @property float $ph
@@ -51,7 +52,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'name', 'volume_litres', 'layer_count', 'temperature', 'target_temperature', 'ph', 'ammonia', 'nitrite',
+    'name', 'volume_litres', 'layer_count', 'substrate_heights', 'temperature', 'target_temperature', 'ph', 'ammonia', 'nitrite',
     'nitrate', 'oxygen', 'co2', 'detritus', 'uneaten_food', 'algae', 'bacteria', 'light_on',
     'auto_feeder_installed', 'auto_feeder_feeds_per_day', 'auto_feeder_unlimited', 'auto_feeder_portions',
     'is_active', 'sim_tick', 'sim_seconds', 'rng_seed', 'last_simulated_at',
@@ -83,6 +84,14 @@ class Tank extends Model
     public function creatures(): HasMany
     {
         return $this->hasMany(Creature::class);
+    }
+
+    /**
+     * @return HasMany<Decoration, $this>
+     */
+    public function decorations(): HasMany
+    {
+        return $this->hasMany(Decoration::class);
     }
 
     /**
@@ -129,6 +138,7 @@ class Tank extends Model
         return [
             'volume_litres' => 'integer',
             'layer_count' => 'integer',
+            'substrate_heights' => 'array',
             'temperature' => 'float',
             'target_temperature' => 'float',
             'ph' => 'float',

@@ -2,12 +2,14 @@ import { Vector3 } from 'three';
 import type { SpeciesBehaviour } from '@/types';
 import {
     bounds,
+    DECOR_VOXEL,
     laneOffset,
     layerDepth,
     layerToZ,
     TANK,
     zToLayer,
 } from './space';
+import type { TerrainField } from './terrain-field';
 import type { CreatureBody, TankWorld } from './world';
 
 export type SteeringProfile = {
@@ -51,6 +53,8 @@ export function createWanderState(): WanderState {
 
 const acceleration = new Vector3();
 const scratch = new Vector3();
+const previous = new Vector3();
+const probe = new Vector3();
 const neighbourCentre = new Vector3();
 const neighbourHeading = new Vector3();
 
@@ -62,6 +66,18 @@ const PERSONAL_SPACE = 0.08;
 const TURN_DISTANCE = 0.12;
 /** Chance per second (scaled by layer_roam) of visiting a neighbouring layer. */
 const ROAM_RATE = 0.15;
+/** How far ahead (world units) a swimmer looks for decorations in its way. */
+const LOOK_AHEAD = 0.08;
+/** The tallest obstacle (world units) a swimmer rises over rather than turning back. */
+const SWIM_OVER = 0.16;
+/** Clearance (world units) swimmers keep above and below decorations. */
+const DECOR_CLEARANCE = 0.03;
+/** The tallest step (world units) a bottom dweller walks up; taller turns it round. */
+const BOTTOM_STEP = 0.05;
+/** Crawlers climb anything, as long as it stays under water. */
+const CRAWLER_CLIMB = 2;
+/** Height a bottom dweller's body centre floats above the ground. */
+const BOTTOM_LIFT = 0.035;
 
 /**
  * Advance one creature by a frame. Movement happens mostly in the x/y plane
@@ -99,6 +115,12 @@ export function steer(
         acceleration.y += (bounds.maxY - position.y) * 4 * maxSpeed;
     }
 
+    const terrain = world.terrain;
+
+    if (terrain !== null && !isBottom) {
+        avoidTerrain(body, wander, terrain, maxSpeed);
+    }
+
     avoidWalls(position, maxSpeed);
 
     velocity.x += acceleration.x * dt;
@@ -116,13 +138,21 @@ export function steer(
         Math.min(maxSpeed * 0.6, (targetZ - position.z) * 1.5),
     );
 
+    previous.copy(position);
     position.addScaledVector(velocity, dt);
 
     position.x = Math.min(bounds.maxX, Math.max(bounds.minX, position.x));
     position.z = Math.min(bounds.maxZ, Math.max(bounds.minZ, position.z));
-    position.y = isBottom
-        ? TANK.substrate + (profile.behaviour === 'crawler' ? 0 : 0.035)
-        : Math.min(bounds.maxY, Math.max(bounds.minY, position.y));
+
+    if (isBottom) {
+        walkOnTerrain(body, wander, profile, terrain, maxSpeed, dt);
+    } else {
+        position.y = Math.min(bounds.maxY, Math.max(bounds.minY, position.y));
+
+        if (terrain !== null) {
+            keepOutOfTerrain(position, terrain);
+        }
+    }
 
     if (velocity.x > 0.005) {
         body.facing = 1;
@@ -316,6 +346,153 @@ function seekFood(
     acceleration.addScaledVector(toFood.normalize(), 6 * maxSpeed);
 
     return food.position.z;
+}
+
+/**
+ * Steer a swimmer around decorations: rise over an obstacle ahead when it is
+ * low enough, otherwise turn back as at a wall, and keep a little clearance
+ * above and below so fish don't scrape along rocks.
+ */
+function avoidTerrain(
+    body: CreatureBody,
+    wander: WanderState,
+    terrain: TerrainField,
+    maxSpeed: number,
+): void {
+    const { position, velocity } = body;
+    const heading =
+        Math.abs(velocity.x) > 0.005 ? Math.sign(velocity.x) : wander.direction;
+
+    probe.set(position.x + heading * LOOK_AHEAD, position.y, position.z);
+
+    if (!terrain.isFree(probe)) {
+        const startY = probe.y;
+        let clearAbove = false;
+
+        for (let rise = DECOR_VOXEL; rise <= SWIM_OVER; rise += DECOR_VOXEL) {
+            probe.y = startY + rise;
+
+            if (probe.y > bounds.maxY) {
+                break;
+            }
+
+            if (terrain.isFree(probe)) {
+                clearAbove = true;
+                break;
+            }
+        }
+
+        if (clearAbove) {
+            acceleration.y += 8 * maxSpeed;
+            acceleration.x -= heading * 0.6 * maxSpeed;
+        } else {
+            wander.direction = heading > 0 ? -1 : 1;
+            wander.turnIn = 4 + Math.random() * 10;
+            velocity.x *= -0.3;
+        }
+    }
+
+    probe.set(position.x, position.y - DECOR_CLEARANCE, position.z);
+
+    if (terrain.isSolid(probe)) {
+        acceleration.y += 4 * maxSpeed;
+    }
+
+    probe.set(position.x, position.y + DECOR_CLEARANCE, position.z);
+
+    if (terrain.isSolid(probe)) {
+        acceleration.y -= 4 * maxSpeed;
+    }
+}
+
+/**
+ * Undo whichever part of this frame's move took a swimmer into a decoration
+ * (or out of the water). Anything still stuck, e.g. because a decoration was
+ * dropped on top of it, is lifted to the nearest open water.
+ */
+function keepOutOfTerrain(position: Vector3, terrain: TerrainField): void {
+    if (terrain.isFree(position)) {
+        return;
+    }
+
+    const attempts: [number, number, number][] = [
+        [position.x, position.y, previous.z],
+        [previous.x, position.y, position.z],
+        [position.x, previous.y, position.z],
+        [previous.x, previous.y, previous.z],
+    ];
+
+    for (const [x, y, z] of attempts) {
+        probe.set(x, y, z);
+
+        if (terrain.isFree(probe)) {
+            position.copy(probe);
+
+            return;
+        }
+    }
+
+    terrain.moveToFreeCell(position);
+}
+
+/**
+ * Keep a bottom dweller on whatever is beneath it: the substrate or the top
+ * of a decoration. Crawlers climb anything under water, slowly and clinging
+ * to the face as they go; other bottom dwellers only take small steps and
+ * turn round at anything taller.
+ */
+function walkOnTerrain(
+    body: CreatureBody,
+    wander: WanderState,
+    profile: SteeringProfile,
+    terrain: TerrainField | null,
+    maxSpeed: number,
+    dt: number,
+): void {
+    const { position, velocity } = body;
+    const isCrawler = profile.behaviour === 'crawler';
+    const lift = isCrawler ? 0 : BOTTOM_LIFT;
+
+    if (terrain === null) {
+        position.y = TANK.substrate + lift;
+
+        return;
+    }
+
+    const foot = Math.max(0, previous.y - lift) + 0.001;
+    const ground = (x: number, z: number) =>
+        terrain.surfaceBelow(
+            probe.set(x, foot, z),
+            isCrawler ? CRAWLER_CLIMB : BOTTOM_STEP,
+        );
+    const submerged = (height: number) =>
+        height < terrain.waterLevel * DECOR_VOXEL - 0.01;
+
+    let surface = ground(position.x, position.z);
+
+    if (surface === null || !submerged(surface)) {
+        position.x = previous.x;
+        position.z = previous.z;
+        wander.direction = wander.direction > 0 ? -1 : 1;
+        wander.turnIn = 4 + Math.random() * 10;
+        velocity.x = 0;
+        surface = ground(position.x, position.z) ?? foot;
+    }
+
+    const target = surface + lift;
+    const climb = target - previous.y;
+
+    if (climb > 0.01) {
+        // Climb the face before stepping onto the higher ground.
+        position.x = previous.x;
+        position.z = previous.z;
+    }
+
+    const rate = (isCrawler ? maxSpeed * 1.5 : 0.6) * dt;
+    position.y =
+        climb > 0
+            ? Math.min(target, previous.y + rate)
+            : Math.max(target, previous.y - Math.max(rate, 0.3 * dt));
 }
 
 function avoidWalls(position: Vector3, maxSpeed: number): void {

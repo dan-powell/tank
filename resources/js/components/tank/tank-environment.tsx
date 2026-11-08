@@ -2,7 +2,8 @@ import { Edges } from '@react-three/drei';
 import { useEffect, useMemo } from 'react';
 import { Color, DoubleSide, InstancedMesh, Object3D } from 'three';
 import { TANK } from '@/lib/tank/space';
-import type { WaterParameters } from '@/types';
+import { buildSubstrateGeometry } from '@/lib/tank/substrate-geometry';
+import type { TankGrid, WaterParameters } from '@/types';
 import { Bubbles } from './bubbles';
 import { createCausticMaterial } from './caustics';
 import { TankLighting } from './tank-lighting';
@@ -10,30 +11,40 @@ import { TankLighting } from './tank-lighting';
 type Props = {
     water: WaterParameters;
     isLit: boolean;
+    grid: TankGrid;
+    /** Substrate height in grid cells per heightmap column. */
+    substrate: number[];
     /** Outline the glass edges (hidden in the flat 2D view). */
     showEdges?: boolean;
 };
 
-export function TankEnvironment({ water, isLit, showEdges = true }: Props) {
+export function TankEnvironment({
+    water,
+    isLit,
+    grid,
+    substrate,
+    showEdges = true,
+}: Props) {
     const algae = Math.min(1, water.algae / 100);
     const substrateMaterial = useMemo(
         () => createCausticMaterial(new Color('#b49a72')),
         [],
     );
+    const substrateKey = substrate.join(',');
+    const substrateGeometry = useMemo(
+        () => buildSubstrateGeometry(grid, substrateKey.split(',').map(Number)),
+        [grid, substrateKey],
+    );
 
     useEffect(() => () => substrateMaterial.dispose(), [substrateMaterial]);
+    useEffect(() => () => substrateGeometry.dispose(), [substrateGeometry]);
 
     return (
         <group>
             <TankLighting isLit={isLit} />
 
             {/* Substrate */}
-            <mesh
-                position={[0, TANK.substrate / 2, 0]}
-                material={substrateMaterial}
-            >
-                <boxGeometry args={[TANK.width, TANK.substrate, TANK.depth]} />
-            </mesh>
+            <mesh geometry={substrateGeometry} material={substrateMaterial} />
             <Detritus amount={water.detritus} />
             <Bubbles isLit={isLit} />
 

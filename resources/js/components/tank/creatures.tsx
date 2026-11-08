@@ -191,6 +191,11 @@ function Creature({
             layer: homeLayer,
             facing: Math.random() < 0.5 ? 1 : -1,
         };
+
+        if (world.terrain !== null && !world.terrain.isFree(spawn.position)) {
+            world.terrain.moveToFreeCell(spawn.position);
+        }
+
         world.creatures.set(creature.id, spawn);
 
         return spawn;

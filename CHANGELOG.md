@@ -24,6 +24,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Caustics on the substrate, plants and creatures.
 - Air stone with a rising bubble stream.
 - Left-click a fish or plant to select it (brightened, with a halo around its silhouette): the side panel shows only its stats, a name field and a Remove button, with a Back button (or `Esc`) to deselect.
+- Aquascaping tab: add fully 3D voxel decorations (generated rocks, plus coral wall, driftwood arch and chest from MagicaVoxel files); each is auto-placed in a free spot.
+- Selected decorations show move arrows (depth only in 3D) and panel controls to turn, nudge, drop onto what's below, or remove them.
+- Fish swim over or turn away from decorations, bottom dwellers walk over low ones, snails climb them, and food settles on them.
+- Plants that can grow on decorations (Hornwort) can be planted on a decoration's plant spots and spread to its free spots.
+- Substrate heightmap and a shared 0.5 cm grid for the tank (groundwork for sculpted substrate and variable water levels).
 
 ### Changed
 

@@ -2,9 +2,11 @@
 
 namespace App\Simulation\Systems;
 
+use App\Enums\PlantAnchorage;
 use App\Enums\TankEventType;
 use App\Simulation\PlantState;
 use App\Simulation\StepContext;
+use App\Simulation\TankGeometry;
 use App\Simulation\TankState;
 
 /**
@@ -106,25 +108,26 @@ final class PlantGrowthSystem implements SimulationSystem
             return;
         }
 
-        $radius = $species->number('spread.radius', 0.15);
-        $angle = $context->between(0, 2 * M_PI);
-        $distance = $context->between($radius * 0.3, $radius);
+        $offshoot = $this->offshootPosition($plant, $state, $context);
 
-        $depthOffset = sin($angle) * $distance;
-        $layerShift = abs($depthOffset) > $radius * 0.7 ? ($depthOffset > 0 ? 1 : -1) : 0;
+        if ($offshoot === null) {
+            return;
+        }
 
         $plant->size -= $offshootSize;
         $state->plants[] = new PlantState(
             id: null,
             speciesId: $plant->speciesId,
             parentId: $plant->id,
-            rootX: min(0.95, max(0.05, $plant->rootX + cos($angle) * $distance)),
+            rootX: $offshoot['rootX'],
             rootY: $plant->rootY,
-            layer: min($state->layerCount - 1, max(0, $plant->layer + $layerShift)),
+            layer: $offshoot['layer'],
             size: $offshootSize,
             segments: 1,
             health: 1.0,
             ageSeconds: 0,
+            decorationId: $offshoot['decorationId'],
+            anchorIndex: $offshoot['anchorIndex'],
         );
 
         $context->emit(
@@ -132,5 +135,52 @@ final class PlantGrowthSystem implements SimulationSystem
             "A {$species->name} has sent out a new shoot.",
             ['species_id' => $species->id],
         );
+    }
+
+    /**
+     * Where a new shoot takes root: a free anchor on the same decoration for an
+     * attached plant, otherwise nearby substrate that no decoration covers.
+     *
+     * @return array{rootX: float, layer: int, decorationId: int|null, anchorIndex: int|null}|null
+     */
+    private function offshootPosition(PlantState $plant, TankState $state, StepContext $context): ?array
+    {
+        $species = $state->speciesOf($plant);
+
+        if ($plant->decorationId !== null) {
+            $freeAnchors = $state->freeAnchors($plant->decorationId);
+
+            if ($freeAnchors !== []) {
+                $anchorIndex = $freeAnchors[(int) floor($context->between(0, count($freeAnchors) - 0.001))];
+                [$x, , $z] = $state->decorationAnchors[$plant->decorationId][$anchorIndex];
+
+                return [
+                    'rootX' => TankGeometry::normalisedX($x),
+                    'layer' => TankGeometry::layerAt($z, $state->layerCount),
+                    'decorationId' => $plant->decorationId,
+                    'anchorIndex' => $anchorIndex,
+                ];
+            }
+        }
+
+        if (! PlantAnchorage::fromParams($species->params)->allowsSubstrate()) {
+            return null;
+        }
+
+        $radius = $species->number('spread.radius', 0.15);
+        $angle = $context->between(0, 2 * M_PI);
+        $distance = $context->between($radius * 0.3, $radius);
+
+        $depthOffset = sin($angle) * $distance;
+        $layerShift = abs($depthOffset) > $radius * 0.7 ? ($depthOffset > 0 ? 1 : -1) : 0;
+
+        $rootX = min(0.95, max(0.05, $plant->rootX + cos($angle) * $distance));
+        $layer = min($state->layerCount - 1, max(0, $plant->layer + $layerShift));
+
+        if ($state->isSubstrateCovered($rootX, $layer)) {
+            return null;
+        }
+
+        return ['rootX' => $rootX, 'layer' => $layer, 'decorationId' => null, 'anchorIndex' => null];
     }
 }

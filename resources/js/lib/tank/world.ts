@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import { TANK } from './space';
+import type { TerrainField } from './terrain-field';
 
 export type FoodParticle = {
     id: number;
@@ -54,6 +55,9 @@ export class TankWorld {
     /** Creatures the user took out, so they vanish rather than float up as if dead. */
     removedCreatures = new Set<number>();
 
+    /** The substrate and decorations, once their models have loaded. */
+    terrain: TerrainField | null = null;
+
     private nextFoodId = 1;
 
     /** Sprinkle food at a point on the surface (world coordinates). */
@@ -105,12 +109,14 @@ export class TankWorld {
         );
 
         for (const particle of this.food) {
-            if (particle.position.y > TANK.substrate + 0.005) {
+            const floor = this.floorBeneath(particle.position) + 0.005;
+
+            if (particle.settledFor === 0 && particle.position.y > floor) {
                 particle.position.addScaledVector(particle.drift, delta);
                 particle.drift.x *= 0.99;
                 particle.drift.z *= 0.99;
             } else {
-                particle.position.y = TANK.substrate + 0.005;
+                particle.position.y = floor;
                 particle.settledFor += delta;
             }
         }
@@ -134,7 +140,12 @@ export class TankWorld {
         let bestDistance = maxDistance * maxDistance;
 
         for (const particle of this.food) {
-            if (sunkenOnly && particle.position.y > TANK.substrate + 0.08) {
+            if (
+                sunkenOnly &&
+                particle.settledFor === 0 &&
+                particle.position.y >
+                    this.floorBeneath(particle.position) + 0.08
+            ) {
                 continue;
             }
 
@@ -151,6 +162,11 @@ export class TankWorld {
         }
 
         return best;
+    }
+
+    /** Height of whatever a sinking particle would land on: a decoration or the substrate. */
+    private floorBeneath(position: Vector3): number {
+        return this.terrain?.surfaceBelow(position) ?? TANK.substrate;
     }
 
     eat(particle: FoodParticle): void {

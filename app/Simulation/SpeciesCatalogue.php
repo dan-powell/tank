@@ -14,6 +14,8 @@ use App\Models\Species;
  * diet maps each food source to the amount that fully satisfies an adult
  * (food/detritus in grams, algae in % coverage). Zones and positions are
  * normalised to 0..1 of the tank (y = height above the substrate).
+ * Plant `anchorage` says where a plant can grow: `substrate`, `decor` (on a
+ * decoration's anchor points) or `any`.
  */
 final class SpeciesCatalogue
 {
@@ -40,6 +42,7 @@ final class SpeciesCatalogue
                     'max_per_100l' => 25,
                     'spread' => ['chance_per_day' => 0.15, 'radius' => 0.12, 'offshoot_size' => 0.3],
                     'starting_size' => 2.0,
+                    'anchorage' => 'substrate',
                     'render' => ['color' => '#4f9d3a', 'segment_height' => 0.07, 'blades' => 4],
                 ],
             ],
@@ -60,6 +63,7 @@ final class SpeciesCatalogue
                     'max_per_100l' => 15,
                     'spread' => ['chance_per_day' => 0.1, 'radius' => 0.2, 'offshoot_size' => 0.5],
                     'starting_size' => 2.5,
+                    'anchorage' => 'any',
                     'render' => ['color' => '#2f7a3b', 'segment_height' => 0.05],
                 ],
             ],

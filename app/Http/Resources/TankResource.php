@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Tank;
 use App\Simulation\Systems\LightingSystem;
+use App\Simulation\TankGeometry;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -26,6 +27,8 @@ class TankResource extends JsonResource
             'name' => $this->name,
             'volume_litres' => $this->volume_litres,
             'layer_count' => $this->layer_count,
+            'grid' => TankGeometry::grid($this->resource),
+            'substrate' => TankGeometry::substrateHeights($this->resource),
             'water' => [
                 'temperature' => round($this->temperature, 1),
                 'target_temperature' => round($this->target_temperature, 1),
@@ -53,6 +56,7 @@ class TankResource extends JsonResource
             'last_simulated_at' => $this->last_simulated_at?->toIso8601String(),
             'plants' => $this->whenLoaded('plants', fn (): array => PlantResource::collection($this->plants)->resolve($request)),
             'creatures' => $this->whenLoaded('creatures', fn (): array => CreatureResource::collection($this->creatures)->resolve($request)),
+            'decorations' => $this->whenLoaded('decorations', fn (): array => DecorationResource::collection($this->decorations)->resolve($request)),
         ];
     }
 }

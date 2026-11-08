@@ -24,6 +24,10 @@ class PlantResource extends JsonResource
             'nickname' => $this->nickname,
             'root' => [round($this->root_x, 3), round($this->root_y, 3)],
             'layer' => $this->layer,
+            'attachment' => $this->decoration_id === null ? null : [
+                'decoration_id' => $this->decoration_id,
+                'anchor' => $this->anchor_index,
+            ],
             'size' => round($this->size, 2),
             'segments' => $this->segments,
             'health' => round($this->health, 2),

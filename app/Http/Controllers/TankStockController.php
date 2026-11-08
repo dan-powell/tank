@@ -14,7 +14,13 @@ class TankStockController extends Controller
      */
     public function store(StockTankRequest $request, Tank $tank, StockTank $stockTank): RedirectResponse
     {
-        $stockTank->handle($tank, $request->species(), $request->integer('quantity'));
+        $stockTank->handle(
+            $tank,
+            $request->species(),
+            $request->integer('quantity'),
+            $request->decoration(),
+            $request->anchor(),
+        );
 
         return back();
     }
