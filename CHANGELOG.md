@@ -13,9 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tank care: feeding, water changes, gravel vacuum, algae scrub, lamp, stocking and an auto-feeder.
 - Starter tank for every new user, and a dashboard listing their tanks.
 - Tank view: 2.5D depth layers with voxel artwork from PNG sprites (detailed placeholder art included), and spotlights.
-- 2D (default) and 3D view toggle; left-drag pans, right-drag rotates. The 2D view hides the glass edge lines.
-- Tank page panels: water, inhabitants, care, activity log.
-- Full-window tank view with a frosted side panel that slides over the tank (toggle button or `P`); the choice is remembered.
+- 2D (default) and 3D view toggle, bottom left; left-drag pans, right-drag rotates. The 2D view hides the glass edge lines.
+- Tabbed tank side panel with animated transitions: Summary (tank name and clock, water, inhabitants, latest activity that fits without scrolling), Activity (full log), Inhabitants, Management and Equipment (auto-feeder); icon tabs with tooltips.
+- Searchable, sortable list of every inhabitant; choosing one selects it, as clicking it in the tank does.
+- Full-window tank view with a frosted side panel that slides over the tank (pull tab on its edge or `P`); the choice is remembered.
 - Unit and feature tests.
 - Redis (DDEV add-on) for queue, cache and sessions; Horizon runs the queue workers.
 - Octane (FrankenPHP) for production, installed on deploy by Deployer 8.

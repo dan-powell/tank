@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import InputError from '@/components/input-error';
@@ -23,6 +23,7 @@ import type { TankWorld } from '@/lib/tank/world';
 import creatureRoutes from '@/routes/tanks/creatures';
 import plantRoutes from '@/routes/tanks/plants';
 import type { CreatureSnapshot, PlantSnapshot, Species } from '@/types';
+import { PanelBackButton } from './panel-section';
 
 export type Inhabitant =
     | { kind: 'creature'; entity: CreatureSnapshot; species: Species }
@@ -58,15 +59,7 @@ export function InhabitantPanel({ tankId, inhabitant, world, onBack }: Props) {
 
     return (
         <section aria-labelledby="inhabitant-heading" className="space-y-4">
-            <Button
-                size="sm"
-                variant="ghost"
-                className="-ml-2"
-                onClick={onBack}
-                title="Back to the tank (Esc)"
-            >
-                <ArrowLeft /> Back to tank
-            </Button>
+            <PanelBackButton onClick={onBack} />
 
             <div className="min-w-0">
                 <h2

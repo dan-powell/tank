@@ -6,6 +6,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 import autoFeeder from '@/routes/tanks/auto-feeder';
 import type { AutoFeeder } from '@/types';
+import { PanelSection } from './panel-section';
 
 type Props = {
     tankId: number;
@@ -14,6 +15,7 @@ type Props = {
 
 const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
 
+/** Auto-feeder settings: schedule, food supply and hopper. */
 export function AutoFeederPanel({ tankId, feeder }: Props) {
     const configure = (feedsPerDay: number, unlimited: boolean) =>
         router.put(
@@ -24,11 +26,8 @@ export function AutoFeederPanel({ tankId, feeder }: Props) {
 
     if (feeder === null) {
         return (
-            <section aria-labelledby="feeder-heading" className="space-y-2">
-                <h2 id="feeder-heading" className="text-sm font-semibold">
-                    Auto-feeder
-                </h2>
-                <p className="text-xs text-muted-foreground">
+            <PanelSection id="feeder-heading" title="Auto-feeder">
+                <p className="text-sm text-muted-foreground">
                     Feeds your fish on a schedule while you're away.
                 </p>
                 <Button
@@ -38,18 +37,17 @@ export function AutoFeederPanel({ tankId, feeder }: Props) {
                 >
                     <PackagePlus /> Add auto-feeder
                 </Button>
-            </section>
+            </PanelSection>
         );
     }
 
     const fill = feeder.portions / feeder.capacity;
 
     return (
-        <section aria-labelledby="feeder-heading" className="space-y-3">
-            <div className="flex items-center justify-between">
-                <h2 id="feeder-heading" className="text-sm font-semibold">
-                    Auto-feeder
-                </h2>
+        <PanelSection
+            id="feeder-heading"
+            title="Auto-feeder"
+            action={
                 <Button
                     size="sm"
                     variant="ghost"
@@ -63,8 +61,8 @@ export function AutoFeederPanel({ tankId, feeder }: Props) {
                 >
                     <Trash2 /> Remove
                 </Button>
-            </div>
-
+            }
+        >
             <div className="space-y-1">
                 <p className="text-xs text-muted-foreground">Feeds per day</p>
                 <ToggleGroup
@@ -158,6 +156,6 @@ export function AutoFeederPanel({ tankId, feeder }: Props) {
                     </Button>
                 </div>
             )}
-        </section>
+        </PanelSection>
     );
 }

@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { WaterParameters } from '@/types';
+import { PanelSection } from './panel-section';
 
 type Reading = {
     label: string;
@@ -79,10 +80,7 @@ const dot = {
 
 export function WaterPanel({ water }: { water: WaterParameters }) {
     return (
-        <section aria-labelledby="water-heading" className="space-y-2">
-            <h2 id="water-heading" className="text-sm font-semibold">
-                Water
-            </h2>
+        <PanelSection id="water-heading" title="Water">
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                 {readings(water).map((reading) => (
                     <div
@@ -106,6 +104,6 @@ export function WaterPanel({ water }: { water: WaterParameters }) {
                     </div>
                 ))}
             </dl>
-        </section>
+        </PanelSection>
     );
 }

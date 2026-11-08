@@ -2,24 +2,32 @@ import { Head, Link, router } from '@inertiajs/react';
 import {
     ArrowLeft,
     Box,
-    Moon,
-    PanelRightClose,
-    PanelRightOpen,
+    ChevronLeft,
+    ChevronRight,
+    Cog,
+    Fish,
+    History,
+    LayoutDashboard,
     Square,
-    Sun,
+    Wrench,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import type { ReactNode } from 'react';
 import { AutoFeederPanel } from '@/components/tank/auto-feeder-panel';
 import { EventLog } from '@/components/tank/event-log';
+import { InhabitantList } from '@/components/tank/inhabitant-list';
 import { InhabitantPanel } from '@/components/tank/inhabitant-panel';
 import type { Inhabitant } from '@/components/tank/inhabitant-panel';
-import { MaintenancePanel } from '@/components/tank/maintenance-panel';
 import type { TankViewMode } from '@/components/tank/tank-camera-rig';
 import { PopulationPanel } from '@/components/tank/population-panel';
+import { TankHeading } from '@/components/tank/tank-heading';
 import { TankScene } from '@/components/tank/tank-scene';
+import { ToolsPanel } from '@/components/tank/tools-panel';
 import { WaterPanel } from '@/components/tank/water-panel';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
     Tooltip,
@@ -29,7 +37,6 @@ import {
 import { useTankChannel } from '@/hooks/use-tank-channel';
 import {
     AUTO_FEEDER_SPOT,
-    formatSimClock,
     TANK,
     toNormalisedSurface,
     toWorld,
@@ -52,10 +59,45 @@ const PANEL_STORAGE_KEY = 'tank-panel-open';
 /** Keyboard shortcut that shows or hides the side panel. */
 const PANEL_SHORTCUT = 'p';
 
-const hudSurface = 'rounded-md bg-black/50 text-white backdrop-blur-sm';
+type PanelTab =
+    | 'summary'
+    | 'activity'
+    | 'inhabitants'
+    | 'management'
+    | 'equipment';
+
+/** Which way new tab content slides in: from the side of the tab chosen. */
+type TabDirection = 'left' | 'right';
+
+const PANEL_TABS: { value: PanelTab; label: string; icon: LucideIcon }[] = [
+    { value: 'summary', label: 'Summary', icon: LayoutDashboard },
+    { value: 'activity', label: 'Activity', icon: History },
+    { value: 'inhabitants', label: 'Inhabitants', icon: Fish },
+    { value: 'management', label: 'Management', icon: Wrench },
+    { value: 'equipment', label: 'Equipment', icon: Cog },
+];
+
+/** Frosted glass, as used by the side panel, for controls over the tank. */
+const hudSurface =
+    'border border-sidebar-border/60 bg-sidebar/70 text-sidebar-foreground shadow-md backdrop-blur-md';
+
+/**
+ * 2D/3D options, styled like the panel tabs: the chosen one is tinted with a
+ * primary underline. Focus moves with the choice, so no outline either.
+ */
+const viewToggleItem =
+    'relative h-full gap-1.5 px-3 group-data-[spacing=0]/toggle-group:px-3 text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:bg-primary/20 focus-visible:ring-0 focus-visible:outline-none data-[state=on]:bg-primary/10 data-[state=on]:text-primary dark:data-[state=on]:bg-primary/15 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-primary after:opacity-0 after:transition-opacity data-[state=on]:after:opacity-100';
+
+/**
+ * Full-height panel tabs; the active one is tinted with a primary underline.
+ * Focus moves with the active tab (arrow keys select as they go), so focus is
+ * shown as a slightly stronger tint rather than an outline.
+ */
+const panelTabTrigger =
+    'h-full border-0 text-muted-foreground hover:bg-sidebar-accent/60 focus-visible:border-0 focus-visible:bg-primary/20 focus-visible:ring-0 focus-visible:outline-none data-active:bg-primary/10 data-active:text-primary dark:data-active:border-transparent dark:data-active:bg-primary/15 dark:data-active:text-primary after:bg-primary group-data-horizontal/tabs:after:bottom-0 data-active:after:opacity-100';
 const hudButton = cn(
     hudSurface,
-    'hover:bg-black/70 hover:text-white focus-visible:ring-white/70',
+    'hover:bg-sidebar hover:text-sidebar-foreground',
 );
 
 /**
@@ -85,6 +127,16 @@ export default function ShowTank({ tank, species, events }: Props) {
     const [viewMode, setViewMode] = useState<TankViewMode>('flat');
     const [isPanelOpen, setIsPanelOpen] = useState(initialPanelOpen);
     const [selection, setSelection] = useState<TankSelection | null>(null);
+    const [tab, setTab] = useState<PanelTab>('summary');
+    const [tabDirection, setTabDirection] = useState<TabDirection>('right');
+
+    const changeTab = (next: PanelTab) => {
+        const index = (value: PanelTab) =>
+            PANEL_TABS.findIndex((candidate) => candidate.value === value);
+
+        setTabDirection(index(next) < index(tab) ? 'left' : 'right');
+        setTab(next);
+    };
 
     const togglePanel = () => setIsPanelOpen((open) => !open);
 
@@ -176,149 +228,253 @@ export default function ShowTank({ tank, species, events }: Props) {
                         onSelect={select}
                     />
 
-                    {/* Above the side panel, which slides in underneath it. */}
-                    <div className="pointer-events-none absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-2">
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        asChild
-                                        variant="ghost"
-                                        size="icon"
-                                        className={cn(
-                                            hudButton,
-                                            'pointer-events-auto',
-                                        )}
-                                    >
-                                        <Link
-                                            href={dashboard()}
-                                            aria-label="Back to dashboard"
-                                        >
-                                            <ArrowLeft />
-                                        </Link>
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
-                                    Dashboard
-                                </TooltipContent>
-                            </Tooltip>
-                            <div className={cn(hudSurface, 'px-3 py-1.5')}>
-                                <h1 className="text-sm font-semibold">
-                                    {tank.name}
-                                </h1>
-                                <p className="flex items-center gap-1.5 text-xs text-white/80">
-                                    {tank.is_lit ? (
-                                        <Sun className="size-3" />
-                                    ) : (
-                                        <Moon className="size-3" />
+                    <div className="pointer-events-none absolute top-3 left-3 flex items-start gap-2">
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button
+                                    asChild
+                                    variant="ghost"
+                                    size="icon"
+                                    className={cn(
+                                        hudButton,
+                                        'pointer-events-auto',
                                     )}
-                                    {formatSimClock(tank.sim_seconds)} ·{' '}
-                                    {tank.volume_litres} L
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="pointer-events-auto flex items-center gap-2">
-                            <ToggleGroup
-                                type="single"
-                                size="sm"
-                                value={viewMode}
-                                onValueChange={(value) =>
-                                    value && setViewMode(value as TankViewMode)
-                                }
-                                aria-label="Tank view"
-                                className={cn(hudSurface, 'h-9')}
-                            >
-                                <ToggleGroupItem
-                                    value="orbit"
-                                    aria-label="3D view"
-                                    className="h-9 gap-1.5 px-2.5 hover:bg-white/15 hover:text-white data-[state=on]:bg-white/25 data-[state=on]:text-white"
                                 >
-                                    <Box className="size-4" />
-                                    3D
-                                </ToggleGroupItem>
-                                <ToggleGroupItem
-                                    value="flat"
-                                    aria-label="Front 2D view"
-                                    className="h-9 gap-1.5 px-2.5 hover:bg-white/15 hover:text-white data-[state=on]:bg-white/25 data-[state=on]:text-white"
-                                >
-                                    <Square className="size-4" />
-                                    2D
-                                </ToggleGroupItem>
-                            </ToggleGroup>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={togglePanel}
-                                        className={hudButton}
-                                        aria-label={
-                                            isPanelOpen
-                                                ? 'Hide tank panel'
-                                                : 'Show tank panel'
-                                        }
-                                        aria-expanded={isPanelOpen}
-                                        aria-controls="tank-panel"
+                                    <Link
+                                        href={dashboard()}
+                                        aria-label="Back to dashboard"
                                     >
-                                        {isPanelOpen ? (
-                                            <PanelRightClose />
-                                        ) : (
-                                            <PanelRightOpen />
-                                        )}
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
-                                    {isPanelOpen ? 'Hide panel' : 'Show panel'}{' '}
-                                    <Kbd className="ml-1 uppercase">
-                                        {PANEL_SHORTCUT}
-                                    </Kbd>
-                                </TooltipContent>
-                            </Tooltip>
-                        </div>
+                                        <ArrowLeft />
+                                    </Link>
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                                Dashboard
+                            </TooltipContent>
+                        </Tooltip>
+                    </div>
+
+                    <div className="absolute bottom-3 left-3">
+                        <ToggleGroup
+                            type="single"
+                            size="sm"
+                            spacing={0}
+                            value={viewMode}
+                            onValueChange={(value) =>
+                                value && setViewMode(value as TankViewMode)
+                            }
+                            aria-label="Tank view"
+                            className={cn(hudSurface, 'h-9 p-0')}
+                        >
+                            <ToggleGroupItem
+                                value="orbit"
+                                aria-label="3D view"
+                                className={viewToggleItem}
+                            >
+                                <Box className="size-4" />
+                                3D
+                            </ToggleGroupItem>
+                            <ToggleGroupItem
+                                value="flat"
+                                aria-label="Front 2D view"
+                                className={viewToggleItem}
+                            >
+                                <Square className="size-4" />
+                                2D
+                            </ToggleGroupItem>
+                        </ToggleGroup>
                     </div>
                 </main>
 
-                <aside
-                    id="tank-panel"
-                    aria-label="Tank details"
-                    inert={!isPanelOpen}
+                {/* Slides as one: the pull tab stays reachable when closed. */}
+                <div
                     className={cn(
-                        'absolute inset-y-0 right-0 z-10 flex w-[min(20rem,85vw)] flex-col gap-6 overflow-y-auto border-l border-sidebar-border/60 bg-sidebar/70 p-4 pt-16 text-sidebar-foreground shadow-xl backdrop-blur-md transition-transform duration-300 ease-in-out',
+                        'absolute inset-y-0 right-0 z-10 w-[min(20rem,85vw)] transition-transform duration-300 ease-in-out',
                         isPanelOpen ? 'translate-x-0' : 'translate-x-full',
                     )}
                 >
-                    {inhabitant === null ? (
-                        <>
-                            <WaterPanel water={tank.water} />
-                            <PopulationPanel
-                                creatures={tank.creatures}
-                                plants={tank.plants}
-                                species={species}
-                            />
-                            <MaintenancePanel
-                                tankId={tank.id}
-                                lightOn={tank.light_on}
-                                species={species}
-                                onFeedRandomly={feedRandomly}
-                            />
-                            <AutoFeederPanel
-                                tankId={tank.id}
-                                feeder={tank.auto_feeder}
-                            />
-                            <EventLog events={events} />
-                        </>
-                    ) : (
-                        <InhabitantPanel
-                            tankId={tank.id}
-                            inhabitant={inhabitant}
-                            world={world}
-                            onBack={() => setSelection(null)}
-                        />
-                    )}
-                </aside>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                type="button"
+                                onClick={togglePanel}
+                                aria-label={
+                                    isPanelOpen
+                                        ? 'Hide tank panel'
+                                        : 'Show tank panel'
+                                }
+                                aria-expanded={isPanelOpen}
+                                aria-controls="tank-panel"
+                                className="absolute top-0 right-full flex h-11 w-7 items-center justify-center rounded-l-md border border-r-0 border-sidebar-border/60 bg-sidebar/70 text-sidebar-foreground shadow-md backdrop-blur-md transition-colors outline-none hover:bg-sidebar focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                                {isPanelOpen ? (
+                                    <ChevronRight className="size-4" />
+                                ) : (
+                                    <ChevronLeft className="size-4" />
+                                )}
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="left">
+                            {isPanelOpen ? 'Hide panel' : 'Show panel'}{' '}
+                            <Kbd className="ml-1 uppercase">
+                                {PANEL_SHORTCUT}
+                            </Kbd>
+                        </TooltipContent>
+                    </Tooltip>
+
+                    <aside
+                        id="tank-panel"
+                        aria-label="Tank details"
+                        inert={!isPanelOpen}
+                        className="flex h-full flex-col border-l border-sidebar-border/60 bg-sidebar/70 text-sidebar-foreground shadow-xl backdrop-blur-md"
+                    >
+                        {/*
+                         * Kept mounted (just hidden) while an inhabitant is
+                         * selected, so Back returns to the same tab, search and
+                         * scroll position. The fade replays whenever it reappears.
+                         */}
+                        <Tabs
+                            value={tab}
+                            onValueChange={(value) =>
+                                changeTab(value as PanelTab)
+                            }
+                            className={cn(
+                                'min-h-0 flex-1 gap-0 motion-safe:animate-in motion-safe:duration-200 motion-safe:fade-in-0',
+                                inhabitant !== null && 'hidden',
+                            )}
+                        >
+                            <TabsList className="grid w-full shrink-0 grid-cols-5 gap-0 border-b border-sidebar-border bg-sidebar/60 p-0 group-data-horizontal/tabs:h-11">
+                                {PANEL_TABS.map(
+                                    ({ value, label, icon: Icon }) => (
+                                        <Tooltip key={value}>
+                                            <TooltipTrigger asChild>
+                                                <TabsTrigger
+                                                    value={value}
+                                                    aria-label={label}
+                                                    // The tooltip trigger overwrites
+                                                    // data-state, so mark active here.
+                                                    data-active={tab === value}
+                                                    className={panelTabTrigger}
+                                                >
+                                                    <Icon />
+                                                </TabsTrigger>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom">
+                                                {label}
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    ),
+                                )}
+                            </TabsList>
+
+                            <PanelTabContent
+                                value="summary"
+                                direction={tabDirection}
+                                className="flex flex-col"
+                            >
+                                <TankHeading tank={tank} />
+                                <WaterPanel water={tank.water} />
+                                <PopulationPanel
+                                    creatures={tank.creatures}
+                                    plants={tank.plants}
+                                    species={species}
+                                    onViewAll={() => changeTab('inhabitants')}
+                                />
+                                <EventLog
+                                    events={events}
+                                    fitToSpace
+                                    onViewAll={() => changeTab('activity')}
+                                />
+                            </PanelTabContent>
+
+                            <PanelTabContent
+                                value="activity"
+                                direction={tabDirection}
+                            >
+                                <EventLog events={events} />
+                            </PanelTabContent>
+
+                            <PanelTabContent
+                                value="inhabitants"
+                                direction={tabDirection}
+                            >
+                                <InhabitantList
+                                    tankId={tank.id}
+                                    creatures={tank.creatures}
+                                    plants={tank.plants}
+                                    species={species}
+                                    onSelect={select}
+                                />
+                            </PanelTabContent>
+
+                            <PanelTabContent
+                                value="management"
+                                direction={tabDirection}
+                            >
+                                <ToolsPanel
+                                    tankId={tank.id}
+                                    lightOn={tank.light_on}
+                                    onFeedRandomly={feedRandomly}
+                                />
+                            </PanelTabContent>
+
+                            <PanelTabContent
+                                value="equipment"
+                                direction={tabDirection}
+                            >
+                                <AutoFeederPanel
+                                    tankId={tank.id}
+                                    feeder={tank.auto_feeder}
+                                />
+                            </PanelTabContent>
+                        </Tabs>
+
+                        {inhabitant !== null && (
+                            <div className="min-h-0 flex-1 overflow-y-auto p-4 motion-safe:animate-in motion-safe:duration-200 motion-safe:fade-in-0 motion-safe:slide-in-from-right-4">
+                                <InhabitantPanel
+                                    tankId={tank.id}
+                                    inhabitant={inhabitant}
+                                    world={world}
+                                    onBack={() => setSelection(null)}
+                                />
+                            </div>
+                        )}
+                    </aside>
+                </div>
             </div>
         </>
+    );
+}
+
+/**
+ * One tab's scrolling content. Inactive tabs unmount, so each newly shown
+ * tab plays its entrance: a fade plus a short slide from the side of the tab
+ * that was chosen.
+ */
+function PanelTabContent({
+    value,
+    direction,
+    className,
+    children,
+}: {
+    value: PanelTab;
+    direction: TabDirection;
+    className?: string;
+    children: ReactNode;
+}) {
+    return (
+        <TabsContent
+            value={value}
+            className={cn(
+                'min-h-0 divide-y divide-sidebar-border overflow-y-auto p-4 text-sm motion-safe:animate-in motion-safe:duration-200 motion-safe:fade-in-0',
+                direction === 'right'
+                    ? 'motion-safe:slide-in-from-right-4'
+                    : 'motion-safe:slide-in-from-left-4',
+                className,
+            )}
+        >
+            {children}
+        </TabsContent>
     );
 }
 

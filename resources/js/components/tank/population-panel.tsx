@@ -1,13 +1,23 @@
 import { Progress } from '@/components/ui/progress';
 import type { CreatureSnapshot, PlantSnapshot, Species } from '@/types';
+import { ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { PanelSection } from './panel-section';
 
 type Props = {
     creatures: CreatureSnapshot[];
     plants: PlantSnapshot[];
     species: Species[];
+    /** Opens the full, searchable list of inhabitants. */
+    onViewAll: () => void;
 };
 
-export function PopulationPanel({ creatures, plants, species }: Props) {
+export function PopulationPanel({
+    creatures,
+    plants,
+    species,
+    onViewAll,
+}: Props) {
     const rows = species
         .map((definition) => {
             const members =
@@ -47,10 +57,20 @@ export function PopulationPanel({ creatures, plants, species }: Props) {
         .filter((row) => row.count > 0);
 
     return (
-        <section aria-labelledby="population-heading" className="space-y-2">
-            <h2 id="population-heading" className="text-sm font-semibold">
-                Inhabitants
-            </h2>
+        <PanelSection
+            id="population-heading"
+            title="Inhabitants"
+            action={
+                <Button
+                    size="xs"
+                    variant="ghost"
+                    className="text-muted-foreground"
+                    onClick={onViewAll}
+                >
+                    View all <ChevronRight data-icon="inline-end" />
+                </Button>
+            }
+        >
             {rows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                     The tank is empty.
@@ -101,6 +121,6 @@ export function PopulationPanel({ creatures, plants, species }: Props) {
                     )}
                 </ul>
             )}
-        </section>
+        </PanelSection>
     );
 }
