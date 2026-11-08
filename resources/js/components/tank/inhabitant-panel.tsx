@@ -14,7 +14,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
@@ -320,7 +320,7 @@ function RemoveButton({
                 <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                        className={buttonVariants({ variant: 'destructive' })}
+                        variant="destructive"
                         onClick={onConfirm}
                     >
                         <Trash2 /> Remove

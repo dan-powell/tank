@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Simulation runs at 60× real time by default.
 - Project-specific README and changelog.
 - Tank panels use shadcn/ui components throughout; removing an inhabitant now asks for confirmation in a dialog.
+- New look from a shadcn preset: Lyra style, teal theme and Source Sans 3 font.
 - Feeding is done from the Care panel only; clicking the water no longer drops food.
 
 ### Fixed
