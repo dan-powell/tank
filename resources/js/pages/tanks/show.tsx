@@ -176,15 +176,7 @@ export default function ShowTank({
     const [sculptBrush, setSculptBrush] = useState<SculptBrush | null>(null);
     /** The inhabitant being moved, while waiting for a click on its new spot. */
     const [moving, setMoving] = useState<TankSelection | null>(null);
-    const gravel = useSubstrateSync(tank.id, tank.substrate);
-    /** The tank as shown, with any gravel changes not yet saved. */
-    const shownTank = useMemo(
-        () =>
-            gravel.substrate === tank.substrate
-                ? tank
-                : { ...tank, substrate: gravel.substrate },
-        [tank, gravel.substrate],
-    );
+    const gravel = useSubstrateSync(tank.id, tank.grid, tank.substrate);
     const [tab, setTab] = useState<PanelTab>('summary');
     const [previewBackground, setPreviewBackground] =
         useState<TankBackground | null>(null);
@@ -451,7 +443,8 @@ export default function ShowTank({
                 <main className="absolute inset-0">
                     <TankScene
                         key={sizeKey}
-                        tank={shownTank}
+                        tank={tank}
+                        substrate={gravel.substrate}
                         species={species}
                         world={world}
                         viewMode={viewMode}

@@ -16,52 +16,14 @@ const RAISE_RATE = 7 * CELLS_PER_CM;
 /** How quickly Smooth and Flatten pull the gravel towards their target, per second. */
 const BLEND_RATE = 5;
 
-export function heightmapSize(grid: TankGrid): {
-    columns: number;
-    rows: number;
-} {
-    return {
-        columns: Math.ceil(grid.width / grid.substrate_column),
-        rows: Math.ceil(grid.depth / grid.substrate_column),
-    };
-}
-
-/** The centre of a heightmap column, in (fractional) grid cells. */
-function columnCentre(
-    grid: TankGrid,
-    column: number,
-    row: number,
-): { x: number; z: number } {
-    const size = grid.substrate_column;
-
-    return {
-        x: column * size + Math.min(size, grid.width - column * size) / 2,
-        z: row * size + Math.min(size, grid.depth - row * size) / 2,
-    };
-}
-
-/** The heightmap value nearest a grid position. */
-export function heightAt(
-    grid: TankGrid,
-    heights: ArrayLike<number>,
-    cellX: number,
-    cellZ: number,
-): number {
-    const { columns, rows } = heightmapSize(grid);
-    const column = clamp(
-        Math.floor(cellX / grid.substrate_column),
-        0,
-        columns - 1,
-    );
-    const row = clamp(Math.floor(cellZ / grid.substrate_column), 0, rows - 1);
-
-    return heights[row * columns + column];
-}
+/** How far Smooth averages the gravel around each column, in cells (1 cm). */
+const SMOOTH_RADIUS = CELLS_PER_CM;
 
 /**
  * Apply one dab of the brush centred on a grid position, over `seconds` of
  * holding it there. Heights are fractional while a stroke is in progress;
- * `target` is the height Flatten levels towards.
+ * `target` is the height Flatten levels towards. Only the columns under the
+ * brush are visited.
  */
 export function applyBrush(
     grid: TankGrid,
@@ -72,26 +34,28 @@ export function applyBrush(
     seconds: number,
     target: number,
 ): void {
-    const { columns, rows } = heightmapSize(grid);
-    const radius = Math.max(
-        brush.radiusCm * CELLS_PER_CM,
-        grid.substrate_column * 0.75,
-    );
-    const source =
-        brush.tool === 'smooth' ? Float32Array.from(heights) : heights;
+    const radius = Math.max(brush.radiusCm * CELLS_PER_CM, 1);
+    const box = {
+        x0: clamp(Math.floor(cellX - radius), 0, grid.width - 1),
+        x1: clamp(Math.ceil(cellX + radius), 0, grid.width - 1),
+        z0: clamp(Math.floor(cellZ - radius), 0, grid.depth - 1),
+        z1: clamp(Math.ceil(cellZ + radius), 0, grid.depth - 1),
+    };
+    const average =
+        brush.tool === 'smooth' ? boxAverage(grid, heights, box) : null;
     const blend = Math.min(1, BLEND_RATE * seconds);
+    const boxWidth = box.x1 - box.x0 + 1;
 
-    for (let row = 0; row < rows; row++) {
-        for (let column = 0; column < columns; column++) {
-            const centre = columnCentre(grid, column, row);
-            const distance = Math.hypot(centre.x - cellX, centre.z - cellZ);
+    for (let z = box.z0; z <= box.z1; z++) {
+        for (let x = box.x0; x <= box.x1; x++) {
+            const distance = Math.hypot(x + 0.5 - cellX, z + 0.5 - cellZ);
 
             if (distance >= radius) {
                 continue;
             }
 
             const falloff = 0.5 * (1 + Math.cos((Math.PI * distance) / radius));
-            const index = row * columns + column;
+            const index = z * grid.width + x;
             let height = heights[index];
 
             switch (brush.tool) {
@@ -106,7 +70,8 @@ export function applyBrush(
                     break;
                 case 'smooth':
                     height +=
-                        (neighbourAverage(source, columns, rows, column, row) -
+                        ((average?.[(z - box.z0) * boxWidth + (x - box.x0)] ??
+                            height) -
                             height) *
                         blend *
                         falloff;
@@ -122,35 +87,59 @@ export function applyBrush(
 export function settleHeights(
     grid: TankGrid,
     heights: ArrayLike<number>,
-): number[] {
-    return Array.from(heights, (height) =>
+): Uint16Array {
+    return Uint16Array.from(heights, (height) =>
         clamp(Math.round(height), 0, grid.max_water_level),
     );
 }
 
-function neighbourAverage(
-    heights: Float32Array,
-    columns: number,
-    rows: number,
-    column: number,
-    row: number,
-): number {
-    let total = 0;
-    let count = 0;
+/**
+ * The mean height within {@link SMOOTH_RADIUS} of each column in a box of the
+ * grid (row by row within the box), as two separable passes.
+ */
+function boxAverage(
+    grid: TankGrid,
+    heights: ArrayLike<number>,
+    box: { x0: number; x1: number; z0: number; z1: number },
+): Float32Array {
+    const z0 = Math.max(0, box.z0 - SMOOTH_RADIUS);
+    const z1 = Math.min(grid.depth - 1, box.z1 + SMOOTH_RADIUS);
+    const boxWidth = box.x1 - box.x0 + 1;
+    const across = new Float32Array((z1 - z0 + 1) * boxWidth);
 
-    for (let dz = -1; dz <= 1; dz++) {
-        for (let dx = -1; dx <= 1; dx++) {
-            const c = column + dx;
-            const r = row + dz;
+    for (let z = z0; z <= z1; z++) {
+        for (let x = box.x0; x <= box.x1; x++) {
+            const from = Math.max(0, x - SMOOTH_RADIUS);
+            const to = Math.min(grid.width - 1, x + SMOOTH_RADIUS);
+            let total = 0;
 
-            if (c >= 0 && r >= 0 && c < columns && r < rows) {
-                total += heights[r * columns + c];
-                count++;
+            for (let nx = from; nx <= to; nx++) {
+                total += heights[z * grid.width + nx];
             }
+
+            across[(z - z0) * boxWidth + (x - box.x0)] =
+                total / (to - from + 1);
         }
     }
 
-    return total / count;
+    const average = new Float32Array((box.z1 - box.z0 + 1) * boxWidth);
+
+    for (let z = box.z0; z <= box.z1; z++) {
+        const from = Math.max(z0, z - SMOOTH_RADIUS);
+        const to = Math.min(z1, z + SMOOTH_RADIUS);
+
+        for (let x = 0; x < boxWidth; x++) {
+            let total = 0;
+
+            for (let nz = from; nz <= to; nz++) {
+                total += across[(nz - z0) * boxWidth + x];
+            }
+
+            average[(z - box.z0) * boxWidth + x] = total / (to - from + 1);
+        }
+    }
+
+    return average;
 }
 
 /** A ready-made substrate shape. */
@@ -158,7 +147,7 @@ export type SubstratePreset = {
     key: string;
     label: string;
     description: string;
-    build: (grid: TankGrid) => number[];
+    build: (grid: TankGrid) => Uint16Array;
 };
 
 /**
@@ -168,25 +157,25 @@ export type SubstratePreset = {
 function shaped(
     grid: TankGrid,
     shape: (u: number, v: number) => number,
-): number[] {
-    const { columns, rows } = heightmapSize(grid);
+): Uint16Array {
     const low = DEFAULT_SUBSTRATE_CELLS;
     // Land stands a little proud (2 cm) of the water when the water is low enough.
     const high = Math.min(
         grid.max_water_level,
         Math.max(grid.water_level + 2 * CELLS_PER_CM, low + 6 * CELLS_PER_CM),
     );
-    const heights: number[] = [];
+    const heights = new Uint16Array(grid.width * grid.depth);
 
-    for (let row = 0; row < rows; row++) {
-        for (let column = 0; column < columns; column++) {
-            const centre = columnCentre(grid, column, row);
+    for (let z = 0; z < grid.depth; z++) {
+        for (let x = 0; x < grid.width; x++) {
             const amount = clamp(
-                shape(centre.x / grid.width, centre.z / grid.depth),
+                shape((x + 0.5) / grid.width, (z + 0.5) / grid.depth),
                 0,
                 1,
             );
-            heights.push(Math.round(low + (high - low) * amount));
+            heights[z * grid.width + x] = Math.round(
+                low + (high - low) * amount,
+            );
         }
     }
 

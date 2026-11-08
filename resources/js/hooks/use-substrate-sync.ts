@@ -1,7 +1,12 @@
 import { router } from '@inertiajs/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import {
+    decodeSubstrate,
+    encodeSubstrate,
+} from '@/lib/tank/substrate-heightmap';
 import substrateRoutes from '@/routes/tanks/substrate';
+import type { TankGrid } from '@/types';
 
 /** How often unsaved gravel changes are sent to the server. */
 export const SUBSTRATE_SYNC_INTERVAL_MS = 2_000;
@@ -11,9 +16,9 @@ const HISTORY_LIMIT = 20;
 
 type SubstrateSync = {
     /** The gravel to show: unsaved changes if there are any, otherwise the saved shape. */
-    substrate: number[];
+    substrate: Uint16Array;
     /** Reshape the gravel at once; it is saved with the next batch. */
-    reshape: (heights: number[]) => void;
+    reshape: (heights: Uint16Array) => void;
     undo: () => void;
     canUndo: boolean;
 };
@@ -32,19 +37,46 @@ function xsrfToken(): string {
  * the tank-actions rate limit. Anything unsaved is sent as the page is left.
  * If the server refuses a batch, the changes made since the last save are
  * dropped along with their Undo steps.
+ *
+ * The saved shape arrives as run-length pairs; it is decoded once, and the
+ * same heightmap is kept while the server sends the same runs, so the scene
+ * only rebuilds the gravel when it actually changes.
  */
 export function useSubstrateSync(
     tankId: number,
-    savedSubstrate: number[],
+    grid: TankGrid,
+    savedRuns: number[],
 ): SubstrateSync {
-    const [unsaved, setUnsaved] = useState<number[] | null>(null);
-    const [history, setHistory] = useState<number[][]>([]);
+    const [unsaved, setUnsaved] = useState<Uint16Array | null>(null);
+    const [history, setHistory] = useState<Uint16Array[]>([]);
+    const [saved, setSaved] = useState(() => ({
+        runs: savedRuns,
+        width: grid.width,
+        depth: grid.depth,
+        heights: decodeSubstrate(savedRuns, grid),
+    }));
+
+    if (
+        saved.runs !== savedRuns &&
+        !(
+            saved.width === grid.width &&
+            saved.depth === grid.depth &&
+            sameRuns(saved.runs, savedRuns)
+        )
+    ) {
+        setSaved({
+            runs: savedRuns,
+            width: grid.width,
+            depth: grid.depth,
+            heights: decodeSubstrate(savedRuns, grid),
+        });
+    }
 
     /** The latest unsaved shape, read by the timer and unload handlers. */
-    const pending = useRef<number[] | null>(null);
-    const historyRef = useRef<number[][]>([]);
+    const pending = useRef<Uint16Array | null>(null);
+    const historyRef = useRef<Uint16Array[]>([]);
     /** The Undo history as of the last save, restored if a batch is refused. */
-    const savedHistory = useRef<number[][]>([]);
+    const savedHistory = useRef<Uint16Array[]>([]);
     const isSending = useRef(false);
 
     // Another tank starts with nothing unsaved and nothing to undo.
@@ -56,16 +88,16 @@ export function useSubstrateSync(
         setHistory([]);
     }
 
-    const substrate = unsaved ?? savedSubstrate;
+    const substrate = unsaved ?? saved.heights;
 
-    const show = (heights: number[], nextHistory: number[][]) => {
+    const show = (heights: Uint16Array, nextHistory: Uint16Array[]) => {
         pending.current = heights;
         historyRef.current = nextHistory;
         setUnsaved(heights);
         setHistory(nextHistory);
     };
 
-    const reshape = (heights: number[]) => {
+    const reshape = (heights: Uint16Array) => {
         show(heights, [...history.slice(-(HISTORY_LIMIT - 1)), substrate]);
     };
 
@@ -88,7 +120,7 @@ export function useSubstrateSync(
 
         router.put(
             substrateRoutes.update.url(tankId),
-            { heights },
+            { runs: encodeSubstrate(heights) },
             {
                 async: true,
                 preserveScroll: true,
@@ -109,7 +141,7 @@ export function useSubstrateSync(
                     setHistory(savedHistory.current);
 
                     toast.error(
-                        errors.heights ?? 'The gravel could not be reshaped.',
+                        errors.runs ?? 'The gravel could not be reshaped.',
                     );
                 },
                 onFinish: () => {
@@ -147,7 +179,7 @@ export function useSubstrateSync(
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-XSRF-TOKEN': xsrfToken(),
                 },
-                body: JSON.stringify({ heights }),
+                body: JSON.stringify({ runs: encodeSubstrate(heights) }),
             }).catch(() => {
                 // Nothing more can be done once the page has gone.
             });
@@ -164,4 +196,10 @@ export function useSubstrateSync(
     }, [tankId]);
 
     return { substrate, reshape, undo, canUndo: history.length > 0 };
+}
+
+function sameRuns(a: number[], b: number[]): boolean {
+    return (
+        a.length === b.length && a.every((value, index) => value === b[index])
+    );
 }

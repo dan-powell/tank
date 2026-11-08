@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Tank;
 use App\Models\User;
+use App\Simulation\SubstrateHeightmap;
 use App\Simulation\TankGeometry;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -63,6 +64,18 @@ class TankFactory extends Factory
             'grid_depth' => $depth,
             'water_level' => TankGeometry::maxWaterLevel($height),
             'layer_count' => TankGeometry::layerCountFor($depth),
+        ]);
+    }
+
+    /**
+     * A sculpted substrate: the height (in cells) of each grid column, given its x and z.
+     *
+     * @param  callable(int, int): int  $heightAt
+     */
+    public function withSubstrate(callable $heightAt): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'substrate_heights' => SubstrateHeightmap::fromColumns($attributes['grid_width'], $attributes['grid_depth'], $heightAt)->toRuns(),
         ]);
     }
 

@@ -32,7 +32,7 @@ final class TankState
      * @param  float  $landAreaCm2  Dry ground above the water.
      * @param  float  $waterSurfaceShare  Share of the floor plan that is open water (0..1).
      * @param  bool  $isSealed  Whether the lid is sealed (no air exchange with the room).
-     * @param  list<int>  $substrateHeights  The substrate heightmap (empty when flat); see TankGeometry.
+     * @param  SubstrateHeightmap|null  $substrate  The substrate heightmap (null when flat).
      */
     public function __construct(
         public int $volumeLitres,
@@ -70,7 +70,7 @@ final class TankState
         public float $landAreaCm2 = 0.0,
         public float $waterSurfaceShare = 1.0,
         public bool $isSealed = false,
-        public array $substrateHeights = [],
+        public ?SubstrateHeightmap $substrate = null,
     ) {}
 
     /**
@@ -136,15 +136,7 @@ final class TankState
      */
     public function substrateHeightAt(int $x, int $z): int
     {
-        if ($this->substrateHeights === []) {
-            return TankGeometry::DEFAULT_SUBSTRATE;
-        }
-
-        $columns = (int) ceil($this->gridWidth / TankGeometry::SUBSTRATE_COLUMN);
-        $column = min($columns - 1, max(0, intdiv($x, TankGeometry::SUBSTRATE_COLUMN)));
-        $row = max(0, intdiv($z, TankGeometry::SUBSTRATE_COLUMN));
-
-        return $this->substrateHeights[$row * $columns + $column] ?? TankGeometry::DEFAULT_SUBSTRATE;
+        return $this->substrate?->heightAt($x, $z) ?? TankGeometry::DEFAULT_SUBSTRATE;
     }
 
     /**

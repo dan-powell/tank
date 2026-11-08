@@ -2,6 +2,7 @@ import { Edges } from '@react-three/drei';
 import { useMemo } from 'react';
 import { DoubleSide, InstancedMesh, Object3D } from 'three';
 import { TANK } from '@/lib/tank/space';
+import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { substrateHeightAt } from '@/lib/tank/terrain-field';
 import type { TankGrid, WaterParameters } from '@/types';
 import { Bubbles } from './bubbles';
@@ -11,8 +12,8 @@ type Props = {
     water: WaterParameters;
     isLit: boolean;
     grid: TankGrid;
-    /** Substrate height in grid cells per heightmap column, for litter lying on it. */
-    substrate: number[];
+    /** The substrate's heightmap, for litter lying on it. */
+    substrate: Heightmap;
     /** False when the tank is empty: no bubbles from the air stone. */
     hasWater: boolean;
     /** A sealed tank gets a glass lid, and mists up as its air grows humid. */
@@ -125,7 +126,7 @@ function Detritus({
 }: {
     amount: number;
     grid: TankGrid;
-    substrate: number[];
+    substrate: Heightmap;
 }) {
     const count = Math.min(250, Math.round(amount * 50));
     const offsets = useMemo(

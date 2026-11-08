@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Tank;
+use App\Simulation\SubstrateHeightmap;
 use App\Simulation\Systems\LightingSystem;
 use App\Simulation\TankGeometry;
 use Illuminate\Http\Request;
@@ -40,7 +41,7 @@ class TankResource extends JsonResource
                 'oxygen' => round($this->air_oxygen, 2),
                 'co2' => round($this->air_co2),
             ],
-            'substrate' => TankGeometry::substrateHeights($this->resource),
+            'substrate' => SubstrateHeightmap::of($this->resource)->toRuns(),
             'water' => [
                 'temperature' => round($this->temperature, 1),
                 'target_temperature' => round($this->target_temperature, 1),

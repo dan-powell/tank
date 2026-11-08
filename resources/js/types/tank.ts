@@ -79,7 +79,7 @@ export type DecorationDefinition = {
     };
 };
 
-/** The decoration grid (0.5 cm cells) shared by decorations, substrate and water. */
+/** The decoration grid (0.2 cm cells) shared by decorations, substrate and water. */
 export type TankGrid = {
     width: number;
     height: number;
@@ -88,8 +88,6 @@ export type TankGrid = {
     water_level: number;
     /** The highest water level the tank can be filled to. */
     max_water_level: number;
-    /** Cells per side of one substrate heightmap column. */
-    substrate_column: number;
 };
 
 /** The tank inhabitant or decoration picked out in the scene. */
@@ -132,7 +130,7 @@ export type TankSnapshot = {
     background: TankBackground;
     /** The air above the water: humidity %, oxygen % by volume, CO2 ppm. */
     air: { humidity: number; oxygen: number; co2: number };
-    /** Substrate height in cells per heightmap column, row by row from the back glass. */
+    /** Substrate height in cells per grid column, row by row from the back glass, as run-length [height, count, ...] pairs (see decodeSubstrate). */
     substrate: number[];
     water: WaterParameters;
     light_on: boolean;

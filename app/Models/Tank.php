@@ -30,7 +30,7 @@ use Illuminate\Support\Carbon;
  * @property int $grid_depth Interior depth in grid cells.
  * @property int $water_level First grid cell row above the water (at or below the substrate when empty).
  * @property int $layer_count Number of depth layers the tank is divided into.
- * @property list<int>|null $substrate_heights Substrate depth per heightmap column, in grid cells (null = flat; see TankGeometry).
+ * @property list<int>|null $substrate_heights Substrate height per grid column as run-length pairs (null = flat; see SubstrateHeightmap).
  * @property float $temperature
  * @property float $target_temperature
  * @property float $ph

@@ -12,7 +12,7 @@ type Props = {
     /** The brush while sculpt mode is on, otherwise null. */
     brush: SculptBrush | null;
     onBrushChange: (brush: SculptBrush | null) => void;
-    onApply: (heights: number[]) => void;
+    onApply: (heights: Uint16Array) => void;
     onUndo: () => void;
     canUndo: boolean;
 };

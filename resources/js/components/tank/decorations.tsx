@@ -6,6 +6,7 @@ import type { Group, Object3D } from 'three';
 import { useDecorModels } from '@/hooks/use-decor-model';
 import type { DecorModel } from '@/hooks/use-decor-model';
 import { cellToWorld, VOXEL, worldToCell } from '@/lib/tank/space';
+import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { TerrainField } from '@/lib/tank/terrain-field';
 import { rotateCell } from '@/lib/tank/voxel-volume';
 import type { TankWorld } from '@/lib/tank/world';
@@ -37,7 +38,7 @@ type Props = {
     species: Map<number, Species>;
     world: TankWorld;
     grid: TankGrid;
-    substrate: number[];
+    substrate: Heightmap;
     viewMode: TankViewMode;
     /** Whether decorations may be moved (not through a sealed lid). */
     canArrange: boolean;
@@ -82,7 +83,6 @@ export function Decorations({
                 `${d.id}:${d.type}:${d.seed}:${d.rotation}:${d.position.join(',')}`,
         )
         .join('|');
-    const substrateKey = substrate.join(',');
 
     const terrain = useMemo(
         () =>
@@ -107,7 +107,7 @@ export function Decorations({
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [
             placementKey,
-            substrateKey,
+            substrate,
             grid.width,
             grid.height,
             grid.depth,

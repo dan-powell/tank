@@ -65,14 +65,13 @@ class TankControllerTest extends TestCase
                     'seed' => 99,
                 ])
                 ->where('tank.plants.0.attachment', ['decoration_id' => $decoration->id, 'anchor' => 1])
-                ->where('tank.grid', ['width' => 300, 'height' => 163, 'depth' => 138, 'water_level' => 153, 'max_water_level' => 153, 'substrate_column' => 5])
+                ->where('tank.grid', ['width' => 300, 'height' => 163, 'depth' => 138, 'water_level' => 153, 'max_water_level' => 153])
                 ->where('tank.has_water', true)
                 ->where('tank.is_sealed', false)
                 ->where('tank.air', ['humidity' => 70, 'oxygen' => 20.9, 'co2' => 420])
                 ->where('tank.land_area_cm2', 0)
                 ->where('species', fn ($species): bool => collect($species)->every(fn (array $entry): bool => isset($entry['habitat'])))
-                ->has('tank.substrate', 60 * 28)
-                ->where('tank.substrate.0', 10)
+                ->where('tank.substrate', [10, 300 * 138])
                 ->has('decorationCatalogue', 6)
                 ->where('decorationCatalogue.1.slug', 'boulder')
                 ->where('decorationCatalogue.1.anchors.0', [33, 43, 28]));

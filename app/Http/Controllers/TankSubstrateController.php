@@ -14,7 +14,7 @@ class TankSubstrateController extends Controller
      */
     public function update(SculptSubstrateRequest $request, Tank $tank, SculptSubstrate $sculptSubstrate): RedirectResponse
     {
-        $sculptSubstrate->handle($tank, $request->heights());
+        $sculptSubstrate->handle($tank, $request->heightmap());
 
         return back();
     }

@@ -6,6 +6,7 @@ import { MOUSE } from 'three';
 import type { Vector3 } from 'three';
 import { TANK } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
+import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
 import type {
     DecorationDefinition,
@@ -35,6 +36,8 @@ import { WaterVolume } from './water-volume';
 
 type Props = {
     tank: TankSnapshot;
+    /** The gravel as shown: the tank's own, or a shape not saved yet. */
+    substrate: Heightmap;
     species: Species[];
     world: TankWorld;
     viewMode: TankViewMode;
@@ -46,7 +49,7 @@ type Props = {
     onMoveDecoration: (decorationId: number, position: GridCell) => void;
     /** The sculpting brush while sculpt mode is on; selection is paused meanwhile. */
     sculptBrush: SculptBrush | null;
-    onSculpt: (heights: number[]) => void;
+    onSculpt: (heights: Uint16Array) => void;
     /** While an inhabitant is being moved: how to read the click, and where it landed. */
     placement: PlacementMode | null;
     onPlace: (point: Vector3) => void;
@@ -68,6 +71,7 @@ const MOUSE_BUTTONS = { MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE };
 
 export function TankScene({
     tank,
+    substrate,
     species,
     world,
     viewMode,
@@ -173,7 +177,7 @@ export function TankScene({
                 water={tank.water}
                 isLit={tank.is_lit}
                 grid={tank.grid}
-                substrate={tank.substrate}
+                substrate={substrate}
                 hasWater={tank.has_water}
                 isSealed={tank.is_sealed}
                 humidity={tank.air.humidity}
@@ -181,7 +185,7 @@ export function TankScene({
             />
             <Substrate
                 grid={tank.grid}
-                heights={tank.substrate}
+                heights={substrate}
                 brush={sculptBrush}
                 onSculpt={onSculpt}
                 onStrokeChange={setGizmoDragging}
@@ -194,7 +198,7 @@ export function TankScene({
                     species={speciesById}
                     world={world}
                     grid={tank.grid}
-                    substrate={tank.substrate}
+                    substrate={substrate}
                     viewMode={viewMode}
                     canArrange={!tank.is_sealed}
                     selectedDecorationId={
@@ -218,7 +222,7 @@ export function TankScene({
                     species={speciesById}
                     layerCount={tank.layer_count}
                     grid={tank.grid}
-                    substrate={tank.substrate}
+                    substrate={substrate}
                     selectedId={
                         selection?.kind === 'plant' ? selection.id : null
                     }

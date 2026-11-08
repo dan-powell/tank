@@ -4,7 +4,6 @@ namespace Tests\Feature\Tanks;
 
 use App\Models\Decoration;
 use App\Models\Tank;
-use App\Simulation\TankGeometry;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -34,7 +33,7 @@ class RegridTanksMigrationTest extends TestCase
         $this->assertSame([300, 163, 138, 152], [$tank->grid_width, $tank->grid_height, $tank->grid_depth, $tank->water_level]);
         $this->assertSame([10, 25], array_slice($tank->substrate_heights, 0, 2));
         $this->assertSame([100, 10, 50], [$decoration->fresh()->x, $decoration->fresh()->y, $decoration->fresh()->z]);
-        $this->assertSame(TankGeometry::waterLitres($tank), $tank->volume_litres);
+        $this->assertSame(42, $tank->volume_litres);
     }
 
     private function migration(): Migration

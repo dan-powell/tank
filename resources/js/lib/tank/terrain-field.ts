@@ -1,6 +1,8 @@
 import { Vector3 } from 'three';
 import type { GridCell, TankGrid } from '@/types';
 import { VOXEL, TANK } from './space';
+import { heightAt } from './substrate-heightmap';
+import type { Heightmap } from './substrate-heightmap';
 import type { VoxelVolume } from './voxel-volume';
 import { voxelAt } from './voxel-volume';
 
@@ -56,25 +58,13 @@ export class TerrainField {
 
     private readonly placements: Placement[] = [];
 
-    constructor(grid: TankGrid, substrate: number[], placements: Placement[]) {
+    constructor(grid: TankGrid, substrate: Heightmap, placements: Placement[]) {
         this.width = grid.width;
         this.height = grid.height;
         this.depth = grid.depth;
         this.waterLevel = grid.water_level;
-        this.ground = new Uint16Array(this.width * this.depth);
+        this.ground = Uint16Array.from(substrate);
         this.spans = Array.from({ length: this.width * this.depth });
-
-        const columns = Math.ceil(this.width / grid.substrate_column);
-
-        for (let z = 0; z < this.depth; z++) {
-            for (let x = 0; x < this.width; x++) {
-                this.ground[this.column(x, z)] =
-                    substrate[
-                        Math.floor(z / grid.substrate_column) * columns +
-                            Math.floor(x / grid.substrate_column)
-                    ] ?? 0;
-            }
-        }
 
         placements.forEach((placement, index) => {
             this.placements.push(placement);
@@ -417,30 +407,16 @@ export class TerrainField {
 /** The substrate's surface height (world units) beneath a world-space x/z. */
 export function substrateHeightAt(
     grid: TankGrid,
-    substrate: number[],
+    substrate: Heightmap,
     worldX: number,
     worldZ: number,
 ): number {
-    const columns = Math.ceil(grid.width / grid.substrate_column);
-    const rows = Math.ceil(grid.depth / grid.substrate_column);
-    const column = Math.min(
-        columns - 1,
-        Math.max(
-            0,
-            Math.floor(
-                (worldX + TANK.width / 2) / VOXEL / grid.substrate_column,
-            ),
-        ),
+    return (
+        heightAt(
+            grid,
+            substrate,
+            (worldX + TANK.width / 2) / VOXEL,
+            (worldZ + TANK.depth / 2) / VOXEL,
+        ) * VOXEL
     );
-    const row = Math.min(
-        rows - 1,
-        Math.max(
-            0,
-            Math.floor(
-                (worldZ + TANK.depth / 2) / VOXEL / grid.substrate_column,
-            ),
-        ),
-    );
-
-    return (substrate[row * columns + column] ?? 0) * VOXEL;
 }

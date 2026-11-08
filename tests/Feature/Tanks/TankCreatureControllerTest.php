@@ -125,7 +125,7 @@ class TankCreatureControllerTest extends TestCase
 
     public function test_a_water_animal_cannot_be_moved_onto_dry_land(): void
     {
-        $tank = Tank::factory()->create(['substrate_heights' => $this->landOnTheLeft()]);
+        $tank = $this->tankWithLandOnTheLeft();
         $creature = Creature::factory()->for($tank)->create(['zone_x' => 0.8]);
 
         $this->actingAs($tank->user)
@@ -137,7 +137,7 @@ class TankCreatureControllerTest extends TestCase
 
     public function test_a_land_animal_can_be_rescued_onto_dry_land_but_not_put_in_the_water(): void
     {
-        $tank = Tank::factory()->create(['substrate_heights' => $this->landOnTheLeft()]);
+        $tank = $this->tankWithLandOnTheLeft();
         $springtail = Creature::factory()->for($tank)->for(Species::factory()->catalogue('springtail'))->create(['zone_x' => 0.8]);
 
         $this->actingAs($tank->user)
@@ -192,20 +192,10 @@ class TankCreatureControllerTest extends TestCase
     }
 
     /**
-     * A heightmap (60 x 28 columns) with gravel above the water on the left half.
-     *
-     * @return list<int>
+     * A tank with gravel raised above the water on its left half.
      */
-    private function landOnTheLeft(): array
+    private function tankWithLandOnTheLeft(): Tank
     {
-        $heights = [];
-
-        for ($row = 0; $row < 28; $row++) {
-            for ($column = 0; $column < 60; $column++) {
-                $heights[] = $column < 30 ? 153 : 10;
-            }
-        }
-
-        return $heights;
+        return Tank::factory()->withSubstrate(fn (int $x): int => $x < 150 ? 153 : 10)->create();
     }
 }

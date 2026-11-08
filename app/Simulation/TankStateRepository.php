@@ -102,7 +102,7 @@ final class TankStateRepository
             landAreaCm2: TankGeometry::landAreaCm2($tank, $decorations),
             waterSurfaceShare: TankGeometry::waterSurfaceShare($tank),
             isSealed: $tank->is_sealed,
-            substrateHeights: $tank->substrate_heights === null ? [] : TankGeometry::substrateHeights($tank),
+            substrate: $tank->substrate_heights === null ? null : SubstrateHeightmap::of($tank),
         );
     }
 

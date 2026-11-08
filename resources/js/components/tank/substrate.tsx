@@ -4,23 +4,21 @@ import { Color, Vector3 } from 'three';
 import type { Mesh } from 'three';
 import { CELLS_PER_CM, VOXEL, worldToCell } from '@/lib/tank/space';
 import { buildSubstrateGeometry } from '@/lib/tank/substrate-geometry';
-import {
-    applyBrush,
-    heightAt,
-    settleHeights,
-} from '@/lib/tank/substrate-sculpt';
+import { heightAt } from '@/lib/tank/substrate-heightmap';
+import type { Heightmap } from '@/lib/tank/substrate-heightmap';
+import { applyBrush, settleHeights } from '@/lib/tank/substrate-sculpt';
 import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
 import type { TankGrid } from '@/types';
 import { createCausticMaterial } from './caustics';
 
 type Props = {
     grid: TankGrid;
-    /** Saved substrate heights, in grid cells per heightmap column. */
-    heights: number[];
+    /** The gravel's heightmap (see Heightmap). */
+    heights: Heightmap;
     /** The sculpting brush, while sculpt mode is on. */
     brush: SculptBrush | null;
     /** Save a finished stroke. */
-    onSculpt: (heights: number[]) => void;
+    onSculpt: (heights: Uint16Array) => void;
     /** Called as a stroke starts and ends, so camera controls can stand aside. */
     onStrokeChange: (isStroking: boolean) => void;
 };
@@ -49,7 +47,7 @@ export function Substrate({
 }: Props) {
     const mesh = useRef<Mesh>(null);
     const stroke = useRef<Stroke | null>(null);
-    const [draft, setDraft] = useState<number[] | null>(null);
+    const [draft, setDraft] = useState<Float32Array | null>(null);
     const [cursor, setCursor] = useState<Vector3 | null>(null);
     const scratch = useMemo(() => new Vector3(), []);
 
@@ -61,11 +59,10 @@ export function Substrate({
         [],
     );
     const shown = draft ?? heights;
-    const shownKey = shown.join(',');
     const geometry = useMemo(
-        () => buildSubstrateGeometry(grid, shownKey.split(',').map(Number)),
+        () => buildSubstrateGeometry(grid, shown),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [grid.width, grid.depth, grid.substrate_column, shownKey],
+        [grid.width, grid.depth, shown],
     );
 
     useEffect(() => () => material.dispose(), [material]);
@@ -105,7 +102,7 @@ export function Substrate({
             Math.max(seconds, 1 / 60),
             active.target,
         );
-        setDraft(Array.from(active.heights));
+        setDraft(Float32Array.from(active.heights));
     };
 
     const finish = () => {

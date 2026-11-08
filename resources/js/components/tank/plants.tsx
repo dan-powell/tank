@@ -4,6 +4,7 @@ import type { Group, Vector3 } from 'three';
 import { useSpeciesModel } from '@/hooks/use-species-model';
 import { assembleMoss, assemblePlant } from '@/lib/tank/plant-assembly';
 import { laneOffset, layerToZ, toWorld, VOXEL } from '@/lib/tank/space';
+import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { substrateHeightAt } from '@/lib/tank/terrain-field';
 import { buildVolumeGeometry, TINT_INDEX } from '@/lib/tank/voxel-volume';
 import type { PlantSnapshot, Species, TankGrid } from '@/types';
@@ -26,7 +27,7 @@ type Props = {
     species: Map<number, Species>;
     layerCount: number;
     grid: TankGrid;
-    substrate: number[];
+    substrate: Heightmap;
     selectedId: number | null;
     onSelect: (plantId: number) => void;
 };
@@ -76,7 +77,7 @@ function RootedPlant({
 }: Omit<PlantProps, 'position' | 'groundAt'> & {
     layerCount: number;
     grid: TankGrid;
-    substrate: number[];
+    substrate: Heightmap;
 }) {
     const layer = Math.min(layerCount - 1, plant.layer);
     const position = useMemo(() => {

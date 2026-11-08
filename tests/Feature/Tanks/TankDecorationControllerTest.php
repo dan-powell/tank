@@ -103,7 +103,7 @@ class TankDecorationControllerTest extends TestCase
 
     public function test_decorations_rest_on_raised_substrate(): void
     {
-        $tank = Tank::factory()->create(['substrate_heights' => array_fill(0, 60 * 28, 25)]);
+        $tank = Tank::factory()->withSubstrate(fn (): int => 25)->create();
 
         $this->actingAs($tank->user)
             ->post(route('tanks.decorations.store', $tank), ['type' => 'pebble'])

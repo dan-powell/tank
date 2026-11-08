@@ -90,7 +90,7 @@ class TankPlantControllerTest extends TestCase
 
     public function test_a_plant_cannot_be_moved_where_it_would_not_grow(): void
     {
-        $tank = Tank::factory()->create(['substrate_heights' => $this->landOnTheLeft()]);
+        $tank = $this->tankWithLandOnTheLeft();
         $plant = Plant::factory()->for($tank)->for(Species::factory()->plant()->state(['name' => 'Vallisneria']))->create(['root_x' => 0.8]);
 
         $this->actingAs($tank->user)
@@ -112,20 +112,10 @@ class TankPlantControllerTest extends TestCase
     }
 
     /**
-     * A heightmap (60 x 28 columns) with gravel above the water on the left half.
-     *
-     * @return list<int>
+     * A tank with gravel raised above the water on its left half.
      */
-    private function landOnTheLeft(): array
+    private function tankWithLandOnTheLeft(): Tank
     {
-        $heights = [];
-
-        for ($row = 0; $row < 28; $row++) {
-            for ($column = 0; $column < 60; $column++) {
-                $heights[] = $column < 30 ? 153 : 10;
-            }
-        }
-
-        return $heights;
+        return Tank::factory()->withSubstrate(fn (int $x): int => $x < 150 ? 153 : 10)->create();
     }
 }

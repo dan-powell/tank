@@ -36,8 +36,8 @@ final class TankGeometry
     /** Smallest gap between a full tank's water line and the rim, in cells. */
     public const int RIM_GAP = 10;
 
-    /** The substrate heightmap holds one height per square of this many cells (1 cm). */
-    public const int SUBSTRATE_COLUMN = 5;
+    /** Spacing of the lattice (1 cm) that dry ground and plant root spots are sampled on, in cells. */
+    public const int SAMPLE_SPACING = 5;
 
     /** Substrate depth of an unsculpted tank, in cells (2 cm). */
     public const int DEFAULT_SUBSTRATE = 10;
@@ -60,7 +60,7 @@ final class TankGeometry
     /**
      * The grid dimensions sent to the browser.
      *
-     * @return array{width: int, height: int, depth: int, water_level: int, max_water_level: int, substrate_column: int}
+     * @return array{width: int, height: int, depth: int, water_level: int, max_water_level: int}
      */
     public static function grid(Tank $tank): array
     {
@@ -70,7 +70,6 @@ final class TankGeometry
             'depth' => $tank->grid_depth,
             'water_level' => self::waterLevel($tank),
             'max_water_level' => self::maxWaterLevel($tank->grid_height),
-            'substrate_column' => self::SUBSTRATE_COLUMN,
         ];
     }
 
@@ -143,17 +142,12 @@ final class TankGeometry
      */
     private static function waterCells(Tank $tank): int
     {
-        [$columns, $rows] = self::substrateColumns($tank);
-        $heights = self::substrateHeights($tank);
         $waterLevel = self::waterLevel($tank);
         $cells = 0;
 
-        for ($row = 0; $row < $rows; $row++) {
-            $rowDepth = min(self::SUBSTRATE_COLUMN, $tank->grid_depth - $row * self::SUBSTRATE_COLUMN);
-
-            for ($column = 0; $column < $columns; $column++) {
-                $columnWidth = min(self::SUBSTRATE_COLUMN, $tank->grid_width - $column * self::SUBSTRATE_COLUMN);
-                $cells += $rowDepth * $columnWidth * max(0, $waterLevel - $heights[$row * $columns + $column]);
+        foreach (self::substrateHeights($tank) as $height) {
+            if ($height < $waterLevel) {
+                $cells += $waterLevel - $height;
             }
         }
 
@@ -165,19 +159,11 @@ final class TankGeometry
      */
     public static function airLitres(Tank $tank): float
     {
-        [$columns, $rows] = self::substrateColumns($tank);
-        $heights = self::substrateHeights($tank);
         $waterLevel = self::isDry($tank) ? 0 : self::waterLevel($tank);
         $cells = 0;
 
-        for ($row = 0; $row < $rows; $row++) {
-            $rowDepth = min(self::SUBSTRATE_COLUMN, $tank->grid_depth - $row * self::SUBSTRATE_COLUMN);
-
-            for ($column = 0; $column < $columns; $column++) {
-                $columnWidth = min(self::SUBSTRATE_COLUMN, $tank->grid_width - $column * self::SUBSTRATE_COLUMN);
-                $floor = max($waterLevel, $heights[$row * $columns + $column]);
-                $cells += $rowDepth * $columnWidth * max(0, $tank->grid_height - $floor);
-            }
+        foreach (self::substrateHeights($tank) as $height) {
+            $cells += max(0, $tank->grid_height - max($waterLevel, $height));
         }
 
         return $cells * self::LITRES_PER_CELL;
@@ -199,59 +185,44 @@ final class TankGeometry
     }
 
     /**
-     * Dry ground above the water: substrate columns whose surface is out of
-     * the water, plus the tops of decorations that stand clear of it. Each is
-     * the cell at the column's centre, standing on the surface: [x, y, z].
+     * Dry ground above the water, sampled once per square centimetre (see
+     * SAMPLE_SPACING): the substrate where its surface is out of the water,
+     * or the top of a decoration standing clear of it. Each is the cell at
+     * the square's centre, standing on the surface: [x, y, z].
      *
      * @param  iterable<Decoration>  $decorations
      * @return list<array{0: int, 1: int, 2: int}>
      */
     public static function landColumns(Tank $tank, iterable $decorations): array
     {
-        [$columns, $rows] = self::substrateColumns($tank);
-        $heights = self::substrateHeights($tank);
+        $heightmap = SubstrateHeightmap::of($tank);
         $dry = self::isDry($tank);
         $waterLevel = self::waterLevel($tank);
+        $raised = array_values(array_filter(
+            array_map(self::footprint(...), is_array($decorations) ? $decorations : iterator_to_array($decorations, false)),
+            fn (GridBox $box): bool => $dry || $box->maxY() >= $waterLevel,
+        ));
+        $half = intdiv(self::SAMPLE_SPACING, 2);
         $land = [];
-        $half = intdiv(self::SUBSTRATE_COLUMN, 2);
 
-        for ($row = 0; $row < $rows; $row++) {
-            for ($column = 0; $column < $columns; $column++) {
-                $height = $heights[$row * $columns + $column];
+        for ($z = min($half, $tank->grid_depth - 1); $z < $tank->grid_depth; $z += self::SAMPLE_SPACING) {
+            for ($x = min($half, $tank->grid_width - 1); $x < $tank->grid_width; $x += self::SAMPLE_SPACING) {
+                $height = $heightmap->heightAt($x, $z);
+                $surface = $dry || $height >= $waterLevel ? $height : null;
 
-                if ($dry || $height >= $waterLevel) {
-                    $land[$row * $columns + $column] = [
-                        min($tank->grid_width - 1, $column * self::SUBSTRATE_COLUMN + $half),
-                        $height,
-                        min($tank->grid_depth - 1, $row * self::SUBSTRATE_COLUMN + $half),
-                    ];
-                }
-            }
-        }
-
-        foreach ($decorations as $decoration) {
-            $box = self::footprint($decoration);
-
-            if (! $dry && $box->maxY() < $waterLevel) {
-                continue;
-            }
-
-            for ($row = intdiv($box->z, self::SUBSTRATE_COLUMN); $row <= intdiv($box->maxZ() - 1, self::SUBSTRATE_COLUMN) && $row < $rows; $row++) {
-                for ($column = intdiv($box->x, self::SUBSTRATE_COLUMN); $column <= intdiv($box->maxX() - 1, self::SUBSTRATE_COLUMN) && $column < $columns; $column++) {
-                    $index = $row * $columns + $column;
-
-                    if (! isset($land[$index]) || $land[$index][1] < $box->maxY()) {
-                        $land[$index] = [
-                            min($tank->grid_width - 1, $column * self::SUBSTRATE_COLUMN + $half),
-                            $box->maxY(),
-                            min($tank->grid_depth - 1, $row * self::SUBSTRATE_COLUMN + $half),
-                        ];
+                foreach ($raised as $box) {
+                    if ($box->coversColumn($x, $z) && ($surface === null || $surface < $box->maxY())) {
+                        $surface = $box->maxY();
                     }
                 }
+
+                if ($surface !== null) {
+                    $land[] = [$x, $surface, $z];
+                }
             }
         }
 
-        return array_values($land);
+        return $land;
     }
 
     /**
@@ -282,9 +253,9 @@ final class TankGeometry
      */
     public static function landAreaCm2(Tank $tank, iterable $decorations): float
     {
-        $columnCm = self::SUBSTRATE_COLUMN / self::CELLS_PER_CM;
+        $sampleCm = self::SAMPLE_SPACING / self::CELLS_PER_CM;
 
-        return count(self::landColumns($tank, $decorations)) * $columnCm * $columnCm;
+        return count(self::landColumns($tank, $decorations)) * $sampleCm * $sampleCm;
     }
 
     /**
@@ -297,15 +268,14 @@ final class TankGeometry
      */
     public static function rootSpots(Tank $tank, Habitat $habitat, iterable $decorations, ?int $maxLayer = null): array
     {
-        [$columns] = self::substrateColumns($tank);
-        $heights = self::substrateHeights($tank);
+        $heightmap = SubstrateHeightmap::of($tank);
         $footprints = self::groundedFootprints($tank, $decorations);
         $hasWater = ! self::isDry($tank);
         $waterLevel = self::waterLevel($tank);
         $spots = [];
 
         for ($layer = 0; $layer <= ($maxLayer ?? $tank->layer_count - 1); $layer++) {
-            for ($x = 1; $x < $tank->grid_width; $x += self::SUBSTRATE_COLUMN) {
+            for ($x = 1; $x < $tank->grid_width; $x += self::SAMPLE_SPACING) {
                 $rootX = self::normalisedX($x, $tank->grid_width);
 
                 if ($rootX < 0.06 || $rootX > 0.94) {
@@ -313,8 +283,7 @@ final class TankGeometry
                 }
 
                 [$columnX, $columnZ] = self::plantColumn($rootX, $layer, $tank->layer_count, $tank->grid_width, $tank->grid_depth);
-                $height = $heights[intdiv($columnZ, self::SUBSTRATE_COLUMN) * $columns + intdiv($columnX, self::SUBSTRATE_COLUMN)]
-                    ?? self::DEFAULT_SUBSTRATE;
+                $height = $heightmap->heightAt($columnX, $columnZ);
 
                 if (array_any($footprints, fn (GridBox $box): bool => $box->coversColumn($columnX, $columnZ))) {
                     continue;
@@ -345,32 +314,13 @@ final class TankGeometry
     }
 
     /**
-     * The substrate heightmap's column counts along x and z.
-     *
-     * @return array{0: int, 1: int}
-     */
-    public static function substrateColumns(Tank $tank): array
-    {
-        return [
-            (int) ceil($tank->grid_width / self::SUBSTRATE_COLUMN),
-            (int) ceil($tank->grid_depth / self::SUBSTRATE_COLUMN),
-        ];
-    }
-
-    /**
-     * The full substrate heightmap, row by row from the back glass (index = row * columns + column).
+     * The full substrate heightmap: one height per grid column, row by row from the back glass (index = z * width + x).
      *
      * @return list<int>
      */
     public static function substrateHeights(Tank $tank): array
     {
-        [$columns, $rows] = self::substrateColumns($tank);
-        $stored = $tank->substrate_heights ?? [];
-
-        return array_map(
-            fn (int $index): int => (int) ($stored[$index] ?? self::DEFAULT_SUBSTRATE),
-            range(0, $columns * $rows - 1),
-        );
+        return SubstrateHeightmap::of($tank)->heights();
     }
 
     /**
@@ -378,11 +328,7 @@ final class TankGeometry
      */
     public static function substrateHeightAt(Tank $tank, int $x, int $z): int
     {
-        [$columns, $rows] = self::substrateColumns($tank);
-        $column = min($columns - 1, max(0, intdiv($x, self::SUBSTRATE_COLUMN)));
-        $row = min($rows - 1, max(0, intdiv($z, self::SUBSTRATE_COLUMN)));
-
-        return self::substrateHeights($tank)[$row * $columns + $column];
+        return SubstrateHeightmap::of($tank)->heightAt($x, $z);
     }
 
     /**
@@ -390,13 +336,12 @@ final class TankGeometry
      */
     public static function highestSubstrateUnder(Tank $tank, GridBox $box): int
     {
-        $heights = self::substrateHeights($tank);
-        [$columns, $rows] = self::substrateColumns($tank);
+        $heightmap = SubstrateHeightmap::of($tank);
         $highest = 0;
 
-        for ($row = intdiv($box->z, self::SUBSTRATE_COLUMN); $row <= min($rows - 1, intdiv($box->maxZ() - 1, self::SUBSTRATE_COLUMN)); $row++) {
-            for ($column = intdiv($box->x, self::SUBSTRATE_COLUMN); $column <= min($columns - 1, intdiv($box->maxX() - 1, self::SUBSTRATE_COLUMN)); $column++) {
-                $highest = max($highest, $heights[$row * $columns + $column]);
+        for ($z = max(0, $box->z); $z < min($tank->grid_depth, $box->maxZ()); $z++) {
+            for ($x = max(0, $box->x); $x < min($tank->grid_width, $box->maxX()); $x++) {
+                $highest = max($highest, $heightmap->heightAt($x, $z));
             }
         }
 
