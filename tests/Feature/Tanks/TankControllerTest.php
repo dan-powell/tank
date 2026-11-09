@@ -72,7 +72,7 @@ class TankControllerTest extends TestCase
                 ->where('tank.land_area_cm2', 0)
                 ->where('species', fn ($species): bool => collect($species)->every(fn (array $entry): bool => isset($entry['habitat'])))
                 ->where('tank.substrate', [10, 300 * 138])
-                ->has('decorationCatalogue', 6)
+                ->has('decorationCatalogue', 10)
                 ->where('decorationCatalogue.1.slug', 'boulder')
                 ->where('decorationCatalogue.1.anchors.0', [33, 43, 28]));
     }
