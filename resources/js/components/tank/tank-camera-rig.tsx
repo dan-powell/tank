@@ -48,6 +48,18 @@ const FLAT_ROTATION = 0.12;
 
 const TRANSITION_SECONDS = 0.8;
 
+/** Closest the 3D view may come to its pivot, in tank scales (close enough to see single voxels). */
+const ORBIT_MIN_DISTANCE = 0.2;
+
+/** Furthest the 3D view may pull back from its pivot, in tank scales. */
+const ORBIT_MAX_DISTANCE = 4.5;
+
+/** Closest zoom of the flat view, as a share of the distance that fills the screen with the tank front. */
+const FLAT_MIN_ZOOM = 0.08;
+
+/** The near clipping plane as a share of the camera's distance to its pivot, so close-ups aren't clipped. */
+const NEAR_PER_DISTANCE = 0.02;
+
 /**
  * A camera pose. Size is held as the visible half-height at the target, so
  * blending between a wide and a narrow field of view keeps the tank roughly
@@ -134,11 +146,13 @@ export function TankCameraRig({ mode, controls }: Props) {
         const active = transition.current;
         const orbit = controls.current;
 
-        if (
-            active === null ||
-            orbit === null ||
-            !(camera instanceof PerspectiveCamera)
-        ) {
+        if (orbit === null || !(camera instanceof PerspectiveCamera)) {
+            return;
+        }
+
+        fitClipPlanes(camera, orbit);
+
+        if (active === null) {
             return;
         }
 
@@ -250,8 +264,8 @@ function applyLimits(
     aspect: number,
 ): void {
     if (mode === 'orbit') {
-        orbit.minDistance = 1.2 * tankScale();
-        orbit.maxDistance = 4.5 * tankScale();
+        orbit.minDistance = ORBIT_MIN_DISTANCE * tankScale();
+        orbit.maxDistance = ORBIT_MAX_DISTANCE * tankScale();
         orbit.minPolarAngle = 0.3;
         orbit.maxPolarAngle = Math.PI / 2;
         orbit.minAzimuthAngle = -Infinity;
@@ -264,12 +278,31 @@ function applyLimits(
     const distanceFor = (fit: 'cover' | 'contain') =>
         flatPose(aspect, fit).halfHeight / halfFovTan(FLAT_FOV);
 
-    orbit.minDistance = distanceFor('cover') * 0.5;
+    orbit.minDistance = distanceFor('cover') * FLAT_MIN_ZOOM;
     orbit.maxDistance = distanceFor('contain') * 1.05;
     orbit.minPolarAngle = Math.PI / 2 - FLAT_ROTATION;
     orbit.maxPolarAngle = Math.PI / 2;
     orbit.minAzimuthAngle = -FLAT_ROTATION;
     orbit.maxAzimuthAngle = FLAT_ROTATION;
+}
+
+/**
+ * Keep the clipping planes in step with the zoom: a near plane close enough
+ * for close-ups, without losing depth precision when the camera is far off.
+ */
+function fitClipPlanes(camera: PerspectiveCamera, orbit: Controls): void {
+    const distance = camera.position.distanceTo(orbit.target);
+    const near = Math.max(0.001, distance * NEAR_PER_DISTANCE);
+    const far = distance + 10 * tankScale();
+
+    if (
+        Math.abs(camera.near - near) > near * 0.05 ||
+        Math.abs(camera.far - far) > far * 0.05
+    ) {
+        camera.near = near;
+        camera.far = far;
+        camera.updateProjectionMatrix();
+    }
 }
 
 /** Remove all limits so a transition is never clamped mid-way. */
