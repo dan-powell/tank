@@ -29,7 +29,7 @@ import {
     SELECTED_RENDER_ORDER,
 } from './halo-material';
 import { Plant } from './plants';
-import { useSelectable } from './selection';
+import { useSelectable, useShowsSelectionHalo } from './selection';
 import { HIGHLIGHT_BRIGHTNESS } from './sway-material';
 import { createVoxelMaterial } from './voxel-material';
 
@@ -80,6 +80,7 @@ export function Decorations({
     onMove,
     onDragChange,
 }: Props) {
+    const showsHalo = useShowsSelectionHalo();
     const models = useDecorModels(decorations, catalogue);
     const placementKey = decorations
         .map(
@@ -182,7 +183,8 @@ export function Decorations({
                         )}
                         species={species}
                         material={isSelected ? highlighted : material}
-                        halo={isSelected ? halo : null}
+                        isSelected={isSelected}
+                        halo={isSelected && showsHalo ? halo : null}
                         selectedPlantId={selectedPlantId}
                         onSelect={() => onSelectDecoration(decoration.id)}
                         onSelectPlant={onSelectPlant}
@@ -228,6 +230,7 @@ type ContentProps = {
     plants: PlantSnapshot[];
     species: Map<number, Species>;
     material: ReturnType<typeof createVoxelMaterial>;
+    isSelected: boolean;
     halo: ReturnType<typeof createHaloMaterial> | null;
     selectedPlantId: number | null;
     onSelect: () => void;
@@ -248,6 +251,7 @@ function DecorationContent({
     plants,
     species,
     material,
+    isSelected,
     halo,
     selectedPlantId,
     onSelect,
@@ -284,19 +288,21 @@ function DecorationContent({
                 geometry={model.geometry}
                 material={material}
                 scale={VOXEL}
-                renderOrder={halo !== null ? SELECTED_RENDER_ORDER : 0}
+                renderOrder={isSelected ? SELECTED_RENDER_ORDER : 0}
                 userData={PLACEABLE}
                 {...selectable}
             />
             {halo !== null && (
+                <mesh
+                    geometry={haloGeometry(model.geometry)}
+                    material={halo}
+                    scale={VOXEL}
+                    renderOrder={HALO_RENDER_ORDER}
+                    raycast={() => null}
+                />
+            )}
+            {isSelected && (
                 <>
-                    <mesh
-                        geometry={haloGeometry(model.geometry)}
-                        material={halo}
-                        scale={VOXEL}
-                        renderOrder={HALO_RENDER_ORDER}
-                        raycast={() => null}
-                    />
                     {anchors.map((position, index) =>
                         occupied.has(index) ? null : (
                             <AnchorMarker

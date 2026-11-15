@@ -33,7 +33,7 @@ import {
     haloGeometry,
     SELECTED_RENDER_ORDER,
 } from './halo-material';
-import { useSelectable } from './selection';
+import { useSelectable, useShowsSelectionHalo } from './selection';
 import { HIGHLIGHT_BRIGHTNESS } from './sway-material';
 import { createVoxelMaterial } from './voxel-material';
 
@@ -457,9 +457,10 @@ function VoxelCreature({
 
     useEffect(() => () => material.dispose(), [material]);
 
+    const showsHalo = useShowsSelectionHalo();
     const halo = useMemo(
-        () => (highlighted ? createHaloMaterial() : null),
-        [highlighted],
+        () => (highlighted && showsHalo ? createHaloMaterial() : null),
+        [highlighted, showsHalo],
     );
 
     useEffect(() => () => halo?.dispose(), [halo]);

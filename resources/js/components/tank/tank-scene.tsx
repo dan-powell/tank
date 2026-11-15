@@ -36,7 +36,7 @@ import { FoodParticles } from './food-particles';
 import { haloUniforms } from './halo-material';
 import { Plants } from './plants';
 import { sceneClock } from './scene-clock';
-import { followTargetName } from './selection';
+import { followTargetName, SelectionHaloContext } from './selection';
 import { TankBackdrop } from './tank-backdrop';
 import { orbitStart, TankCameraRig } from './tank-camera-rig';
 import type { TankViewMode, TankViewRequest } from './tank-camera-rig';
@@ -238,59 +238,63 @@ export function TankScene({
                 onSculpt={onSculpt}
                 onStrokeChange={setGizmoDragging}
             />
-            <Suspense fallback={null}>
-                <Decorations
-                    decorations={tank.decorations}
-                    catalogue={catalogue}
-                    plants={attachedPlants}
-                    species={speciesById}
-                    world={world}
-                    grid={tank.grid}
-                    substrate={substrate}
-                    hiddenAxis={
-                        viewMode === 'flat' ? facingAxis(flatView) : null
-                    }
-                    canArrange={!tank.is_sealed}
-                    selectedDecorationId={
-                        selection?.kind === 'decoration' ? selection.id : null
-                    }
-                    selectedPlantId={
-                        selection?.kind === 'plant' ? selection.id : null
-                    }
-                    onSelectDecoration={(id) =>
-                        onSelect({ kind: 'decoration', id })
-                    }
-                    onSelectPlant={(id) => onSelect({ kind: 'plant', id })}
-                    onSelectAnchor={onSelectAnchor}
-                    onMove={onMoveDecoration}
-                    onDragChange={setGizmoDragging}
-                />
-            </Suspense>
-            <Suspense fallback={null}>
-                <Plants
-                    plants={rootedPlants}
-                    species={speciesById}
-                    layerCount={tank.layer_count}
-                    grid={tank.grid}
-                    substrate={substrate}
-                    selectedId={
-                        selection?.kind === 'plant' ? selection.id : null
-                    }
-                    onSelect={(id) => onSelect({ kind: 'plant', id })}
-                />
-                <Creatures
-                    creatures={tank.creatures}
-                    species={speciesById}
-                    world={world}
-                    layerCount={tank.layer_count}
-                    isLit={tank.is_lit}
-                    lowOxygen={tank.water.oxygen < LOW_OXYGEN}
-                    selectedId={
-                        selection?.kind === 'creature' ? selection.id : null
-                    }
-                    onSelect={(id) => onSelect({ kind: 'creature', id })}
-                />
-            </Suspense>
+            <SelectionHaloContext value={followed === null}>
+                <Suspense fallback={null}>
+                    <Decorations
+                        decorations={tank.decorations}
+                        catalogue={catalogue}
+                        plants={attachedPlants}
+                        species={speciesById}
+                        world={world}
+                        grid={tank.grid}
+                        substrate={substrate}
+                        hiddenAxis={
+                            viewMode === 'flat' ? facingAxis(flatView) : null
+                        }
+                        canArrange={!tank.is_sealed}
+                        selectedDecorationId={
+                            selection?.kind === 'decoration'
+                                ? selection.id
+                                : null
+                        }
+                        selectedPlantId={
+                            selection?.kind === 'plant' ? selection.id : null
+                        }
+                        onSelectDecoration={(id) =>
+                            onSelect({ kind: 'decoration', id })
+                        }
+                        onSelectPlant={(id) => onSelect({ kind: 'plant', id })}
+                        onSelectAnchor={onSelectAnchor}
+                        onMove={onMoveDecoration}
+                        onDragChange={setGizmoDragging}
+                    />
+                </Suspense>
+                <Suspense fallback={null}>
+                    <Plants
+                        plants={rootedPlants}
+                        species={speciesById}
+                        layerCount={tank.layer_count}
+                        grid={tank.grid}
+                        substrate={substrate}
+                        selectedId={
+                            selection?.kind === 'plant' ? selection.id : null
+                        }
+                        onSelect={(id) => onSelect({ kind: 'plant', id })}
+                    />
+                    <Creatures
+                        creatures={tank.creatures}
+                        species={speciesById}
+                        world={world}
+                        layerCount={tank.layer_count}
+                        isLit={tank.is_lit}
+                        lowOxygen={tank.water.oxygen < LOW_OXYGEN}
+                        selectedId={
+                            selection?.kind === 'creature' ? selection.id : null
+                        }
+                        onSelect={(id) => onSelect({ kind: 'creature', id })}
+                    />
+                </Suspense>
+            </SelectionHaloContext>
             <FoodParticles world={world} />
             {tank.auto_feeder !== null && (
                 <AutoFeederModel feeder={tank.auto_feeder} />

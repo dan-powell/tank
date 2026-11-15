@@ -14,7 +14,7 @@ import {
     haloGeometry,
     SELECTED_RENDER_ORDER,
 } from './halo-material';
-import { useSelectable } from './selection';
+import { useSelectable, useShowsSelectionHalo } from './selection';
 import {
     createSwayMaterial,
     healthTint,
@@ -147,6 +147,7 @@ export function Plant({
 }: PlantProps) {
     const rise = useRef<Group>(null);
     const selectable = useSelectable(onSelect, { kind: 'plant', id: plant.id });
+    const showsHalo = useShowsSelectionHalo();
     const sprout = useRef(0);
     const model = useSpeciesModel(species);
     const assembled = useMemo(
@@ -196,12 +197,12 @@ export function Plant({
 
     const halo = useMemo(
         () =>
-            isSelected
+            isSelected && showsHalo
                 ? createHaloMaterial({
                       sway: { amplitude: swayAmplitude, unitHeight: height },
                   })
                 : null,
-        [isSelected, swayAmplitude, height],
+        [isSelected, showsHalo, swayAmplitude, height],
     );
 
     useEffect(() => () => halo?.dispose(), [halo]);

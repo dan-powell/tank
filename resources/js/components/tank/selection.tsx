@@ -1,10 +1,21 @@
 import { useThree } from '@react-three/fiber';
 import type { ThreeEvent } from '@react-three/fiber';
-import { useEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useRef } from 'react';
 import type { TankSelection } from '@/types';
 
 /** Pointer travel (px) beyond which a press is a drag (pan), not a selecting click. */
 const CLICK_TOLERANCE = 5;
+
+/**
+ * Whether the selected entity is drawn with its halo. Off while the camera
+ * follows it, so the outline doesn't hide it in close-up.
+ */
+export const SelectionHaloContext = createContext(true);
+
+/** Whether to draw the selected entity's halo (see {@link SelectionHaloContext}). */
+export function useShowsSelectionHalo(): boolean {
+    return useContext(SelectionHaloContext);
+}
 
 /**
  * The object name that marks an entity's clickable mesh, so the camera can
