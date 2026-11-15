@@ -95,6 +95,12 @@ type Props = {
 
 const PANEL_STORAGE_KEY = 'tank-panel-open';
 
+/** Remembers whether the tank was last seen in 2D or 3D. */
+const VIEW_MODE_STORAGE_KEY = 'tank-view-mode';
+
+/** Remembers which side panel tab was last open. */
+const TAB_STORAGE_KEY = 'tank-panel-tab';
+
 /** Keyboard shortcut that shows or hides the side panel. */
 const PANEL_SHORTCUT = 'p';
 
@@ -152,17 +158,54 @@ function initialPanelOpen(): boolean {
         return true;
     }
 
-    try {
-        const stored = window.localStorage.getItem(PANEL_STORAGE_KEY);
+    const stored = readStored(PANEL_STORAGE_KEY);
 
-        if (stored !== null) {
-            return stored === 'true';
-        }
-    } catch {
-        // Storage can be unavailable (private windows, blocked site data).
+    if (stored !== null) {
+        return stored === 'true';
     }
 
     return window.matchMedia('(min-width: 1024px)').matches;
+}
+
+/**
+ * The 2D or 3D view the viewer last used. Fly mode is remembered as 3D: it
+ * needs a click on the tank to capture the mouse again anyway.
+ */
+function initialViewMode(): TankViewMode {
+    return readStored(VIEW_MODE_STORAGE_KEY) === 'orbit' ? 'orbit' : 'flat';
+}
+
+/** The side panel tab the viewer last had open. */
+function initialTab(): PanelTab {
+    const stored = readStored(TAB_STORAGE_KEY);
+
+    return (
+        PANEL_TABS.find((candidate) => candidate.value === stored)?.value ??
+        'summary'
+    );
+}
+
+/** A remembered choice, or null when there is none (or storage is unavailable). */
+function readStored(key: string): string | null {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    try {
+        return window.localStorage.getItem(key);
+    } catch {
+        // Storage can be unavailable (private windows, blocked site data).
+        return null;
+    }
+}
+
+/** Remember a choice for next time; not remembering it is fine. */
+function writeStored(key: string, value: string): void {
+    try {
+        window.localStorage.setItem(key, value);
+    } catch {
+        // Storage can be unavailable (private windows, blocked site data).
+    }
 }
 
 export default function ShowTank({
@@ -184,7 +227,7 @@ export default function ShowTank({
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [sizeKey],
     );
-    const [viewMode, setViewMode] = useState<TankViewMode>('flat');
+    const [viewMode, setViewMode] = useState<TankViewMode>(initialViewMode);
     /** The side the 2D view looks from, picked on the view cube. */
     const [flatView, setFlatView] = useState<TankView>('front');
     const [viewRequest, setViewRequest] = useState<TankViewRequest | null>(
@@ -208,7 +251,7 @@ export default function ShowTank({
     /** The inhabitant being moved, while waiting for a click on its new spot. */
     const [moving, setMoving] = useState<TankSelection | null>(null);
     const gravel = useSubstrateSync(tank.id, tank.grid, tank.substrate);
-    const [tab, setTab] = useState<PanelTab>('summary');
+    const [tab, setTab] = useState<PanelTab>(initialTab);
     const [previewBackground, setPreviewBackground] =
         useState<TankBackground | null>(null);
     const [tabDirection, setTabDirection] = useState<TabDirection>('right');
@@ -434,12 +477,19 @@ export default function ShowTank({
     );
 
     useEffect(() => {
-        try {
-            window.localStorage.setItem(PANEL_STORAGE_KEY, String(isPanelOpen));
-        } catch {
-            // Not remembering the choice is fine.
-        }
+        writeStored(PANEL_STORAGE_KEY, String(isPanelOpen));
     }, [isPanelOpen]);
+
+    useEffect(() => {
+        writeStored(
+            VIEW_MODE_STORAGE_KEY,
+            viewMode === 'flat' ? 'flat' : 'orbit',
+        );
+    }, [viewMode]);
+
+    useEffect(() => {
+        writeStored(TAB_STORAGE_KEY, tab);
+    }, [tab]);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
