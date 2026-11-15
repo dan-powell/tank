@@ -175,12 +175,49 @@ void main() {
  * the air stone, and rings spreading from where food landed.
  */
 const WAVE_GLSL = /* glsl */ `
+float waveHash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+/** Smooth value noise, 0 to 1. */
+float waveNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    return mix(
+        mix(waveHash(i), waveHash(i + vec2(1.0, 0.0)), u.x),
+        mix(waveHash(i + vec2(0.0, 1.0)), waveHash(i + vec2(1.0, 1.0)), u.x),
+        u.y
+    );
+}
+
+/**
+ * Fine capillary ripples: two octaves of noise drifting different ways
+ * through a slowly warping domain, so the pattern never visibly repeats.
+ */
+float capillary(vec2 p, float t) {
+    vec2 warp = vec2(
+        waveNoise(p * 2.5 + vec2(t * 0.11, -t * 0.07)),
+        waveNoise(p * 2.5 + vec2(5.2, 1.3) - vec2(t * 0.09, t * 0.13))
+    );
+    vec2 q = p * 16.0 + warp * 3.0;
+    float h = waveNoise(q + vec2(t * 0.9, t * 0.35)) * 0.6;
+    h += waveNoise(mat2(0.8, -0.6, 0.6, 0.8) * q * 2.1 - vec2(t * 0.4, -t * 1.1)) * 0.4;
+
+    return h;
+}
+
 float waveHeight(vec2 p) {
     float t = uTime;
     float h = 0.0;
-    h += sin(dot(p, vec2(0.9, 0.4)) * 9.0 + t * 1.6) * 0.0022;
-    h += sin(dot(p, vec2(-0.5, 0.85)) * 13.0 + t * 2.1) * 0.0015;
-    h += sin(dot(p, vec2(0.2, -1.0)) * 21.0 + t * 2.9) * 0.0008;
+    h += sin(dot(p, vec2(0.9, 0.4)) * 9.0 + t * 1.6) * 0.0019;
+    h += sin(dot(p, vec2(-0.5, 0.85)) * 12.3 + t * 2.1) * 0.0013;
+    h += sin(dot(p, vec2(0.96, -0.28)) * 15.7 + t * 2.4) * 0.0009;
+    h += sin(dot(p, vec2(0.2, -1.0)) * 20.9 + t * 2.9) * 0.0007;
+    h += sin(dot(p, vec2(-0.83, -0.56)) * 27.1 + t * 3.3) * 0.0005;
+    // Gusts: the swells grow and fade from place to place.
+    h *= 0.45 + 1.1 * waveNoise(p * 1.4 + vec2(t * 0.06, -t * 0.04));
 
     float boil = distance(p, uBubbleSource);
     h += sin(boil * 70.0 - t * 10.0) * 0.003 * exp(-boil * 9.0);
@@ -244,11 +281,16 @@ vec3 surfaceNormal(vec2 p) {
     float dx = waveHeight(p + vec2(e, 0.0)) - waveHeight(p - vec2(e, 0.0));
     float dz = waveHeight(p + vec2(0.0, e)) - waveHeight(p - vec2(0.0, e));
     // Fine capillary ripples that are too small for the mesh.
-    float t = uTime;
-    dx += cos(p.x * 55.0 + p.y * 20.0 + t * 4.0) * 0.0009;
-    dz += cos(p.y * 60.0 - p.x * 25.0 + t * 3.6) * 0.0009;
+    float c = 0.0015;
+    float cdx = capillary(p + vec2(c, 0.0), uTime) - capillary(p - vec2(c, 0.0), uTime);
+    float cdz = capillary(p + vec2(0.0, c), uTime) - capillary(p - vec2(0.0, c), uTime);
+    float ripple = 0.0035;
 
-    return normalize(vec3(-dx / (2.0 * e), 1.0, -dz / (2.0 * e)));
+    return normalize(vec3(
+        -dx / (2.0 * e) - cdx * ripple / (2.0 * c),
+        1.0,
+        -dz / (2.0 * e) - cdz * ripple / (2.0 * c)
+    ));
 }
 
 float sceneViewZ(vec2 uv) {

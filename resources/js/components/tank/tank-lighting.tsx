@@ -15,6 +15,7 @@ import {
 import type { SimClock } from '@/lib/tank/lighting';
 import { TANK } from '@/lib/tank/space';
 import type { LightFixture, TankGrid, TankLighting as Lighting } from '@/types';
+import { sheenUniforms } from './voxel-material';
 
 RectAreaLightUniformsLib.init();
 
@@ -84,6 +85,8 @@ export function TankLighting({
         liveLighting.count = fixtures.length;
     }, [fixtures.length]);
 
+    useFrame(followSheen);
+
     return (
         <group>
             <hemisphereLight
@@ -114,6 +117,31 @@ export function TankLighting({
             ))}
         </group>
     );
+}
+
+const sheenColour = new Color();
+
+/** Tint the creatures' sheen with the lights' mixed colour, as bright as they are combined. */
+function followSheen(): void {
+    let total = 0;
+    sheenColour.setRGB(0, 0, 0);
+
+    for (let index = 0; index < liveLighting.count; index++) {
+        const light = liveLighting.lights[index];
+
+        sheenColour.r += light.colour.r * light.intensity;
+        sheenColour.g += light.colour.g * light.intensity;
+        sheenColour.b += light.colour.b * light.intensity;
+        total += light.intensity;
+    }
+
+    sheenUniforms.uSheenStrength.value = Math.min(1, total);
+
+    if (total > 0.01) {
+        sheenUniforms.uSheenColour.value.copy(
+            sheenColour.multiplyScalar(1 / total),
+        );
+    }
 }
 
 /** Rails along each gantry row, carried by a crossbar and upright at each end. */

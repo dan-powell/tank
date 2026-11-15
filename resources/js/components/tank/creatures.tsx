@@ -446,7 +446,9 @@ function VoxelCreature({
             colour.multiplyScalar(HIGHLIGHT_BRIGHTNESS);
         }
 
-        const created = createVoxelMaterial(new Color(`#${tintHex}`), colour);
+        const created = createVoxelMaterial(new Color(`#${tintHex}`), colour, {
+            sheen: true,
+        });
         created.transparent = opacity < 1;
         created.opacity = opacity;
 

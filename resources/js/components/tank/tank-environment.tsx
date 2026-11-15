@@ -1,6 +1,6 @@
 import { Edges } from '@react-three/drei';
-import { useMemo } from 'react';
-import { DoubleSide, InstancedMesh, Object3D } from 'three';
+import { useEffect, useMemo } from 'react';
+import { BoxGeometry, DoubleSide, InstancedMesh, Object3D } from 'three';
 import { TANK } from '@/lib/tank/space';
 import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { substrateHeightAt } from '@/lib/tank/terrain-field';
@@ -36,6 +36,14 @@ export function TankEnvironment({
     const algae = Math.min(1, water.algae / 100);
     // Condensation beads on the glass once sealed air nears saturation.
     const mist = isSealed ? Math.min(1, Math.max(0, (humidity - 80) / 18)) : 0;
+    const glass = useMemo(
+        () => openTopBox(TANK.width, TANK.height, TANK.depth),
+        // TANK is resized in place for each tank.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [TANK.width, TANK.height, TANK.depth],
+    );
+
+    useEffect(() => () => glass.dispose(), [glass]);
 
     return (
         <group>
@@ -60,9 +68,12 @@ export function TankEnvironment({
                 </mesh>
             )}
 
-            {/* Glass */}
-            <mesh position={[0, TANK.height / 2, 0]} raycast={() => null}>
-                <boxGeometry args={[TANK.width, TANK.height, TANK.depth]} />
+            {/* Glass: open at the top, so the lights shine straight in. */}
+            <mesh
+                position={[0, TANK.height / 2, 0]}
+                geometry={glass}
+                raycast={() => null}
+            >
                 <meshPhysicalMaterial
                     color="#dff4ff"
                     transparent
@@ -178,4 +189,14 @@ function pseudoRandom(seed: number): number {
     const value = Math.sin(seed * 12.9898) * 43758.5453;
 
     return value - Math.floor(value);
+}
+
+/** A box without its top face (BoxGeometry's third face, indices 12–17). */
+function openTopBox(width: number, height: number, depth: number): BoxGeometry {
+    const box = new BoxGeometry(width, height, depth);
+    const index = Array.from(box.getIndex()?.array ?? []);
+
+    box.setIndex([...index.slice(0, 12), ...index.slice(18)]);
+
+    return box;
 }

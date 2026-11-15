@@ -25,7 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Unit and feature tests.
 - Redis (DDEV add-on) for queue, cache and sessions; Horizon runs the queue workers.
 - Octane (FrankenPHP) for production, installed on deploy by Deployer 8.
-- Volumetric water: rippling surface (food drops send out rings), refraction, depth-tinted absorption, light shafts and total internal reflection from below.
+- Volumetric water: rippling surface with irregular, non-repeating ripples (food drops send out rings), refraction, depth-tinted absorption, light shafts and total internal reflection from below.
 - Caustics on the substrate, plants and creatures.
 - Air stone with a rising bubble stream.
 - Left-click a fish or plant to select it (brightened, with a halo around its silhouette): the side panel shows only its stats, a name field and a Remove button, with a Back button (or `Esc`) to deselect.
@@ -41,7 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Lighting tab: hang LED tubes, spotlights and LED floods on a gantry above the tank (up to 8, picked from a top-down slot map or by clicking them in 3D), each with its own colour, brightness and timer with fade in/out; a master switch, a day timeline and the hours of light a day. New and existing tanks start with one full-length LED tube on 08:00–20:00.
 - Light in the simulation: each plant gets the light at its crown (from the lights above, dimmed by water depth and shaded by decorations) and grows in proportion, up to its species' needs; plants short of daily light lose health (with a warning), and brighter light and days over 12 hours feed algae. Plant colour matters a little (green light is least useful). The plant panel shows whether it gets enough light.
 - Decoration LEDs (treasure chest and coral wall): switch on, pick a colour, and choose glow-after-dark or always on; purely decorative.
-- Glow (bloom) on lit lights and LEDs; the water's shafts, glints and tint follow the lights.
+- Glow (bloom) on lit lights and LEDs; the water's shafts, glints and tint follow the lights, and fish catch a sheen in the lights' colour. The glass is open at the top, so lights shine straight into the water.
 - Gravel sculpting (at 0.2 cm detail) in the Aquascaping tab: preset shapes (flat, slope, beaches, island, terraces) and a Raise / Lower / Smooth / Flatten brush in three sizes, with Undo; changes save in batches every 2 seconds (and when leaving the page). Raised gravel displaces water and becomes land above the waterline; decorations stay put.
 - Land and edge life: cushion moss and maidenhair fern grow above the water, pothos and dwarf rush at the waterline; springtails, dwarf white isopods and garlic glass-snails live on land, and the fire-bellied toad moves between water and land, hunting the small invertebrates.
 - Air above the water (humidity, oxygen, CO2) on the Summary tab: land plants and animals breathe it, open tanks share the room's air, and land plants feed on detritus.
