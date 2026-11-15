@@ -1,4 +1,4 @@
-import { ArrowLeft, Lock } from 'lucide-react';
+import { ArrowLeft, LocateFixed, Lock } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -55,6 +55,39 @@ export function PanelBackButton({ onClick }: { onClick: () => void }) {
         >
             <ArrowLeft /> Back to tank
         </Button>
+    );
+}
+
+/**
+ * The top row of a selected entity's panel: back to the tank, and a toggle
+ * that has the camera follow the entity around the tank.
+ */
+export function SelectionPanelHeader({
+    isFollowing,
+    onBack,
+    onToggleFollow,
+}: {
+    isFollowing: boolean;
+    onBack: () => void;
+    onToggleFollow: () => void;
+}) {
+    return (
+        <div className="flex items-center justify-between gap-2">
+            <PanelBackButton onClick={onBack} />
+            <Button
+                size="sm"
+                variant={isFollowing ? 'secondary' : 'outline'}
+                aria-pressed={isFollowing}
+                title={
+                    isFollowing
+                        ? 'Stop following (or pan the view)'
+                        : 'Zoom in and follow it around the tank'
+                }
+                onClick={onToggleFollow}
+            >
+                <LocateFixed /> {isFollowing ? 'Following' : 'Follow'}
+            </Button>
+        </div>
     );
 }
 

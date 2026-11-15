@@ -146,7 +146,7 @@ export function Plant({
     onSelect,
 }: PlantProps) {
     const rise = useRef<Group>(null);
-    const selectable = useSelectable(onSelect);
+    const selectable = useSelectable(onSelect, { kind: 'plant', id: plant.id });
     const sprout = useRef(0);
     const model = useSpeciesModel(species);
     const assembled = useMemo(

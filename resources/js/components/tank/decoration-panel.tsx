@@ -46,7 +46,11 @@ import type {
     Species,
     TankGrid,
 } from '@/types';
-import { PanelBackButton, PanelSection, SealedGuard } from './panel-section';
+import {
+    PanelSection,
+    SealedGuard,
+    SelectionPanelHeader,
+} from './panel-section';
 
 type Props = {
     tankId: number;
@@ -65,6 +69,9 @@ type Props = {
     /** Decorations can't be moved, planted on or removed through a sealed lid. */
     isSealed: boolean;
     onBack: () => void;
+    /** Whether the camera is following it. */
+    isFollowing: boolean;
+    onToggleFollow: () => void;
 };
 
 /** Cells moved per press of a nudge button (1 cm). */
@@ -88,6 +95,8 @@ export function DecorationPanel({
     onSelectPlant,
     isSealed,
     onBack,
+    isFollowing,
+    onToggleFollow,
 }: Props) {
     const [x, y, z] = decoration.position;
     const [width, height, depth] = rotatedSize(
@@ -136,7 +145,11 @@ export function DecorationPanel({
 
     return (
         <section aria-labelledby="decoration-heading" className="space-y-4">
-            <PanelBackButton onClick={onBack} />
+            <SelectionPanelHeader
+                isFollowing={isFollowing}
+                onBack={onBack}
+                onToggleFollow={onToggleFollow}
+            />
 
             <div className="min-w-0">
                 <h2

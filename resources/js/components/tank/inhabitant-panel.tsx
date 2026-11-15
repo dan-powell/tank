@@ -24,7 +24,7 @@ import type { TankWorld } from '@/lib/tank/world';
 import creatureRoutes from '@/routes/tanks/creatures';
 import plantRoutes from '@/routes/tanks/plants';
 import type { CreatureSnapshot, PlantSnapshot, Species } from '@/types';
-import { PanelBackButton } from './panel-section';
+import { SelectionPanelHeader } from './panel-section';
 
 export type Inhabitant =
     | { kind: 'creature'; entity: CreatureSnapshot; species: Species }
@@ -40,6 +40,9 @@ type Props = {
     onMove: () => void;
     /** Deselect and return to the tank overview. */
     onBack: () => void;
+    /** Whether the camera is following it. */
+    isFollowing: boolean;
+    onToggleFollow: () => void;
 };
 
 const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
@@ -55,6 +58,8 @@ export function InhabitantPanel({
     isSealed,
     onMove,
     onBack,
+    isFollowing,
+    onToggleFollow,
 }: Props) {
     const { kind, entity, species } = inhabitant;
     const url =
@@ -71,7 +76,11 @@ export function InhabitantPanel({
 
     return (
         <section aria-labelledby="inhabitant-heading" className="space-y-4">
-            <PanelBackButton onClick={onBack} />
+            <SelectionPanelHeader
+                isFollowing={isFollowing}
+                onBack={onBack}
+                onToggleFollow={onToggleFollow}
+            />
 
             <div className="min-w-0">
                 <h2

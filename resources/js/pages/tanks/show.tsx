@@ -195,6 +195,14 @@ export default function ShowTank({
     const isPointerLocked = usePointerLocked();
     const [isPanelOpen, setIsPanelOpen] = useState(initialPanelOpen);
     const [selection, setSelection] = useState<TankSelection | null>(null);
+    /** The entity the camera follows; only while it stays selected. */
+    const [followed, setFollowed] = useState<TankSelection | null>(null);
+    const activeFollow =
+        followed !== null &&
+        selection?.kind === followed.kind &&
+        selection.id === followed.id
+            ? followed
+            : null;
     const [selectedAnchor, setSelectedAnchor] = useState<number | null>(null);
     const [sculptBrush, setSculptBrush] = useState<SculptBrush | null>(null);
     /** The inhabitant being moved, while waiting for a click on its new spot. */
@@ -211,6 +219,8 @@ export default function ShowTank({
 
     /** Swing the camera round to `view`; in 2D it also becomes the side the flat view looks from. */
     const selectView = (view: TankView) => {
+        setFollowed(null);
+
         if (viewMode === 'flat') {
             setFlatView(view);
         } else if (viewMode === 'fly') {
@@ -221,6 +231,23 @@ export default function ShowTank({
             view,
             id: (previous?.id ?? 0) + 1,
         }));
+    };
+
+    const stopFollowing = () => setFollowed(null);
+
+    /** Follow the selected entity with the camera (in 3D when flying), or stop. */
+    const toggleFollow = () => {
+        if (activeFollow !== null || selection === null) {
+            setFollowed(null);
+
+            return;
+        }
+
+        if (viewMode === 'fly') {
+            setViewMode('orbit');
+        }
+
+        setFollowed(selection);
     };
 
     const changeTab = (next: PanelTab) => {
@@ -503,6 +530,8 @@ export default function ShowTank({
                         flatView={flatView}
                         viewRequest={viewRequest}
                         cameraOrientation={cameraOrientation}
+                        followed={activeFollow}
+                        onStopFollowing={stopFollowing}
                         decorationCatalogue={decorationCatalogue}
                         selection={selection}
                         onSelect={select}
@@ -601,6 +630,7 @@ export default function ShowTank({
 
                                 // So Space (fly up) can't press the toggle again.
                                 if (value === 'fly') {
+                                    setFollowed(null);
                                     (
                                         document.activeElement as HTMLElement | null
                                     )?.blur();
@@ -871,6 +901,8 @@ export default function ShowTank({
                                         })
                                     }
                                     onBack={() => setSelection(null)}
+                                    isFollowing={activeFollow !== null}
+                                    onToggleFollow={toggleFollow}
                                 />
                             </div>
                         )}
@@ -904,6 +936,8 @@ export default function ShowTank({
                                     }
                                     isSealed={tank.is_sealed}
                                     onBack={() => select(null)}
+                                    isFollowing={activeFollow !== null}
+                                    onToggleFollow={toggleFollow}
                                 />
                             </div>
                         )}

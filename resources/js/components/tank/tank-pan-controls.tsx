@@ -1,6 +1,6 @@
 import type { OrbitControls } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ComponentRef, RefObject } from 'react';
 import { PerspectiveCamera, Vector3 } from 'three';
 import type { Camera } from 'three';
@@ -17,6 +17,8 @@ type Props = {
     mode: TankViewMode;
     /** The side the flat view looks from. */
     flatView: TankView;
+    /** Called as a pan drag starts moving the view (e.g. to stop following an entity). */
+    onPan?: () => void;
     /** How far (world units) the view centre may move from the tank's middle along x. */
     xLimit?: number;
     /** How far (world units) the view centre may move from the tank's middle along z. */
@@ -42,6 +44,7 @@ export function TankPanControls({
     controls,
     mode,
     flatView,
+    onPan,
     xLimit = TANK.width * 0.4,
     zLimit = TANK.depth * 0.4,
     // By default, from just above the gravel to the rim (land may rise above the water).
@@ -50,11 +53,18 @@ export function TankPanControls({
     const [yMin, yMax] = yRange;
     const camera = useThree((state) => state.camera);
     const element = useThree((state) => state.gl.domElement);
+    // Read through a ref, so a new callback each render doesn't interrupt a drag.
+    const onPanRef = useRef(onPan);
+
+    useEffect(() => {
+        onPanRef.current = onPan;
+    }, [onPan]);
 
     useEffect(() => {
         const cameraRight = new Vector3();
         const cameraUp = new Vector3();
         let pointerId: number | null = null;
+        let hasPanned = false;
         let lastX = 0;
         let lastY = 0;
 
@@ -64,6 +74,7 @@ export function TankPanControls({
             }
 
             pointerId = event.pointerId;
+            hasPanned = false;
             lastX = event.clientX;
             lastY = event.clientY;
             element.setPointerCapture(event.pointerId);
@@ -84,6 +95,11 @@ export function TankPanControls({
             const dy = event.clientY - lastY;
             lastX = event.clientX;
             lastY = event.clientY;
+
+            if (!hasPanned && (dx !== 0 || dy !== 0)) {
+                hasPanned = true;
+                onPanRef.current?.();
+            }
 
             const distance = camera.position.distanceTo(orbit.target);
             const fov = camera instanceof PerspectiveCamera ? camera.fov : 45;

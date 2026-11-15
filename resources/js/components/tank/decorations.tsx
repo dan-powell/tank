@@ -255,7 +255,10 @@ function DecorationContent({
     onSelectAnchor,
     castsLight,
 }: ContentProps) {
-    const selectable = useSelectable(onSelect);
+    const selectable = useSelectable(onSelect, {
+        kind: 'decoration',
+        id: decoration.id,
+    });
     const anchors = useMemo(
         () =>
             definition.anchors.map((anchor) => {

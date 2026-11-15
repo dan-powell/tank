@@ -174,7 +174,10 @@ function Creature({
     onSelect,
 }: CreatureProps) {
     const group = useRef<Group>(null);
-    const selectable = useSelectable(onSelect);
+    const selectable = useSelectable(onSelect, {
+        kind: 'creature',
+        id: creature.id,
+    });
     const model = useSpeciesModel(species);
     const stage = stageFor(species, model, creature.size);
     const moveFrames = framesFor(model, stage, MOVE_CLIP);

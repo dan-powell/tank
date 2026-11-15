@@ -17,6 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - View cube above the 2D/3D toggle: click a face, edge or top corner to swing the camera to that side or a 45° view, fitted to the whole tank; in 2D it picks the side the flat view looks from. The 3D view can now look straight down.
 - Fly mode (third view toggle option): click the tank to capture the mouse and look around, WASD/arrows to move, E/Space up, Q down, Shift faster; flies in and around the tank. The view cube switches back to 3D.
 - Underwater view (any mode, e.g. a 3D close-up or flying): inside the water the camera sees tint, fog, light shafts and the surface from below.
+- Follow button on a selected fish, plant or decoration: the camera zooms in and keeps it centred as it moves (2D or 3D); in 3D it slowly circles it until you rotate or zoom, resuming after a few idle seconds. Panning, the view cube or deselecting stops following.
 - Tabbed tank side panel with animated transitions: Summary (tank name and clock, water, inhabitants, latest activity that fits without scrolling), Activity (full log), Inhabitants, Management, Aquascaping, Lighting and Equipment (auto-feeder); icon tabs with tooltips.
 - Searchable, sortable list of every inhabitant; choosing one selects it, as clicking it in the tank does.
 - Full-window tank view with a frosted side panel that slides over the tank (pull tab on its edge or `P`); the choice is remembered.

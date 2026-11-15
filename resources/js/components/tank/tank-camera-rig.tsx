@@ -2,8 +2,8 @@ import type { OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef, useState } from 'react';
 import type { ComponentRef, RefObject } from 'react';
-import { MathUtils, PerspectiveCamera, Spherical, Vector3 } from 'three';
-import type { Box3, Quaternion } from 'three';
+import { Box3, MathUtils, PerspectiveCamera, Spherical, Vector3 } from 'three';
+import type { Object3D, Quaternion } from 'three';
 import { flyBounds, flyStateFrom, stepFly } from '@/lib/tank/fly';
 import type { FlyState } from '@/lib/tank/fly';
 import { sightThroughTank, TANK } from '@/lib/tank/space';
@@ -78,6 +78,18 @@ const FLY_NEAR = 0.003;
 /** The far clipping plane while flying, in tank scales. */
 const FLY_FAR = 12;
 
+/** How much bigger than the followed entity (its bounding box diagonal) the view is, in visible heights. */
+const FOLLOW_FRAMING = 2.4;
+
+/** How quickly the view catches up with a moving followed entity (per second). */
+const FOLLOW_RATE = 4;
+
+/** Seconds without rotating or zooming before the 3D view starts circling a followed entity again. */
+const FOLLOW_IDLE_SECONDS = 5;
+
+/** OrbitControls' auto-rotate speed while following: a full circle in about a minute and a half. */
+const FOLLOW_ROTATE_SPEED = 0.65;
+
 /**
  * A camera pose. Size is held as the visible half-height at the target, so
  * blending between a wide and a narrow field of view keeps the tank roughly
@@ -91,7 +103,8 @@ type Pose = {
     fov: number;
 };
 
-type Transition = { from: Pose; to: Pose; progress: number };
+/** `follows`: the move zooms in on the followed entity, so its target tracks it as it goes. */
+type Transition = { from: Pose; to: Pose; progress: number; follows?: boolean };
 
 type Props = {
     mode: TankViewMode;
@@ -101,6 +114,10 @@ type Props = {
     viewRequest: TankViewRequest | null;
     /** Kept in step with the camera's orientation every frame, for the view cube. */
     orientation: Quaternion;
+    /** The name of the mesh to follow (see followTargetName), or null. */
+    follow: string | null;
+    /** The followed entity has gone (e.g. was removed), so following has ended. */
+    onFollowLost: () => void;
     controls: RefObject<Controls | null>;
 };
 
@@ -110,13 +127,17 @@ type Props = {
  * rotation and zoom limits. Orbit and flat each keep their own last view, so
  * switching back restores them; leaving fly for orbit carries on from where
  * the camera flew to. While flying it steers the camera from the keyboard
- * and mouse.
+ * and mouse. While following an entity it zooms in on it and keeps it in
+ * the middle of the view, and in 3D slowly circles it whenever the user
+ * hasn't rotated or zoomed for a few seconds.
  */
 export function TankCameraRig({
     mode,
     flatView,
     viewRequest,
     orientation,
+    follow,
+    onFollowLost,
     controls,
 }: Props) {
     const camera = useThree((state) => state.camera);
@@ -131,6 +152,67 @@ export function TankCameraRig({
     const appliedMode = useRef<TankViewMode | null>(null);
     const handledRequest = useRef(viewRequest?.id ?? null);
     const flatViewRef = useRef(flatView);
+    const scene = useThree((state) => state.scene);
+    const followed = useRef<Object3D | null>(null);
+    const followBox = useRef(new Box3());
+    const followCentre = useRef(new Vector3());
+    const lastManipulation = useRef(-Infinity);
+    /** While following in 2D, how close the zoom may come (closer than the usual limit). */
+    const flatFollowMin = useRef<number | null>(null);
+    const onFollowLostRef = useRef(onFollowLost);
+    /** Set once the loss of the followed entity has been reported, so it's reported once. */
+    const hasLostFollowed = useRef(false);
+
+    useEffect(() => {
+        onFollowLostRef.current = onFollowLost;
+    }, [onFollowLost]);
+
+    /** The followed mesh's centre and size (bounding box diagonal) now, or null if it's gone. */
+    const locateFollowed = (): { centre: Vector3; size: number } | null => {
+        if (follow === null) {
+            return null;
+        }
+
+        let object = followed.current;
+
+        if (object === null || object.name !== follow || !isInScene(object)) {
+            object = scene.getObjectByName(follow) ?? null;
+            followed.current = object;
+        }
+
+        if (object === null) {
+            return null;
+        }
+
+        object.updateWorldMatrix(true, false);
+        const box = followBox.current.setFromObject(object);
+
+        return {
+            centre: box.getCenter(followCentre.current),
+            size: Math.max(box.getSize(new Vector3()).length(), 0.01),
+        };
+    };
+
+    // Rotating or zooming counts as handling the view, which pauses circling a followed entity.
+    useEffect(() => {
+        const orbit = controls.current;
+
+        if (orbit === null) {
+            return;
+        }
+
+        const onManipulate = () => {
+            lastManipulation.current = performance.now();
+        };
+
+        orbit.addEventListener('start', onManipulate);
+        orbit.addEventListener('end', onManipulate);
+
+        return () => {
+            orbit.removeEventListener('start', onManipulate);
+            orbit.removeEventListener('end', onManipulate);
+        };
+    }, [controls]);
 
     useEffect(() => {
         flatViewRef.current = flatView;
@@ -166,7 +248,7 @@ export function TankCameraRig({
         }
 
         if (appliedMode.current === mode && transition.current === null) {
-            applyLimits(orbit, mode, aspect, flatView);
+            applyLimits(orbit, mode, aspect, flatView, flatFollowMin.current);
 
             return;
         }
@@ -178,6 +260,7 @@ export function TankCameraRig({
         const previous = appliedMode.current;
         appliedMode.current = mode;
         flyState.current = null;
+        flatFollowMin.current = null;
 
         // The orbit target is left behind while flying: put it ahead, inside the tank.
         if (previous === 'fly' && transition.current === null) {
@@ -233,6 +316,7 @@ export function TankCameraRig({
         }
 
         handledRequest.current = viewRequest.id;
+        flatFollowMin.current = null;
 
         startTransition(
             transition,
@@ -247,6 +331,62 @@ export function TankCameraRig({
         );
     }, [viewRequest, camera, controls]);
 
+    // Start following (or carry on after switching between 2D and 3D): zoom in on the entity.
+    useEffect(() => {
+        const orbit = controls.current;
+
+        if (orbit === null || !(camera instanceof PerspectiveCamera)) {
+            return;
+        }
+
+        orbit.autoRotate = false;
+        hasLostFollowed.current = false;
+
+        if (follow === null || appliedMode.current === 'fly') {
+            return;
+        }
+
+        const target = locateFollowed();
+
+        if (target === null) {
+            hasLostFollowed.current = true;
+            onFollowLostRef.current();
+
+            return;
+        }
+
+        const isFlat = appliedMode.current === 'flat';
+        const fov = isFlat ? FLAT_FOV : ORBIT_FOV;
+        const heading = isFlat
+            ? viewAngles(flatViewRef.current)
+            : (transition.current?.to ?? currentPose(camera, orbit));
+        const halfHeight = Math.max(
+            (target.size * FOLLOW_FRAMING) / 2,
+            isFlat ? 0 : ORBIT_MIN_DISTANCE * tankScale() * halfFovTan(fov),
+        );
+
+        if (isFlat) {
+            flatFollowMin.current = (halfHeight / halfFovTan(fov)) * 0.5;
+        }
+
+        lastManipulation.current = -Infinity;
+        startTransition(
+            transition,
+            orbit,
+            currentPose(camera, orbit),
+            {
+                target: target.centre.clone(),
+                azimuth: heading.azimuth,
+                polar: heading.polar,
+                halfHeight,
+                fov,
+            },
+            true,
+        );
+        // `mode` re-runs this after the mode effect has started its own move.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [follow, mode, camera, controls]);
+
     useFrame((_, delta) => {
         const active = transition.current;
         const orbit = controls.current;
@@ -257,7 +397,27 @@ export function TankCameraRig({
             return;
         }
 
+        const target =
+            follow !== null && appliedMode.current !== 'fly'
+                ? locateFollowed()
+                : null;
+
+        if (
+            follow !== null &&
+            appliedMode.current !== 'fly' &&
+            target === null &&
+            !hasLostFollowed.current
+        ) {
+            hasLostFollowed.current = true;
+            orbit.autoRotate = false;
+            onFollowLostRef.current();
+        }
+
         if (active !== null) {
+            if (active.follows && target !== null) {
+                active.to.target.copy(target.centre);
+            }
+
             active.progress = Math.min(
                 1,
                 active.progress + delta / TRANSITION_SECONDS,
@@ -272,9 +432,26 @@ export function TankCameraRig({
                     appliedMode.current ?? 'orbit',
                     camera.aspect,
                     flatViewRef.current,
+                    flatFollowMin.current,
                 );
                 orbit.enabled = appliedMode.current !== 'fly';
             }
+        } else if (target !== null) {
+            // Ease the pivot (and camera with it) after the entity, so the view keeps its angle and zoom.
+            const shift = target.centre
+                .clone()
+                .sub(orbit.target)
+                .multiplyScalar(
+                    1 - Math.exp(-FOLLOW_RATE * Math.min(delta, 0.1)),
+                );
+
+            orbit.target.add(shift);
+            camera.position.add(shift);
+            orbit.autoRotate =
+                appliedMode.current === 'orbit' &&
+                performance.now() - lastManipulation.current >
+                    FOLLOW_IDLE_SECONDS * 1000;
+            orbit.autoRotateSpeed = FOLLOW_ROTATE_SPEED;
         } else if (appliedMode.current === 'fly') {
             if (flyState.current === null) {
                 // Start from where the camera is looking, ignoring mouse movement during the move in.
@@ -304,8 +481,9 @@ function startTransition(
     orbit: Controls,
     from: Pose,
     to: Pose,
+    follows = false,
 ): void {
-    transition.current = { from, to, progress: 0 };
+    transition.current = { from, to, progress: 0, follows };
     unlockLimits(orbit);
     orbit.enabled = false;
 }
@@ -450,6 +628,7 @@ function applyLimits(
     mode: TankViewMode,
     aspect: number,
     flatView: TankView,
+    flatFollowMin: number | null = null,
 ): void {
     if (mode === 'fly') {
         unlockLimits(orbit);
@@ -475,7 +654,10 @@ function applyLimits(
         halfFovTan(FLAT_FOV);
     const { azimuth, polar } = viewAngles(flatView);
 
-    orbit.minDistance = distanceFor('cover') * 0.5;
+    orbit.minDistance = Math.min(
+        distanceFor('cover') * 0.5,
+        flatFollowMin ?? Infinity,
+    );
     orbit.maxDistance = distanceFor('contain') * 1.05;
     orbit.minPolarAngle = Math.max(0, polar - FLAT_ROTATION);
     orbit.maxPolarAngle = Math.min(Math.PI / 2, polar + FLAT_ROTATION);
@@ -552,6 +734,17 @@ function withinBounds(pose: Pose, bounds: Box3): Pose {
     }
 
     return { ...pose, halfHeight };
+}
+
+/** Whether `object` is still part of a scene (not removed, nor inside something removed). */
+function isInScene(object: Object3D): boolean {
+    let current: Object3D | null = object;
+
+    while (current.parent !== null) {
+        current = current.parent;
+    }
+
+    return current.type === 'Scene';
 }
 
 /** Remove all limits so a transition is never clamped mid-way. */

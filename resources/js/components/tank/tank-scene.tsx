@@ -36,6 +36,7 @@ import { FoodParticles } from './food-particles';
 import { haloUniforms } from './halo-material';
 import { Plants } from './plants';
 import { sceneClock } from './scene-clock';
+import { followTargetName } from './selection';
 import { TankBackdrop } from './tank-backdrop';
 import { orbitStart, TankCameraRig } from './tank-camera-rig';
 import type { TankViewMode, TankViewRequest } from './tank-camera-rig';
@@ -57,6 +58,10 @@ type Props = {
     viewRequest: TankViewRequest | null;
     /** Kept in step with the camera's orientation, for the view cube. */
     cameraOrientation: Quaternion;
+    /** The entity the camera follows, if any. */
+    followed: TankSelection | null;
+    /** Following has ended from within the scene: a pan drag, or the entity has gone. */
+    onStopFollowing: () => void;
     decorationCatalogue: DecorationDefinition[];
     selection: TankSelection | null;
     onSelect: (selection: TankSelection | null) => void;
@@ -98,6 +103,8 @@ export function TankScene({
     flatView,
     viewRequest,
     cameraOrientation,
+    followed,
+    onStopFollowing,
     decorationCatalogue,
     selection,
     onSelect: select,
@@ -299,6 +306,8 @@ export function TankScene({
                 flatView={flatView}
                 viewRequest={viewRequest}
                 orientation={cameraOrientation}
+                follow={followed === null ? null : followTargetName(followed)}
+                onFollowLost={onStopFollowing}
                 controls={controls}
             />
             {viewMode !== 'fly' && (
@@ -306,6 +315,7 @@ export function TankScene({
                     controls={controls}
                     mode={viewMode}
                     flatView={flatView}
+                    onPan={followed === null ? undefined : onStopFollowing}
                 />
             )}
             {placement !== null && (
