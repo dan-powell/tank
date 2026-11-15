@@ -77,6 +77,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Z-fighting between creatures and plants sharing a depth layer.
 - Assets blocked as mixed content behind an HTTPS reverse proxy (proxies are now trusted).
 - New plants no longer show beneath the tank as they appear.
+- Gradient backdrops no longer garble the tank behind the water.
 
 ## 2026-11-06: Initial commits
 

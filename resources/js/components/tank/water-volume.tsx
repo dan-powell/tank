@@ -619,6 +619,10 @@ export function WaterVolume({ water, isLit, world }: Props) {
         const isShown = !introStarted() || fill > 0;
         mesh.current.visible = false;
         gl.setRenderTarget(target);
+        // The composer turns autoClear off, and only a solid-colour backdrop
+        // forces a clear, so clear explicitly or a texture backdrop leaves
+        // last frame's depth behind and the scene fails its depth test.
+        gl.clear();
         gl.render(scene, camera);
         gl.setRenderTarget(null);
         mesh.current.visible = isShown;
