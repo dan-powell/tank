@@ -3,8 +3,10 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentRef } from 'react';
 import { MOUSE } from 'three';
-import type { Vector3 } from 'three';
+import type { Quaternion, Vector3 } from 'three';
 import { TANK } from '@/lib/tank/space';
+import { facingAxis } from '@/lib/tank/views';
+import type { TankView } from '@/lib/tank/views';
 import type { TankWorld } from '@/lib/tank/world';
 import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
@@ -29,7 +31,7 @@ import { Plants } from './plants';
 import { sceneClock } from './scene-clock';
 import { TankBackdrop } from './tank-backdrop';
 import { orbitStart, TankCameraRig } from './tank-camera-rig';
-import type { TankViewMode } from './tank-camera-rig';
+import type { TankViewMode, TankViewRequest } from './tank-camera-rig';
 import { TankPanControls } from './tank-pan-controls';
 import { TankEnvironment } from './tank-environment';
 import { WaterVolume } from './water-volume';
@@ -41,6 +43,12 @@ type Props = {
     species: Species[];
     world: TankWorld;
     viewMode: TankViewMode;
+    /** The side the 2D view looks from. */
+    flatView: TankView;
+    /** The latest view cube click, to swing the camera round to. */
+    viewRequest: TankViewRequest | null;
+    /** Kept in step with the camera's orientation, for the view cube. */
+    cameraOrientation: Quaternion;
     decorationCatalogue: DecorationDefinition[];
     selection: TankSelection | null;
     onSelect: (selection: TankSelection | null) => void;
@@ -75,6 +83,9 @@ export function TankScene({
     species,
     world,
     viewMode,
+    flatView,
+    viewRequest,
+    cameraOrientation,
     decorationCatalogue,
     selection,
     onSelect: select,
@@ -199,7 +210,9 @@ export function TankScene({
                     world={world}
                     grid={tank.grid}
                     substrate={substrate}
-                    viewMode={viewMode}
+                    hiddenAxis={
+                        viewMode === 'flat' ? facingAxis(flatView) : null
+                    }
                     canArrange={!tank.is_sealed}
                     selectedDecorationId={
                         selection?.kind === 'decoration' ? selection.id : null
@@ -251,8 +264,18 @@ export function TankScene({
                 enablePan={false}
                 mouseButtons={MOUSE_BUTTONS}
             />
-            <TankCameraRig mode={viewMode} controls={controls} />
-            <TankPanControls controls={controls} mode={viewMode} />
+            <TankCameraRig
+                mode={viewMode}
+                flatView={flatView}
+                viewRequest={viewRequest}
+                orientation={cameraOrientation}
+                controls={controls}
+            />
+            <TankPanControls
+                controls={controls}
+                mode={viewMode}
+                flatView={flatView}
+            />
             {placement !== null && (
                 <PlacementController mode={placement} onPlace={onPlace} />
             )}

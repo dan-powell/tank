@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Starter tank for every new user, and a dashboard listing their tanks with their sizes.
 - Tank view: 2.5D depth layers with voxel artwork, and spotlights. Animals and plants are MagicaVoxel models (resources/models/species) at the shared voxel size.
 - 2D (default) and 3D view toggle, bottom left; left-drag pans (in 3D along the camera's own axes, keeping the tank in view), right-drag rotates. The 2D view hides the glass edge lines.
+- View cube above the 2D/3D toggle: click a face, edge or top corner to swing the camera to that side or a 45° view, fitted to the whole tank; in 2D it picks the side the flat view looks from. The 3D view can now look straight down.
 - Tabbed tank side panel with animated transitions: Summary (tank name and clock, water, inhabitants, latest activity that fits without scrolling), Activity (full log), Inhabitants, Management and Equipment (auto-feeder); icon tabs with tooltips.
 - Searchable, sortable list of every inhabitant; choosing one selects it, as clicking it in the tank does.
 - Full-window tank view with a frosted side panel that slides over the tank (pull tab on its edge or `P`); the choice is remembered.
@@ -26,7 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Air stone with a rising bubble stream.
 - Left-click a fish or plant to select it (brightened, with a halo around its silhouette): the side panel shows only its stats, a name field and a Remove button, with a Back button (or `Esc`) to deselect.
 - Aquascaping tab: add fully 3D voxel decorations (generated rocks, plus coral wall, driftwood arch and chest from MagicaVoxel files); each is auto-placed in a free spot.
-- Selected decorations show move arrows (depth only in 3D) and panel controls to turn, nudge, drop onto what's below, or remove them.
+- Selected decorations show move arrows (in 2D, not the one pointing at the viewer) and panel controls to turn, nudge, drop onto what's below, or remove them.
 - Fish swim over or turn away from decorations, bottom dwellers walk over low ones, snails climb them, and food settles on them.
 - Plants that can grow on decorations (Hornwort) can be planted on a decoration's plant spots and spread to its free spots.
 - Shared 0.2 cm grid for the tank (the size of every voxel), with a substrate heightmap that plants, litter, food and bottom dwellers follow; existing tanks are converted, and gravel is shaded voxel by voxel.

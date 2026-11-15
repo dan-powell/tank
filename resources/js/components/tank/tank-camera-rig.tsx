@@ -3,10 +3,16 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import type { ComponentRef, RefObject } from 'react';
 import { MathUtils, PerspectiveCamera, Spherical, Vector3 } from 'three';
+import type { Quaternion } from 'three';
 import { TANK } from '@/lib/tank/space';
+import { TANK_VIEWS, viewAngles } from '@/lib/tank/views';
+import type { TankView } from '@/lib/tank/views';
 
-/** `orbit`: free 3D view. `flat`: front-on, near-orthographic 2D-style view. */
+/** `orbit`: free 3D view. `flat`: near-orthographic 2D-style view from one side. */
 export type TankViewMode = 'orbit' | 'flat';
+
+/** A request (from the view cube) to swing the camera round to look from `view`. */
+export type TankViewRequest = { view: TankView; id: number };
 
 type Controls = ComponentRef<typeof OrbitControls>;
 
@@ -27,24 +33,27 @@ export function orbitStart(): {
     return {
         position: [0, TANK.height * 0.6, 2.6 * tankScale()],
         target: [0, TANK.height * 0.45, 0],
-        fov: 75,
+        fov: ORBIT_FOV,
     };
 }
+
+/** Field of view in the 3D view. */
+const ORBIT_FOV = 75;
 
 /** Field of view in flat mode: narrow enough to all but remove perspective. */
 const FLAT_FOV = 1;
 
-/** The area (world units) the flat view fits to the screen: the tank front. */
-function flatFrame(): { width: number; height: number; centreY: number } {
-    return {
-        width: TANK.width + 0.1,
-        height: TANK.height + 0.08,
-        centreY: TANK.height / 2,
-    };
-}
+/** Room (world units) left around the tank when fitting it to the view, per side. */
+const FIT_PADDING = { x: 0.05, y: 0.04, z: 0.05 };
 
-/** How far (radians) the flat view may be turned or tilted away from the front. */
+/** Extra room when a view cube click fits the whole tank in, so it isn't hard against the edges. */
+const CONTAIN_MARGIN = 1.1;
+
+/** How far (radians) the flat view may be turned or tilted away from its side. */
 const FLAT_ROTATION = 0.12;
+
+/** Never quite straight down: looking exactly along the up axis loses the azimuth. */
+const MIN_POLAR = 1e-4;
 
 const TRANSITION_SECONDS = 0.8;
 
@@ -74,20 +83,40 @@ type Transition = { from: Pose; to: Pose; progress: number };
 
 type Props = {
     mode: TankViewMode;
+    /** The side the flat view looks from. */
+    flatView: TankView;
+    /** The latest view cube click; a new `id` swings the camera round, fitted to the tank. */
+    viewRequest: TankViewRequest | null;
+    /** Kept in step with the camera's orientation every frame, for the view cube. */
+    orientation: Quaternion;
     controls: RefObject<Controls | null>;
 };
 
 /**
- * Moves the camera between the free orbit view and the flat front view,
- * animating the switch and applying each mode's rotation and zoom limits.
- * Returning to orbit restores the view as it was before going flat.
+ * Moves the camera between the free orbit view and the flat view, and to
+ * views picked on the view cube, animating each move and applying each
+ * mode's rotation and zoom limits. Each mode keeps its own last view, so
+ * switching back restores it.
  */
-export function TankCameraRig({ mode, controls }: Props) {
+export function TankCameraRig({
+    mode,
+    flatView,
+    viewRequest,
+    orientation,
+    controls,
+}: Props) {
     const camera = useThree((state) => state.camera);
     const aspect = useThree((state) => state.size.width / state.size.height);
     const transition = useRef<Transition | null>(null);
     const savedOrbit = useRef<Pose | null>(null);
+    const savedFlat = useRef<Pose | null>(null);
     const appliedMode = useRef<TankViewMode | null>(null);
+    const handledRequest = useRef(viewRequest?.id ?? null);
+    const flatViewRef = useRef(flatView);
+
+    useEffect(() => {
+        flatViewRef.current = flatView;
+    }, [flatView]);
 
     useEffect(() => {
         const orbit = controls.current;
@@ -101,16 +130,20 @@ export function TankCameraRig({ mode, controls }: Props) {
             appliedMode.current = mode;
 
             if (mode === 'flat') {
-                applyPose(camera, orbit, flatPose(aspect, 'cover'));
+                applyPose(
+                    camera,
+                    orbit,
+                    fitPose(flatView, aspect, FLAT_FOV, 'cover'),
+                );
             }
 
-            applyLimits(orbit, mode, aspect);
+            applyLimits(orbit, mode, aspect, flatView);
 
             return;
         }
 
         if (appliedMode.current === mode && transition.current === null) {
-            applyLimits(orbit, mode, aspect);
+            applyLimits(orbit, mode, aspect, flatView);
 
             return;
         }
@@ -120,28 +153,58 @@ export function TankCameraRig({ mode, controls }: Props) {
         }
 
         appliedMode.current = mode;
-        const from = currentPose(camera, orbit);
+        // Mid-way through a move, the view being left is where that move was heading.
+        const leaving = transition.current?.to ?? currentPose(camera, orbit);
 
         if (mode === 'flat') {
-            savedOrbit.current =
-                transition.current === null ? from : savedOrbit.current;
+            savedOrbit.current = leaving;
+        } else {
+            savedFlat.current = leaving;
         }
 
-        transition.current = {
-            from,
-            to:
-                mode === 'flat'
-                    ? flatPose(aspect, 'cover')
-                    : (savedOrbit.current ?? orbitStartPose()),
-            progress: 0,
-        };
-        unlockLimits(orbit);
-        orbit.enabled = false;
-    }, [mode, aspect, camera, controls]);
+        startTransition(
+            transition,
+            orbit,
+            currentPose(camera, orbit),
+            mode === 'flat'
+                ? (savedFlat.current ??
+                      fitPose(flatView, aspect, FLAT_FOV, 'cover'))
+                : (savedOrbit.current ?? orbitStartPose()),
+        );
+    }, [mode, flatView, aspect, camera, controls]);
+
+    useEffect(() => {
+        const orbit = controls.current;
+
+        if (
+            viewRequest === null ||
+            viewRequest.id === handledRequest.current ||
+            orbit === null ||
+            !(camera instanceof PerspectiveCamera)
+        ) {
+            return;
+        }
+
+        handledRequest.current = viewRequest.id;
+
+        startTransition(
+            transition,
+            orbit,
+            currentPose(camera, orbit),
+            fitPose(
+                viewRequest.view,
+                camera.aspect,
+                appliedMode.current === 'flat' ? FLAT_FOV : ORBIT_FOV,
+                'contain',
+            ),
+        );
+    }, [viewRequest, camera, controls]);
 
     useFrame((_, delta) => {
         const active = transition.current;
         const orbit = controls.current;
+
+        orientation.copy(camera.quaternion);
 
         if (orbit === null || !(camera instanceof PerspectiveCamera)) {
             return;
@@ -162,12 +225,29 @@ export function TankCameraRig({ mode, controls }: Props) {
 
         if (active.progress >= 1) {
             transition.current = null;
-            applyLimits(orbit, appliedMode.current ?? 'orbit', camera.aspect);
+            applyLimits(
+                orbit,
+                appliedMode.current ?? 'orbit',
+                camera.aspect,
+                flatViewRef.current,
+            );
             orbit.enabled = true;
         }
     });
 
     return null;
+}
+
+/** Animate from `from` to `to`, with the controls off and unclamped meanwhile. */
+function startTransition(
+    transition: RefObject<Transition | null>,
+    orbit: Controls,
+    from: Pose,
+    to: Pose,
+): void {
+    transition.current = { from, to, progress: 0 };
+    unlockLimits(orbit);
+    orbit.enabled = false;
 }
 
 function orbitStartPose(): Pose {
@@ -186,24 +266,63 @@ function orbitStartPose(): Pose {
 }
 
 /**
- * Front-on and level, zoomed so the tank front either fills the whole view
- * and is cropped (`cover`) or fits entirely inside it (`contain`), as in CSS
- * object-fit.
+ * Looking at the middle of the tank from `view`, zoomed so the whole tank
+ * either fits inside the view (`contain`, with a little room around it) or
+ * fills it and is cropped on the longer side (`cover`), as in CSS object-fit.
+ * Exact for perspective: corners nearer the camera are allowed for.
  */
-function flatPose(aspect: number, fit: 'cover' | 'contain'): Pose {
-    const frame = flatFrame();
-    const toFitHeight = frame.height / 2;
-    const toFitWidth = frame.width / (2 * Math.max(aspect, 0.1));
+function fitPose(
+    view: TankView,
+    aspect: number,
+    fov: number,
+    fit: 'cover' | 'contain',
+): Pose {
+    const { azimuth, polar } = viewAngles(view);
+    const target = new Vector3(0, TANK.height / 2, 0);
+    const towardsCamera = new Vector3(...TANK_VIEWS[view]).normalize();
+    // Built from the azimuth so it stays defined looking straight down.
+    const right = new Vector3(Math.cos(azimuth), 0, -Math.sin(azimuth));
+    const up = towardsCamera.clone().cross(right);
+    const tan = halfFovTan(fov);
+    const halfWidthTan = tan * Math.max(aspect, 0.1);
+    const half = new Vector3(
+        TANK.width / 2 + FIT_PADDING.x,
+        TANK.height / 2 + FIT_PADDING.y,
+        TANK.depth / 2 + FIT_PADDING.z,
+    );
+    const corner = new Vector3();
+    let distanceForHeight = 0;
+    let distanceForWidth = 0;
+
+    for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+            for (const sz of [-1, 1]) {
+                corner.set(sx * half.x, sy * half.y, sz * half.z);
+                const nearer = corner.dot(towardsCamera);
+
+                distanceForHeight = Math.max(
+                    distanceForHeight,
+                    Math.abs(corner.dot(up)) / tan + nearer,
+                );
+                distanceForWidth = Math.max(
+                    distanceForWidth,
+                    Math.abs(corner.dot(right)) / halfWidthTan + nearer,
+                );
+            }
+        }
+    }
+
+    const distance =
+        fit === 'cover'
+            ? Math.min(distanceForHeight, distanceForWidth)
+            : Math.max(distanceForHeight, distanceForWidth) * CONTAIN_MARGIN;
 
     return {
-        target: new Vector3(0, frame.centreY, 0),
-        azimuth: 0,
-        polar: Math.PI / 2,
-        halfHeight:
-            fit === 'cover'
-                ? Math.min(toFitHeight, toFitWidth)
-                : Math.max(toFitHeight, toFitWidth),
-        fov: FLAT_FOV,
+        target,
+        azimuth,
+        polar,
+        halfHeight: distance * tan,
+        fov,
     };
 }
 
@@ -222,7 +341,18 @@ function currentPose(camera: PerspectiveCamera, orbit: Controls): Pose {
 }
 
 function blendPoses(from: Pose, to: Pose, amount: number): Pose {
-    let turn = (to.azimuth - from.azimuth) % (Math.PI * 2);
+    return {
+        target: from.target.clone().lerp(to.target, amount),
+        azimuth: from.azimuth + shortestTurn(from.azimuth, to.azimuth) * amount,
+        polar: MathUtils.lerp(from.polar, to.polar, amount),
+        halfHeight: MathUtils.lerp(from.halfHeight, to.halfHeight, amount),
+        fov: MathUtils.lerp(from.fov, to.fov, amount),
+    };
+}
+
+/** The signed angle (within ±π) to turn from one azimuth to another. */
+function shortestTurn(from: number, to: number): number {
+    let turn = (to - from) % (Math.PI * 2);
 
     if (turn > Math.PI) {
         turn -= Math.PI * 2;
@@ -230,13 +360,7 @@ function blendPoses(from: Pose, to: Pose, amount: number): Pose {
         turn += Math.PI * 2;
     }
 
-    return {
-        target: from.target.clone().lerp(to.target, amount),
-        azimuth: from.azimuth + turn * amount,
-        polar: MathUtils.lerp(from.polar, to.polar, amount),
-        halfHeight: MathUtils.lerp(from.halfHeight, to.halfHeight, amount),
-        fov: MathUtils.lerp(from.fov, to.fov, amount),
-    };
+    return turn;
 }
 
 function applyPose(
@@ -249,7 +373,13 @@ function applyPose(
     camera.fov = pose.fov;
     camera.updateProjectionMatrix();
     camera.position
-        .setFromSpherical(new Spherical(radius, pose.polar, pose.azimuth))
+        .setFromSpherical(
+            new Spherical(
+                radius,
+                Math.max(MIN_POLAR, pose.polar),
+                pose.azimuth,
+            ),
+        )
         .add(pose.target);
     orbit.target.copy(pose.target);
     orbit.update();
@@ -259,11 +389,12 @@ function applyLimits(
     orbit: Controls,
     mode: TankViewMode,
     aspect: number,
+    flatView: TankView,
 ): void {
     if (mode === 'orbit') {
         orbit.minDistance = ORBIT_MIN_DISTANCE * tankScale();
         orbit.maxDistance = ORBIT_MAX_DISTANCE * tankScale();
-        orbit.minPolarAngle = 0.3;
+        orbit.minPolarAngle = 0;
         orbit.maxPolarAngle = Math.PI / 2;
         orbit.minAzimuthAngle = -Infinity;
         orbit.maxAzimuthAngle = Infinity;
@@ -271,16 +402,19 @@ function applyLimits(
         return;
     }
 
-    // Zoom from a close-up down to seeing the whole tank front at once.
+    // Zoom from a close-up out to a little beyond seeing the whole tank,
+    // and turn or tilt only slightly away from the chosen side.
     const distanceFor = (fit: 'cover' | 'contain') =>
-        flatPose(aspect, fit).halfHeight / halfFovTan(FLAT_FOV);
+        fitPose(flatView, aspect, FLAT_FOV, fit).halfHeight /
+        halfFovTan(FLAT_FOV);
+    const { azimuth, polar } = viewAngles(flatView);
 
     orbit.minDistance = distanceFor('cover') * 0.5;
     orbit.maxDistance = distanceFor('contain') * 1.05;
-    orbit.minPolarAngle = Math.PI / 2 - FLAT_ROTATION;
-    orbit.maxPolarAngle = Math.PI / 2;
-    orbit.minAzimuthAngle = -FLAT_ROTATION;
-    orbit.maxAzimuthAngle = FLAT_ROTATION;
+    orbit.minPolarAngle = Math.max(0, polar - FLAT_ROTATION);
+    orbit.maxPolarAngle = Math.min(Math.PI / 2, polar + FLAT_ROTATION);
+    orbit.minAzimuthAngle = azimuth - FLAT_ROTATION;
+    orbit.maxAzimuthAngle = azimuth + FLAT_ROTATION;
 }
 
 /**

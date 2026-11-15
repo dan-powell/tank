@@ -9,6 +9,7 @@ import { cellToWorld, VOXEL, worldToCell } from '@/lib/tank/space';
 import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { TerrainField } from '@/lib/tank/terrain-field';
 import { rotateCell } from '@/lib/tank/voxel-volume';
+import type { TankAxis } from '@/lib/tank/views';
 import type { TankWorld } from '@/lib/tank/world';
 import type {
     DecorationDefinition,
@@ -27,7 +28,6 @@ import {
 import { Plant } from './plants';
 import { useSelectable } from './selection';
 import { HIGHLIGHT_BRIGHTNESS } from './sway-material';
-import type { TankViewMode } from './tank-camera-rig';
 import { createVoxelMaterial } from './voxel-material';
 
 type Props = {
@@ -39,7 +39,8 @@ type Props = {
     world: TankWorld;
     grid: TankGrid;
     substrate: Heightmap;
-    viewMode: TankViewMode;
+    /** The move arrow to leave off: the one pointing at the viewer in a square-on 2D view. */
+    hiddenAxis: TankAxis | null;
     /** Whether decorations may be moved (not through a sealed lid). */
     canArrange: boolean;
     selectedDecorationId: number | null;
@@ -66,7 +67,7 @@ export function Decorations({
     world,
     grid,
     substrate,
-    viewMode,
+    hiddenAxis,
     canArrange,
     selectedDecorationId,
     selectedPlantId,
@@ -188,7 +189,7 @@ export function Decorations({
                         decoration={decoration}
                         model={model}
                         grid={grid}
-                        showDepth={viewMode === 'orbit'}
+                        hiddenAxis={hiddenAxis}
                         onMove={(position) => onMove(decoration.id, position)}
                         onDragChange={onDragChange}
                     >
@@ -351,8 +352,8 @@ type GizmoProps = {
     decoration: DecorationSnapshot;
     model: DecorModel;
     grid: TankGrid;
-    /** Offer the depth (z) handle; hidden in the flat front view where it points at the viewer. */
-    showDepth: boolean;
+    /** The handle to leave off, as it would point straight at the viewer. */
+    hiddenAxis: TankAxis | null;
     onMove: (position: GridCell) => void;
     onDragChange: (isDragging: boolean) => void;
     children: ReactNode;
@@ -366,7 +367,7 @@ function DecorationGizmo({
     decoration,
     model,
     grid,
-    showDepth,
+    hiddenAxis,
     onMove,
     onDragChange,
     children,
@@ -389,7 +390,9 @@ function DecorationGizmo({
     return (
         <TransformControls
             mode="translate"
-            showZ={showDepth}
+            showX={hiddenAxis !== 'x'}
+            showY={hiddenAxis !== 'y'}
+            showZ={hiddenAxis !== 'z'}
             size={0.7}
             position={cellToWorld(...decoration.position)}
             onMouseDown={() => onDragChange(true)}

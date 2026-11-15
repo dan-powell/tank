@@ -24,10 +24,14 @@ import { EventLog } from '@/components/tank/event-log';
 import { InhabitantList } from '@/components/tank/inhabitant-list';
 import { InhabitantPanel } from '@/components/tank/inhabitant-panel';
 import type { Inhabitant } from '@/components/tank/inhabitant-panel';
-import type { TankViewMode } from '@/components/tank/tank-camera-rig';
+import type {
+    TankViewMode,
+    TankViewRequest,
+} from '@/components/tank/tank-camera-rig';
 import { PopulationPanel } from '@/components/tank/population-panel';
 import { TankHeading } from '@/components/tank/tank-heading';
 import { TankScene } from '@/components/tank/tank-scene';
+import { TankViewCube } from '@/components/tank/tank-view-cube';
 import { ToolsPanel } from '@/components/tank/tools-panel';
 import { WaterLevelPanel } from '@/components/tank/water-level-panel';
 import { AirPanel, WaterPanel } from '@/components/tank/water-panel';
@@ -57,6 +61,7 @@ import { cn } from '@/lib/utils';
 import { TankWorld } from '@/lib/tank/world';
 import { dashboard } from '@/routes';
 import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
+import type { TankView } from '@/lib/tank/views';
 import { feed } from '@/routes/tanks';
 import creatureRoutes from '@/routes/tanks/creatures';
 import plantRoutes from '@/routes/tanks/plants';
@@ -72,7 +77,7 @@ import type {
     TankSnapshot,
 } from '@/types';
 import { toast } from 'sonner';
-import { Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
 
 type Props = {
     tank: TankSnapshot;
@@ -170,6 +175,13 @@ export default function ShowTank({
         [sizeKey],
     );
     const [viewMode, setViewMode] = useState<TankViewMode>('flat');
+    /** The side the 2D view looks from, picked on the view cube. */
+    const [flatView, setFlatView] = useState<TankView>('front');
+    const [viewRequest, setViewRequest] = useState<TankViewRequest | null>(
+        null,
+    );
+    /** The camera's orientation, shared from the scene to the view cube each frame. */
+    const [cameraOrientation] = useState(() => new Quaternion());
     const [isPanelOpen, setIsPanelOpen] = useState(initialPanelOpen);
     const [selection, setSelection] = useState<TankSelection | null>(null);
     const [selectedAnchor, setSelectedAnchor] = useState<number | null>(null);
@@ -181,6 +193,18 @@ export default function ShowTank({
     const [previewBackground, setPreviewBackground] =
         useState<TankBackground | null>(null);
     const [tabDirection, setTabDirection] = useState<TabDirection>('right');
+
+    /** Swing the camera round to `view`; in 2D it also becomes the side the flat view looks from. */
+    const selectView = (view: TankView) => {
+        if (viewMode === 'flat') {
+            setFlatView(view);
+        }
+
+        setViewRequest((previous) => ({
+            view,
+            id: (previous?.id ?? 0) + 1,
+        }));
+    };
 
     const changeTab = (next: PanelTab) => {
         const index = (value: PanelTab) =>
@@ -448,6 +472,9 @@ export default function ShowTank({
                         species={species}
                         world={world}
                         viewMode={viewMode}
+                        flatView={flatView}
+                        viewRequest={viewRequest}
+                        cameraOrientation={cameraOrientation}
                         decorationCatalogue={decorationCatalogue}
                         selection={selection}
                         onSelect={select}
@@ -518,7 +545,13 @@ export default function ShowTank({
                         </Tooltip>
                     </div>
 
-                    <div className="absolute bottom-3 left-3">
+                    <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col items-start gap-2">
+                        <TankViewCube
+                            key={sizeKey}
+                            orientation={cameraOrientation}
+                            onSelectView={selectView}
+                            className="pointer-events-auto"
+                        />
                         <ToggleGroup
                             type="single"
                             size="sm"
@@ -528,7 +561,10 @@ export default function ShowTank({
                                 value && setViewMode(value as TankViewMode)
                             }
                             aria-label="Tank view"
-                            className={cn(hudSurface, 'h-9 p-0')}
+                            className={cn(
+                                hudSurface,
+                                'pointer-events-auto h-9 p-0',
+                            )}
                         >
                             <ToggleGroupItem
                                 value="orbit"

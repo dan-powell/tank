@@ -5,22 +5,25 @@ import type { ComponentRef, RefObject } from 'react';
 import { PerspectiveCamera, Vector3 } from 'three';
 import type { Camera } from 'three';
 import { TANK } from '@/lib/tank/space';
+import { facingAxis } from '@/lib/tank/views';
+import type { TankView } from '@/lib/tank/views';
 import type { TankViewMode } from './tank-camera-rig';
 
 type Controls = ComponentRef<typeof OrbitControls>;
 
 type Props = {
     controls: RefObject<Controls | null>;
-    /** `orbit` pans along the camera's own axes; `flat` along the tank's x and y. */
+    /** `orbit` pans freely along the camera's own axes; `flat` keeps the view centre inside the tank. */
     mode: TankViewMode;
+    /** The side the flat view looks from. */
+    flatView: TankView;
     /** How far (world units) the view centre may move from the tank's middle along x. */
     xLimit?: number;
+    /** How far (world units) the view centre may move from the tank's middle along z. */
+    zLimit?: number;
     /** Lowest and highest height (world units) the view centre may move to. */
     yRange?: [number, number];
 };
-
-/** Never divide by less than this when correcting for a foreshortened axis. */
-const MIN_ALIGNMENT = 0.35;
 
 /**
  * Left-drag (mouse or pen) pans the view.
@@ -31,13 +34,16 @@ const MIN_ALIGNMENT = 0.35;
  * never be dragged out of view; on release the orbit target is moved along
  * the line of sight to a point inside the tank, so rotating pivots around it.
  *
- * In the 2D (`flat`) view it pans along the tank's own x axis (its length)
- * and y axis (its height), never in depth, within `xLimit` and `yRange`.
+ * In the 2D (`flat`) view it pans across the screen too, but never towards
+ * or away from a square-on side (so the front view never pans in depth), and
+ * the view centre stays within `xLimit`, `yRange` and `zLimit`.
  */
 export function TankPanControls({
     controls,
     mode,
+    flatView,
     xLimit = TANK.width * 0.4,
+    zLimit = TANK.depth * 0.4,
     // By default, from just above the gravel to the rim (land may rise above the water).
     yRange = [TANK.substrate + 0.1, TANK.height],
 }: Props) {
@@ -85,43 +91,36 @@ export function TankPanControls({
                 (2 * distance * Math.tan((fov * Math.PI) / 360)) /
                 Math.max(1, element.clientHeight);
 
-            // How much of the screen's horizontal runs along the tank's x, and
-            // its vertical along the tank's y, so the tank follows the cursor.
-            // Clamped so panning still works (slowly) when an axis is
-            // foreshortened, e.g. viewed end-on or from above.
-            cameraRight.setFromMatrixColumn(camera.matrixWorld, 0);
-            cameraUp.setFromMatrixColumn(camera.matrixWorld, 1);
+            cameraRight
+                .setFromMatrixColumn(camera.matrixWorld, 0)
+                .multiplyScalar(-dx * worldPerPixel);
+            cameraUp
+                .setFromMatrixColumn(camera.matrixWorld, 1)
+                .multiplyScalar(dy * worldPerPixel);
 
             if (mode === 'orbit') {
-                panAlongCameraAxes(
-                    camera,
-                    orbit,
-                    cameraRight.multiplyScalar(-dx * worldPerPixel),
-                    cameraUp.multiplyScalar(dy * worldPerPixel),
-                );
+                panAlongCameraAxes(camera, orbit, cameraRight, cameraUp);
 
                 return;
             }
 
-            const shiftX =
-                clamp(
-                    orbit.target.x +
-                        (-dx * worldPerPixel) / alignment(cameraRight.x),
-                    -xLimit,
-                    xLimit,
-                ) - orbit.target.x;
-            const shiftY =
-                clamp(
-                    orbit.target.y +
-                        (dy * worldPerPixel) / alignment(cameraUp.y),
-                    yMin,
-                    yMax,
-                ) - orbit.target.y;
+            const shift = cameraRight.add(cameraUp);
+            const facing = facingAxis(flatView);
 
-            orbit.target.x += shiftX;
-            orbit.target.y += shiftY;
-            camera.position.x += shiftX;
-            camera.position.y += shiftY;
+            if (facing !== null) {
+                shift[facing] = 0;
+            }
+
+            shift.set(
+                clamp(orbit.target.x + shift.x, -xLimit, xLimit) -
+                    orbit.target.x,
+                clamp(orbit.target.y + shift.y, yMin, yMax) - orbit.target.y,
+                clamp(orbit.target.z + shift.z, -zLimit, zLimit) -
+                    orbit.target.z,
+            );
+
+            orbit.target.add(shift);
+            camera.position.add(shift);
             orbit.update();
         };
 
@@ -158,7 +157,7 @@ export function TankPanControls({
             element.removeEventListener('pointercancel', onPointerUp);
             element.removeEventListener('contextmenu', onContextMenu);
         };
-    }, [camera, element, controls, mode, xLimit, yMin, yMax]);
+    }, [camera, element, controls, mode, flatView, xLimit, zLimit, yMin, yMax]);
 
     return null;
 }
@@ -265,13 +264,6 @@ function sightThroughTank(
     }
 
     return enter <= exit ? { enter, exit } : null;
-}
-
-/** A signed axis alignment, kept away from zero. */
-function alignment(component: number): number {
-    return (
-        Math.sign(component || 1) * Math.max(MIN_ALIGNMENT, Math.abs(component))
-    );
 }
 
 function clamp(value: number, min: number, max: number): number {
