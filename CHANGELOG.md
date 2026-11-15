@@ -46,7 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Gravel sculpting (at 0.2 cm detail) in the Aquascaping tab: preset shapes (flat, slope, beaches, island, terraces) and a Raise / Lower / Smooth / Flatten brush in three sizes, with Undo; changes save in batches every 2 seconds (and when leaving the page). Raised gravel displaces water and becomes land above the waterline; decorations stay put.
 - Land and edge life: cushion moss and maidenhair fern grow above the water, pothos and dwarf rush at the waterline; springtails, dwarf white isopods and garlic glass-snails live on land, and the fire-bellied toad moves between water and land, hunting the small invertebrates.
 - Air above the water (humidity, oxygen, CO2) on the Summary tab: land plants and animals breathe it, open tanks share the room's air, and land plants feed on detritus.
-- Seal the tank from Equipment to make it a closed ecosystem: a glass lid, no air from the room (it mists up as humidity rises), the auto-feeder pauses, and feeding, maintenance, stocking and aquascaping wait until the lid is lifted.
+- Seal the tank from Equipment to make it a closed ecosystem: a glass lid, no air from the room (it mists up as humidity rises); feeding, maintenance, stocking, aquascaping and the auto-feeder all still work with the lid on.
 - The Add stock dialog groups species into water, edge and land, explaining why any can't go in yet.
 - Animals grow through stages (e.g. fry, juvenile, adult), each its own model, instead of being scaled up; a short squash-and-stretch marks each new stage.
 - Animals animate frame by frame from their models (swimming, crawling, hopping or idling), moving faster plays faster; the old whole-body wiggle is gone.

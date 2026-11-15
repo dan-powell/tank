@@ -41,8 +41,6 @@ type Props = {
     tankId: number;
     inhabitant: Inhabitant;
     world: TankWorld;
-    /** Nothing can be moved or taken out through a sealed lid. */
-    isSealed: boolean;
     /** Start choosing a new spot for it in the tank. */
     onMove: () => void;
     /** Deselect and return to the tank overview. */
@@ -62,7 +60,6 @@ export function InhabitantPanel({
     tankId,
     inhabitant,
     world,
-    isSealed,
     onMove,
     onBack,
     isFollowing,
@@ -130,19 +127,12 @@ export function InhabitantPanel({
             />
 
             <div className="flex flex-wrap gap-2">
-                <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={isSealed}
-                    title={isSealed ? 'Lift the lid first' : undefined}
-                    onClick={onMove}
-                >
+                <Button size="sm" variant="outline" onClick={onMove}>
                     <Move /> Move
                 </Button>
                 <RemoveButton
                     key={`remove-${kind}-${entity.id}`}
                     name={title}
-                    disabled={isSealed}
                     onConfirm={() =>
                         router.delete(url.destroy, {
                             ...visitOptions,
@@ -454,22 +444,15 @@ function NameForm({
 
 function RemoveButton({
     name,
-    disabled,
     onConfirm,
 }: {
     name: string;
-    disabled: boolean;
     onConfirm: () => void;
 }) {
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
-                <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={disabled}
-                    title={disabled ? 'Lift the lid first' : undefined}
-                >
+                <Button size="sm" variant="outline">
                     <Trash2 /> Remove from tank
                 </Button>
             </AlertDialogTrigger>

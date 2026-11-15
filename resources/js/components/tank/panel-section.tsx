@@ -1,4 +1,4 @@
-import { ArrowLeft, LocateFixed, Lock } from 'lucide-react';
+import { ArrowLeft, LocateFixed } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -88,29 +88,5 @@ export function SelectionPanelHeader({
                 <LocateFixed /> {isFollowing ? 'Following' : 'Follow'}
             </Button>
         </div>
-    );
-}
-
-/**
- * Disables every control inside while the lid is sealed, with a short note
- * saying why. Display-neutral, so it can wrap whole panel sections.
- */
-export function SealedGuard({
-    isSealed,
-    children,
-}: {
-    isSealed: boolean;
-    children: ReactNode;
-}) {
-    return (
-        <fieldset disabled={isSealed} className="contents">
-            {isSealed && (
-                <p className="flex items-center gap-1.5 pb-3 text-xs text-muted-foreground">
-                    <Lock className="size-3.5" /> The lid is sealed. Lift it in
-                    Equipment to make changes.
-                </p>
-            )}
-            {children}
-        </fieldset>
     );
 }

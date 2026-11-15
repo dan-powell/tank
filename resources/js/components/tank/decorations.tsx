@@ -45,8 +45,6 @@ type Props = {
     substrate: Heightmap;
     /** The move arrow to leave off: the one pointing at the viewer in a square-on 2D view. */
     hiddenAxis: TankAxis | null;
-    /** Whether decorations may be moved (not through a sealed lid). */
-    canArrange: boolean;
     selectedDecorationId: number | null;
     selectedPlantId: number | null;
     onSelectDecoration: (decorationId: number) => void;
@@ -72,7 +70,6 @@ export function Decorations({
     grid,
     substrate,
     hiddenAxis,
-    canArrange,
     selectedDecorationId,
     selectedPlantId,
     onSelectDecoration,
@@ -196,7 +193,7 @@ export function Decorations({
                     />
                 );
 
-                return isSelected && canArrange ? (
+                return isSelected ? (
                     <DecorationGizmo
                         key={decoration.id}
                         decoration={decoration}

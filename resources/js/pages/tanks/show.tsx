@@ -39,7 +39,6 @@ import { ToolsPanel } from '@/components/tank/tools-panel';
 import { WaterLevelPanel } from '@/components/tank/water-level-panel';
 import { AirPanel, WaterPanel } from '@/components/tank/water-panel';
 import { LidPanel } from '@/components/tank/lid-panel';
-import { SealedGuard } from '@/components/tank/panel-section';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -385,10 +384,7 @@ export default function ShowTank({
             only: ['tank', 'errors'],
             onError: (errors: Record<string, string>) =>
                 toast.error(
-                    errors.x ??
-                        errors.layer ??
-                        errors.lid ??
-                        'It could not be moved there.',
+                    errors.x ?? errors.layer ?? 'It could not be moved there.',
                 ),
         };
 
@@ -523,26 +519,6 @@ export default function ShowTank({
 
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
-
-    // Hands-in work refused through a sealed lid is reported as a toast.
-    useEffect(
-        () =>
-            router.on('error', (event) => {
-                const lid = (event as CustomEvent).detail?.errors?.lid;
-
-                if (typeof lid === 'string') {
-                    toast.error(lid);
-                }
-            }),
-        [],
-    );
-
-    // Sealing the lid ends any sculpting in progress.
-    useEffect(() => {
-        if (tank.is_sealed) {
-            setSculptBrush(null);
-        }
-    }, [tank.is_sealed]);
 
     useTankChannel(tank.id, () => {
         const drop = toWorld(AUTO_FEEDER_SPOT.x, 1, AUTO_FEEDER_SPOT.z);
@@ -847,7 +823,6 @@ export default function ShowTank({
                                     stockConditions={{
                                         hasWater: tank.has_water,
                                         hasLand: tank.land_area_cm2 > 0,
-                                        isSealed: tank.is_sealed,
                                     }}
                                     onSelect={select}
                                 />
@@ -860,42 +835,37 @@ export default function ShowTank({
                                 <ToolsPanel
                                     tankId={tank.id}
                                     hasWater={tank.has_water}
-                                    isSealed={tank.is_sealed}
                                     onFeedRandomly={feedRandomly}
                                 />
-                                <SealedGuard isSealed={tank.is_sealed}>
-                                    <WaterLevelPanel
-                                        key={tank.grid.water_level}
-                                        tankId={tank.id}
-                                        grid={tank.grid}
-                                        litres={tank.volume_litres}
-                                        hasWater={tank.has_water}
-                                    />
-                                </SealedGuard>
+                                <WaterLevelPanel
+                                    key={tank.grid.water_level}
+                                    tankId={tank.id}
+                                    grid={tank.grid}
+                                    litres={tank.volume_litres}
+                                    hasWater={tank.has_water}
+                                />
                             </PanelTabContent>
 
                             <PanelTabContent
                                 value="decor"
                                 direction={tabDirection}
                             >
-                                <SealedGuard isSealed={tank.is_sealed}>
-                                    <SubstratePanel
-                                        grid={tank.grid}
-                                        brush={sculptBrush}
-                                        onBrushChange={startSculpting}
-                                        onApply={gravel.reshape}
-                                        onUndo={gravel.undo}
-                                        canUndo={gravel.canUndo}
-                                    />
-                                    <DecorCatalogue
-                                        tankId={tank.id}
-                                        catalogue={decorationCatalogue}
-                                        placedCount={tank.decorations.length}
-                                        onPlaced={(id) =>
-                                            select({ kind: 'decoration', id })
-                                        }
-                                    />
-                                </SealedGuard>
+                                <SubstratePanel
+                                    grid={tank.grid}
+                                    brush={sculptBrush}
+                                    onBrushChange={startSculpting}
+                                    onApply={gravel.reshape}
+                                    onUndo={gravel.undo}
+                                    canUndo={gravel.canUndo}
+                                />
+                                <DecorCatalogue
+                                    tankId={tank.id}
+                                    catalogue={decorationCatalogue}
+                                    placedCount={tank.decorations.length}
+                                    onPlaced={(id) =>
+                                        select({ kind: 'decoration', id })
+                                    }
+                                />
                             </PanelTabContent>
 
                             <PanelTabContent
@@ -928,12 +898,10 @@ export default function ShowTank({
                                     background={tank.background}
                                     onPreview={setPreviewBackground}
                                 />
-                                <SealedGuard isSealed={tank.is_sealed}>
-                                    <AutoFeederPanel
-                                        tankId={tank.id}
-                                        feeder={tank.auto_feeder}
-                                    />
-                                </SealedGuard>
+                                <AutoFeederPanel
+                                    tankId={tank.id}
+                                    feeder={tank.auto_feeder}
+                                />
                             </PanelTabContent>
                         </Tabs>
 
@@ -943,7 +911,6 @@ export default function ShowTank({
                                     tankId={tank.id}
                                     inhabitant={inhabitant}
                                     world={world}
-                                    isSealed={tank.is_sealed}
                                     onMove={() =>
                                         setMoving({
                                             kind: inhabitant.kind,
@@ -984,7 +951,6 @@ export default function ShowTank({
                                     onSelectPlant={(id) =>
                                         select({ kind: 'plant', id })
                                     }
-                                    isSealed={tank.is_sealed}
                                     onBack={() => select(null)}
                                     isFollowing={activeFollow !== null}
                                     onToggleFollow={toggleFollow}

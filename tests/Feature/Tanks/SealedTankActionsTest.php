@@ -2,9 +2,7 @@
 
 namespace Tests\Feature\Tanks;
 
-use App\Enums\LightMode;
 use App\Events\TankUpdated;
-use App\Models\Plant;
 use App\Models\Species;
 use App\Models\Tank;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -12,7 +10,7 @@ use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
-class EnsureTankIsOpenTest extends TestCase
+class SealedTankActionsTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -38,40 +36,26 @@ class EnsureTankIsOpenTest extends TestCase
      * @param  array<string, mixed>  $data
      */
     #[DataProvider('handsInActions')]
-    public function test_a_sealed_tank_refuses_hands_in_work(string $method, string $route, array $data): void
+    public function test_a_sealed_tank_still_accepts_hands_in_work(string $method, string $route, array $data): void
     {
         $tank = Tank::factory()->sealed()->create();
 
         $this->actingAs($tank->user)
             ->{$method}(route($route, $tank), $data)
-            ->assertSessionHasErrors(['lid' => 'Lift the lid first.']);
+            ->assertSessionHasNoErrors();
 
-        $this->assertSame(0, $tank->events()->count());
+        $this->assertTrue($tank->fresh()->is_sealed);
     }
 
-    public function test_a_sealed_tank_cannot_be_stocked(): void
+    public function test_a_sealed_tank_can_be_stocked(): void
     {
         $tank = Tank::factory()->sealed()->create();
         $species = Species::factory()->create();
 
         $this->actingAs($tank->user)
             ->post(route('tanks.stock', $tank), ['species_id' => $species->id, 'quantity' => 1])
-            ->assertSessionHasErrors(['lid' => 'Lift the lid first.']);
-
-        $this->assertSame(0, $tank->creatures()->count());
-    }
-
-    public function test_the_lamp_and_names_still_work_through_the_lid(): void
-    {
-        $tank = Tank::factory()->sealed()->create(['light_mode' => LightMode::Timer]);
-        $plant = Plant::factory()->for($tank)->create();
-
-        $this->actingAs($tank->user)->put(route('tanks.light', $tank), ['mode' => 'off'])->assertSessionHasNoErrors();
-        $this->actingAs($tank->user)
-            ->patch(route('tanks.plants.update', [$tank, $plant]), ['nickname' => 'Fern'])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame(LightMode::Off, $tank->fresh()->light_mode);
-        $this->assertSame('Fern', $plant->fresh()->nickname);
+        $this->assertSame(1, $tank->creatures()->count());
     }
 }

@@ -160,16 +160,16 @@ class TankCreatureControllerTest extends TestCase
             ->assertSessionHasErrors(['layer' => 'The layer field must be between 0 and 4.']);
     }
 
-    public function test_cannot_move_an_animal_through_a_sealed_lid(): void
+    public function test_can_move_an_animal_in_a_sealed_tank(): void
     {
         $tank = Tank::factory()->sealed()->create();
         $creature = Creature::factory()->for($tank)->create(['zone_x' => 0.5]);
 
         $this->actingAs($tank->user)
             ->patch(route('tanks.creatures.move', [$tank, $creature]), ['x' => 0.7, 'y' => 0.4, 'layer' => 3])
-            ->assertSessionHasErrors(['lid' => 'Lift the lid first.']);
+            ->assertSessionHasNoErrors();
 
-        $this->assertSame(0.5, $creature->fresh()->zone_x);
+        $this->assertSame(0.7, $creature->fresh()->zone_x);
     }
 
     public function test_cannot_move_an_animal_that_has_died(): void

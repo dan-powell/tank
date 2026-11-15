@@ -31,7 +31,7 @@ type Props = {
     creatures: CreatureSnapshot[];
     plants: PlantSnapshot[];
     species: Species[];
-    /** What the tank offers new arrivals (water, land, an open lid). */
+    /** What the tank offers new arrivals (water, land). */
     stockConditions: StockConditions;
     onSelect: (selection: TankSelection) => void;
 };

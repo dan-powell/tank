@@ -12,26 +12,19 @@ import {
 } from '@/components/ui/select';
 import { scrub, vacuum, waterChange } from '@/routes/tanks';
 
-import { PanelSection, SealedGuard } from './panel-section';
+import { PanelSection } from './panel-section';
 
 type Props = {
     tankId: number;
     /** Feeding and water changes need water in the tank. */
     hasWater: boolean;
-    /** Feeding and cleaning can't be done through a sealed lid. */
-    isSealed: boolean;
     onFeedRandomly: () => void;
 };
 
 const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
 
 /** Hands-on care and cleaning for the tank. */
-export function ToolsPanel({
-    tankId,
-    hasWater,
-    isSealed,
-    onFeedRandomly,
-}: Props) {
+export function ToolsPanel({ tankId, hasWater, onFeedRandomly }: Props) {
     const [percent, setPercent] = useState(25);
 
     return (
@@ -40,7 +33,7 @@ export function ToolsPanel({
                 <div className="grid grid-cols-2 gap-2 *:w-full *:justify-start">
                     <Button
                         size="sm"
-                        disabled={!hasWater || isSealed}
+                        disabled={!hasWater}
                         onClick={onFeedRandomly}
                     >
                         <Fish /> Feed
@@ -49,76 +42,67 @@ export function ToolsPanel({
             </PanelSection>
 
             <PanelSection id="maintenance-heading" title="Maintenance">
-                <SealedGuard isSealed={isSealed}>
-                    <div className="grid grid-cols-2 gap-2 *:w-full *:justify-start">
-                        <Button
+                <div className="grid grid-cols-2 gap-2 *:w-full *:justify-start">
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                            router.post(scrub.url(tankId), {}, visitOptions)
+                        }
+                    >
+                        <Sparkles /> Scrub glass
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                            router.post(vacuum.url(tankId), {}, visitOptions)
+                        }
+                    >
+                        <Waves /> Vacuum gravel
+                    </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Label
+                        htmlFor="water-change"
+                        className="font-normal text-muted-foreground"
+                    >
+                        Water change
+                    </Label>
+                    <Select
+                        value={String(percent)}
+                        onValueChange={(value) => setPercent(Number(value))}
+                    >
+                        <SelectTrigger
+                            id="water-change"
                             size="sm"
-                            variant="outline"
-                            onClick={() =>
-                                router.post(scrub.url(tankId), {}, visitOptions)
-                            }
+                            className="w-20 bg-background"
                         >
-                            <Sparkles /> Scrub glass
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                                router.post(
-                                    vacuum.url(tankId),
-                                    {},
-                                    visitOptions,
-                                )
-                            }
-                        >
-                            <Waves /> Vacuum gravel
-                        </Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Label
-                            htmlFor="water-change"
-                            className="font-normal text-muted-foreground"
-                        >
-                            Water change
-                        </Label>
-                        <Select
-                            value={String(percent)}
-                            onValueChange={(value) => setPercent(Number(value))}
-                        >
-                            <SelectTrigger
-                                id="water-change"
-                                size="sm"
-                                className="w-20 bg-background"
-                            >
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {[10, 25, 50, 75].map((option) => (
-                                    <SelectItem
-                                        key={option}
-                                        value={String(option)}
-                                    >
-                                        {option}%
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!hasWater}
-                            onClick={() =>
-                                router.post(
-                                    waterChange.url(tankId),
-                                    { percent },
-                                    visitOptions,
-                                )
-                            }
-                        >
-                            <Droplets /> Change
-                        </Button>
-                    </div>
-                </SealedGuard>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {[10, 25, 50, 75].map((option) => (
+                                <SelectItem key={option} value={String(option)}>
+                                    {option}%
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={!hasWater}
+                        onClick={() =>
+                            router.post(
+                                waterChange.url(tankId),
+                                { percent },
+                                visitOptions,
+                            )
+                        }
+                    >
+                        <Droplets /> Change
+                    </Button>
+                </div>
             </PanelSection>
         </>
     );

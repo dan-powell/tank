@@ -264,7 +264,6 @@ export function TankScene({
                                     ? facingAxis(flatView)
                                     : null
                             }
-                            canArrange={!tank.is_sealed}
                             selectedDecorationId={
                                 selection?.kind === 'decoration'
                                     ? selection.id
