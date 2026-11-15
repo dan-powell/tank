@@ -31,6 +31,7 @@ import {
 import { Plant } from './plants';
 import { useSelectable, useShowsSelectionHalo } from './selection';
 import { HIGHLIGHT_BRIGHTNESS } from './sway-material';
+import { introUniforms } from './intro-material';
 import { createVoxelMaterial } from './voxel-material';
 
 type Props = {
@@ -132,7 +133,10 @@ export function Decorations({
     );
 
     const material = useMemo(
-        () => createVoxelMaterial(new Color('#ffffff')),
+        () =>
+            createVoxelMaterial(new Color('#ffffff'), undefined, {
+                reveal: introUniforms.landscape,
+            }),
         [],
     );
     const highlighted = useMemo(
@@ -140,6 +144,7 @@ export function Decorations({
             createVoxelMaterial(
                 new Color('#ffffff'),
                 new Color('#ffffff').multiplyScalar(HIGHLIGHT_BRIGHTNESS),
+                { reveal: introUniforms.landscape },
             ),
         [],
     );
@@ -378,6 +383,7 @@ function DecorationLeds({
         [lights.colour],
     );
     const glow = useRef<PointLight>(null);
+    const beads = useRef<Group>(null);
     const positions = useMemo(
         () =>
             points.map(
@@ -401,6 +407,13 @@ function DecorationLeds({
     useEffect(() => () => material.dispose(), [material]);
 
     useFrame(() => {
+        // Not lit until the decoration itself has appeared.
+        const isShown = introUniforms.landscape.value >= 1;
+
+        if (beads.current !== null) {
+            beads.current.visible = isShown;
+        }
+
         let tankLight = 0;
 
         for (let index = 0; index < liveLighting.count; index++) {
@@ -413,21 +426,23 @@ function DecorationLeds({
         material.emissiveIntensity = 0.3 + level * LED_GLOW;
 
         if (glow.current !== null) {
-            glow.current.intensity = level * 0.25;
+            glow.current.intensity = isShown ? level * 0.25 : 0;
         }
     });
 
     return (
         <group>
-            {positions.map((position, index) => (
-                <mesh
-                    key={index}
-                    position={position}
-                    geometry={LED_BEAD}
-                    material={material}
-                    raycast={() => null}
-                />
-            ))}
+            <group ref={beads}>
+                {positions.map((position, index) => (
+                    <mesh
+                        key={index}
+                        position={position}
+                        geometry={LED_BEAD}
+                        material={material}
+                        raycast={() => null}
+                    />
+                ))}
+            </group>
             {castsLight && (
                 <pointLight
                     ref={glow}

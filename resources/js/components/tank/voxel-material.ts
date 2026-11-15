@@ -1,6 +1,8 @@
 import { Color, MeshStandardMaterial } from 'three';
 import type { WebGLProgramParametersWithUniforms } from 'three';
 import { applyCaustics } from './caustics';
+import { applyReveal } from './intro-material';
+import type { RevealUniform } from './intro-material';
 
 /**
  * Replace the colour of tint-keyed sprite pixels (the `aTint` attribute
@@ -55,12 +57,13 @@ ${shader.fragmentShader}`.replace(
  * A material for voxel creatures: sprite colours, with tint-keyed pixels
  * recoloured per individual, multiplied by `color` (white = unchanged), lit
  * by the water's caustics. With `sheen`, it also catches a glint in the
- * lights' colour (for fish and other animals).
+ * lights' colour (for fish and other animals). With `reveal`, it dissolves
+ * in voxel by voxel (see applyReveal).
  */
 export function createVoxelMaterial(
     tint: Color,
     color = new Color('#ffffff'),
-    { sheen = false }: { sheen?: boolean } = {},
+    { sheen = false, reveal }: { sheen?: boolean; reveal?: RevealUniform } = {},
 ): MeshStandardMaterial {
     const material = new MeshStandardMaterial({
         color,
@@ -76,9 +79,13 @@ export function createVoxelMaterial(
         if (sheen) {
             applySheen(shader);
         }
+
+        if (reveal !== undefined) {
+            applyReveal(shader, reveal);
+        }
     };
     material.customProgramCacheKey = () =>
-        sheen ? 'voxel-tint-sheen' : 'voxel-tint';
+        `voxel-tint${sheen ? '-sheen' : ''}${reveal === undefined ? '' : '-reveal'}`;
 
     return material;
 }

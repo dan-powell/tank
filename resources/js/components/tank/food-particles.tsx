@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useRef } from 'react';
 import { InstancedMesh, Object3D } from 'three';
 import type { TankWorld } from '@/lib/tank/world';
+import { introUniforms } from './intro-material';
 
 const MAX_PARTICLES = 300;
 const dummy = new Object3D();
@@ -23,7 +24,11 @@ export function FoodParticles({ world }: { world: TankWorld }) {
             dummy.updateMatrix();
             mesh.current?.setMatrixAt(index, dummy.matrix);
         });
-        mesh.current.count = Math.min(world.food.length, MAX_PARTICLES);
+        // Sunken food settles on the gravel as it arrives.
+        mesh.current.count =
+            introUniforms.landscape.value >= 0.5
+                ? Math.min(world.food.length, MAX_PARTICLES)
+                : 0;
         mesh.current.instanceMatrix.needsUpdate = true;
     });
 

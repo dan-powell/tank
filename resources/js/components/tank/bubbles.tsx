@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     AdditiveBlending,
     InstancedBufferAttribute,
@@ -7,8 +8,11 @@ import {
     SphereGeometry,
     Vector3,
 } from 'three';
+import type { Group, InstancedMesh } from 'three';
+import { introProgress, introStarted } from '@/lib/tank/intro';
 import { TANK } from '@/lib/tank/space';
 import { createCausticMaterial } from './caustics';
+import { introUniforms } from './intro-material';
 import { sceneClock } from './scene-clock';
 
 /** Where the air stone sits on the substrate (world x/z, back left). */
@@ -172,50 +176,74 @@ export function Bubbles({ isLit }: Props) {
     );
 
     const tubeHeight = TANK.height + 0.05 - TANK.substrate;
+    const equipment = useRef<Group>(null);
+    const stream = useRef<InstancedMesh>(null);
+
+    // The air stone arrives with the gravel; it bubbles once the tank is full.
+    useFrame(() => {
+        const isBuilding = !introStarted();
+
+        if (equipment.current !== null) {
+            equipment.current.visible =
+                isBuilding || introUniforms.landscape.value >= 0.5;
+        }
+
+        if (stream.current !== null) {
+            stream.current.visible = isBuilding || introProgress('water') >= 1;
+        }
+    });
 
     return (
         <group>
-            {/* Air stone */}
-            <mesh
-                position={[stone.x, TANK.substrate + 0.012, stone.z]}
-                material={stoneMaterial}
-                raycast={() => null}
-            >
-                <cylinderGeometry args={[0.035, 0.04, 0.03, 20]} />
-            </mesh>
-            {/* Airline up the back glass */}
-            <mesh
-                position={[
-                    stone.x,
-                    TANK.substrate + tubeHeight / 2,
-                    -TANK.depth / 2 + 0.02,
-                ]}
-                raycast={() => null}
-            >
-                <cylinderGeometry args={[0.006, 0.006, tubeHeight, 8]} />
-                <meshStandardMaterial
-                    color="#9fb7a8"
-                    roughness={0.3}
-                    transparent
-                    opacity={0.7}
-                />
-            </mesh>
-            <mesh
-                position={[
-                    stone.x,
-                    TANK.substrate + 0.012,
-                    (stone.z - TANK.depth / 2 + 0.02) / 2,
-                ]}
-                rotation={[Math.PI / 2, 0, 0]}
-                raycast={() => null}
-            >
-                <cylinderGeometry
-                    args={[0.006, 0.006, stone.z + TANK.depth / 2 - 0.02, 8]}
-                />
-                <meshStandardMaterial color="#9fb7a8" roughness={0.3} />
-            </mesh>
+            <group ref={equipment}>
+                {/* Air stone */}
+                <mesh
+                    position={[stone.x, TANK.substrate + 0.012, stone.z]}
+                    material={stoneMaterial}
+                    raycast={() => null}
+                >
+                    <cylinderGeometry args={[0.035, 0.04, 0.03, 20]} />
+                </mesh>
+                {/* Airline up the back glass */}
+                <mesh
+                    position={[
+                        stone.x,
+                        TANK.substrate + tubeHeight / 2,
+                        -TANK.depth / 2 + 0.02,
+                    ]}
+                    raycast={() => null}
+                >
+                    <cylinderGeometry args={[0.006, 0.006, tubeHeight, 8]} />
+                    <meshStandardMaterial
+                        color="#9fb7a8"
+                        roughness={0.3}
+                        transparent
+                        opacity={0.7}
+                    />
+                </mesh>
+                <mesh
+                    position={[
+                        stone.x,
+                        TANK.substrate + 0.012,
+                        (stone.z - TANK.depth / 2 + 0.02) / 2,
+                    ]}
+                    rotation={[Math.PI / 2, 0, 0]}
+                    raycast={() => null}
+                >
+                    <cylinderGeometry
+                        args={[
+                            0.006,
+                            0.006,
+                            stone.z + TANK.depth / 2 - 0.02,
+                            8,
+                        ]}
+                    />
+                    <meshStandardMaterial color="#9fb7a8" roughness={0.3} />
+                </mesh>
+            </group>
 
             <instancedMesh
+                ref={stream}
                 args={[geometry, material, BUBBLE_COUNT]}
                 frustumCulled={false}
                 raycast={() => null}

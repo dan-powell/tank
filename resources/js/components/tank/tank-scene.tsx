@@ -41,7 +41,8 @@ import { TankBackdrop } from './tank-backdrop';
 import { orbitStart, TankCameraRig } from './tank-camera-rig';
 import type { TankViewMode, TankViewRequest } from './tank-camera-rig';
 import { TankPanControls } from './tank-pan-controls';
-import { TankEnvironment } from './tank-environment';
+import { Landing, TankEnvironment } from './tank-environment';
+import { IntroReady, TankIntro, TankLoading } from './tank-intro';
 import { TankLighting } from './tank-lighting';
 import { WaterVolume } from './water-volume';
 
@@ -134,6 +135,11 @@ export function TankScene({
     };
     const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
     const [start] = useState(orbitStart);
+    const [loaded, setLoaded] = useState({
+        decorations: false,
+        inhabitants: false,
+    });
+    const [hasIntroStarted, setHasIntroStarted] = useState(false);
 
     const waterLevel = tank.grid.water_level;
 
@@ -189,163 +195,202 @@ export function TankScene({
     }, [world]);
 
     return (
-        <Canvas
-            camera={{ position: start.position, fov: start.fov }}
-            dpr={[1, 2]}
-            gl={{ antialias: true }}
-            onPointerMissed={() => {
-                if (
-                    performance.now() - lastGizmoUse.current >
-                    GIZMO_CLICK_GRACE
-                ) {
-                    onSelect(null);
-                }
-            }}
-        >
-            <TankBackdrop
-                background={previewBackground ?? tank.background}
-                isLit={tank.is_lit}
-            />
-            <SceneClock />
-            <TankLighting
-                lighting={tank.lighting}
-                lightOn={tank.light_on}
-                isLit={tank.is_lit}
-                grid={tank.grid}
-                clock={simClock}
-                selectedFixtureId={selectedFixtureId}
-                onSelectFixture={(id) => {
-                    if (canPick()) {
-                        onSelectFixture(id);
+        <>
+            <Canvas
+                camera={{ position: start.position, fov: start.fov }}
+                dpr={[1, 2]}
+                gl={{ antialias: true }}
+                onPointerMissed={() => {
+                    if (
+                        performance.now() - lastGizmoUse.current >
+                        GIZMO_CLICK_GRACE
+                    ) {
+                        onSelect(null);
                     }
                 }}
-            />
-            <HaloResolution />
-            <TankEnvironment
-                water={tank.water}
-                isLit={tank.is_lit}
-                grid={tank.grid}
-                substrate={substrate}
-                hasWater={tank.has_water}
-                isSealed={tank.is_sealed}
-                humidity={tank.air.humidity}
-                showEdges={viewMode !== 'flat'}
-            />
-            <Substrate
-                grid={tank.grid}
-                heights={substrate}
-                brush={sculptBrush}
-                onSculpt={onSculpt}
-                onStrokeChange={setGizmoDragging}
-            />
-            <SelectionHaloContext value={followed === null}>
-                <Suspense fallback={null}>
-                    <Decorations
-                        decorations={tank.decorations}
-                        catalogue={catalogue}
-                        plants={attachedPlants}
-                        species={speciesById}
-                        world={world}
-                        grid={tank.grid}
-                        substrate={substrate}
-                        hiddenAxis={
-                            viewMode === 'flat' ? facingAxis(flatView) : null
-                        }
-                        canArrange={!tank.is_sealed}
-                        selectedDecorationId={
-                            selection?.kind === 'decoration'
-                                ? selection.id
-                                : null
-                        }
-                        selectedPlantId={
-                            selection?.kind === 'plant' ? selection.id : null
-                        }
-                        onSelectDecoration={(id) =>
-                            onSelect({ kind: 'decoration', id })
-                        }
-                        onSelectPlant={(id) => onSelect({ kind: 'plant', id })}
-                        onSelectAnchor={onSelectAnchor}
-                        onMove={onMoveDecoration}
-                        onDragChange={setGizmoDragging}
-                    />
-                </Suspense>
-                <Suspense fallback={null}>
-                    <Plants
-                        plants={rootedPlants}
-                        species={speciesById}
-                        layerCount={tank.layer_count}
-                        grid={tank.grid}
-                        substrate={substrate}
-                        selectedId={
-                            selection?.kind === 'plant' ? selection.id : null
-                        }
-                        onSelect={(id) => onSelect({ kind: 'plant', id })}
-                    />
-                    <Creatures
-                        creatures={tank.creatures}
-                        species={speciesById}
-                        world={world}
-                        layerCount={tank.layer_count}
-                        isLit={tank.is_lit}
-                        lowOxygen={tank.water.oxygen < LOW_OXYGEN}
-                        selectedId={
-                            selection?.kind === 'creature' ? selection.id : null
-                        }
-                        onSelect={(id) => onSelect({ kind: 'creature', id })}
-                    />
-                </Suspense>
-            </SelectionHaloContext>
-            <FoodParticles world={world} />
-            {tank.auto_feeder !== null && (
-                <AutoFeederModel feeder={tank.auto_feeder} />
-            )}
-            <OrbitControls
-                ref={controls}
-                target={start.target}
-                enablePan={false}
-                mouseButtons={MOUSE_BUTTONS}
-            />
-            <TankCameraRig
-                mode={viewMode}
-                flatView={flatView}
-                viewRequest={viewRequest}
-                orientation={cameraOrientation}
-                follow={followed === null ? null : followTargetName(followed)}
-                onFollowLost={onStopFollowing}
-                controls={controls}
-            />
-            {viewMode !== 'fly' && (
-                <TankPanControls
-                    controls={controls}
-                    mode={viewMode}
-                    flatView={flatView}
-                    onPan={followed === null ? undefined : onStopFollowing}
+            >
+                <TankBackdrop
+                    background={previewBackground ?? tank.background}
+                    isLit={tank.is_lit}
                 />
-            )}
-            {placement !== null && (
-                <PlacementController mode={placement} onPlace={onPlace} />
-            )}
-            {/* Last, so its refraction pass sees this frame's camera. */}
-            {tank.has_water && (
-                <WaterVolume
-                    key={waterLevel}
+                <SceneClock />
+                <TankIntro
+                    isLoaded={loaded.decorations && loaded.inhabitants}
+                    onStart={() => setHasIntroStarted(true)}
+                />
+                <TankLighting
+                    lighting={tank.lighting}
+                    lightOn={tank.light_on}
+                    isLit={tank.is_lit}
+                    grid={tank.grid}
+                    clock={simClock}
+                    selectedFixtureId={selectedFixtureId}
+                    onSelectFixture={(id) => {
+                        if (canPick()) {
+                            onSelectFixture(id);
+                        }
+                    }}
+                />
+                <HaloResolution />
+                <TankEnvironment
                     water={tank.water}
                     isLit={tank.is_lit}
-                    world={world}
+                    grid={tank.grid}
+                    substrate={substrate}
+                    hasWater={tank.has_water}
+                    isSealed={tank.is_sealed}
+                    humidity={tank.air.humidity}
+                    showEdges={viewMode !== 'flat'}
                 />
-            )}
-            {/* Lit lenses, tubes and LEDs glow (only colours brighter than white bloom). */}
-            <EffectComposer multisampling={4}>
-                <Bloom
-                    mipmapBlur
-                    luminanceThreshold={1}
-                    luminanceSmoothing={0.2}
-                    intensity={0.9}
-                    radius={0.7}
+                <Substrate
+                    grid={tank.grid}
+                    heights={substrate}
+                    brush={sculptBrush}
+                    onSculpt={onSculpt}
+                    onStrokeChange={setGizmoDragging}
                 />
-                <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
-            </EffectComposer>
-        </Canvas>
+                <SelectionHaloContext value={followed === null}>
+                    <Suspense fallback={null}>
+                        <Decorations
+                            decorations={tank.decorations}
+                            catalogue={catalogue}
+                            plants={attachedPlants}
+                            species={speciesById}
+                            world={world}
+                            grid={tank.grid}
+                            substrate={substrate}
+                            hiddenAxis={
+                                viewMode === 'flat'
+                                    ? facingAxis(flatView)
+                                    : null
+                            }
+                            canArrange={!tank.is_sealed}
+                            selectedDecorationId={
+                                selection?.kind === 'decoration'
+                                    ? selection.id
+                                    : null
+                            }
+                            selectedPlantId={
+                                selection?.kind === 'plant'
+                                    ? selection.id
+                                    : null
+                            }
+                            onSelectDecoration={(id) =>
+                                onSelect({ kind: 'decoration', id })
+                            }
+                            onSelectPlant={(id) =>
+                                onSelect({ kind: 'plant', id })
+                            }
+                            onSelectAnchor={onSelectAnchor}
+                            onMove={onMoveDecoration}
+                            onDragChange={setGizmoDragging}
+                        />
+                        <IntroReady
+                            onReady={() =>
+                                setLoaded((was) => ({
+                                    ...was,
+                                    decorations: true,
+                                }))
+                            }
+                        />
+                    </Suspense>
+                    <Suspense fallback={null}>
+                        <Plants
+                            plants={rootedPlants}
+                            species={speciesById}
+                            layerCount={tank.layer_count}
+                            grid={tank.grid}
+                            substrate={substrate}
+                            selectedId={
+                                selection?.kind === 'plant'
+                                    ? selection.id
+                                    : null
+                            }
+                            onSelect={(id) => onSelect({ kind: 'plant', id })}
+                        />
+                        <Creatures
+                            creatures={tank.creatures}
+                            species={speciesById}
+                            world={world}
+                            layerCount={tank.layer_count}
+                            isLit={tank.is_lit}
+                            lowOxygen={tank.water.oxygen < LOW_OXYGEN}
+                            selectedId={
+                                selection?.kind === 'creature'
+                                    ? selection.id
+                                    : null
+                            }
+                            onSelect={(id) =>
+                                onSelect({ kind: 'creature', id })
+                            }
+                        />
+                        <IntroReady
+                            onReady={() =>
+                                setLoaded((was) => ({
+                                    ...was,
+                                    inhabitants: true,
+                                }))
+                            }
+                        />
+                    </Suspense>
+                </SelectionHaloContext>
+                <FoodParticles world={world} />
+                {tank.auto_feeder !== null && (
+                    <Landing phase="gantry" height={TANK.height * 1.5}>
+                        <AutoFeederModel feeder={tank.auto_feeder} />
+                    </Landing>
+                )}
+                <OrbitControls
+                    ref={controls}
+                    target={start.target}
+                    enablePan={false}
+                    mouseButtons={MOUSE_BUTTONS}
+                />
+                <TankCameraRig
+                    mode={viewMode}
+                    flatView={flatView}
+                    viewRequest={viewRequest}
+                    orientation={cameraOrientation}
+                    follow={
+                        followed === null ? null : followTargetName(followed)
+                    }
+                    onFollowLost={onStopFollowing}
+                    controls={controls}
+                />
+                {viewMode !== 'fly' && (
+                    <TankPanControls
+                        controls={controls}
+                        mode={viewMode}
+                        flatView={flatView}
+                        onPan={followed === null ? undefined : onStopFollowing}
+                    />
+                )}
+                {placement !== null && (
+                    <PlacementController mode={placement} onPlace={onPlace} />
+                )}
+                {/* Last, so its refraction pass sees this frame's camera. */}
+                {tank.has_water && (
+                    <WaterVolume
+                        key={waterLevel}
+                        water={tank.water}
+                        isLit={tank.is_lit}
+                        world={world}
+                    />
+                )}
+                {/* Lit lenses, tubes and LEDs glow (only colours brighter than white bloom). */}
+                <EffectComposer multisampling={4}>
+                    <Bloom
+                        mipmapBlur
+                        luminanceThreshold={1}
+                        luminanceSmoothing={0.2}
+                        intensity={0.9}
+                        radius={0.7}
+                    />
+                    <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+                </EffectComposer>
+            </Canvas>
+            <TankLoading isShown={!hasIntroStarted} />
+        </>
     );
 }
 

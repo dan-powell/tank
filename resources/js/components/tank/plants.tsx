@@ -1,7 +1,8 @@
 import { useFrame } from '@react-three/fiber';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { Group, Vector3 } from 'three';
+import { useCallback, useEffect, useMemo } from 'react';
+import type { Vector3 } from 'three';
 import { useSpeciesModel } from '@/hooks/use-species-model';
+import { createArrival, easeOutCubic } from '@/lib/tank/intro';
 import { assembleMoss, assemblePlant } from '@/lib/tank/plant-assembly';
 import { laneOffset, layerToZ, toWorld, VOXEL } from '@/lib/tank/space';
 import type { Heightmap } from '@/lib/tank/substrate-heightmap';
@@ -20,6 +21,7 @@ import {
     healthTint,
     HIGHLIGHT_BRIGHTNESS,
 } from './sway-material';
+import type { PlantGrowth } from './sway-material';
 
 type Props = {
     /** Plants rooted in the substrate (attached plants render with their decoration). */
@@ -114,9 +116,6 @@ function RootedPlant({
 /** Offsets plant lanes from creature lanes, whose ids come from another table. */
 const PLANT_LANE_SALT = 0.31;
 
-/** Seconds a newly planted plant takes to rise out of the ground. */
-const SPROUT_SECONDS = 2;
-
 /** Flat ground, for plants on a decoration. */
 const flatGround = () => 0;
 
@@ -135,7 +134,9 @@ type PlantProps = {
  * A plant built from its species' voxel parts and rooted at `position`:
  * stalks one stem part per growth segment (moss: one patch per segment,
  * spreading over the ground), swaying with the current. It grows by gaining
- * parts, never by scaling, so every voxel stays the same size.
+ * parts, never by scaling, so every voxel stays the same size; on arrival
+ * (in the intro, or when newly planted) it grows up from its roots, voxel
+ * row by row (moss: outwards across the ground).
  */
 export function Plant({
     plant,
@@ -145,10 +146,14 @@ export function Plant({
     isSelected,
     onSelect,
 }: PlantProps) {
-    const rise = useRef<Group>(null);
     const selectable = useSelectable(onSelect, { kind: 'plant', id: plant.id });
     const showsHalo = useShowsSelectionHalo();
-    const sprout = useRef(0);
+    const arrival = useMemo(
+        () => createArrival('plants', plant.id),
+        [plant.id],
+    );
+    /** How far it has grown, 0..1; outlives its materials, so a change of health doesn't regrow it. */
+    const grow = useMemo(() => ({ value: 0 }), []);
     const model = useSpeciesModel(species);
     const assembled = useMemo(
         () =>
@@ -171,6 +176,25 @@ export function Plant({
 
     /** Height above the roots, in voxels. */
     const height = Math.max(1, assembled.volume.size[1] - assembled.origin[1]);
+    const growth = useMemo<PlantGrowth>(() => {
+        if (species.behaviour !== 'cushion') {
+            return { grow, shape: 'upright', extent: height };
+        }
+
+        const [width, , depth] = assembled.volume.size;
+        const [ox, , oz] = assembled.origin;
+
+        // From the root voxel's centre to the furthest voxel's far side.
+        return {
+            grow,
+            shape: 'spreading',
+            extent:
+                Math.hypot(
+                    Math.max(ox, width - 1 - ox),
+                    Math.max(oz, depth - 1 - oz),
+                ) + 0.5,
+        };
+    }, [grow, species.behaviour, height, assembled]);
 
     // Water plants sway in the current; edge plants barely; land plants not at all.
     const swayAmplitude =
@@ -189,8 +213,9 @@ export function Plant({
                 ),
                 swayAmplitude,
                 height,
+                growth,
             ),
-        [swayAmplitude, plant.health, height, isSelected],
+        [swayAmplitude, plant.health, height, isSelected, growth],
     );
 
     useEffect(() => () => material.dispose(), [material]);
@@ -200,45 +225,39 @@ export function Plant({
             isSelected && showsHalo
                 ? createHaloMaterial({
                       sway: { amplitude: swayAmplitude, unitHeight: height },
+                      growth,
                   })
                 : null,
-        [isSelected, showsHalo, swayAmplitude, height],
+        [isSelected, showsHalo, swayAmplitude, height, growth],
     );
 
     useEffect(() => () => halo?.dispose(), [halo]);
 
-    // New plants rise out of the ground (or their decoration) instead of scaling up.
-    useFrame((_, delta) => {
-        if (rise.current !== null && sprout.current < 1) {
-            sprout.current = Math.min(
-                1,
-                sprout.current + delta / SPROUT_SECONDS,
-            );
-            rise.current.position.y = -(1 - sprout.current) * height * VOXEL;
+    useFrame(() => {
+        if (grow.value < 1) {
+            grow.value = easeOutCubic(arrival.progress());
         }
     });
 
     return (
         <group position={position}>
-            <group ref={rise} position={[0, -height * VOXEL, 0]}>
-                {/* Clicks hit the voxels themselves, so gaps between leaves stay see-through. */}
+            {/* Clicks hit the voxels themselves, so gaps between leaves stay see-through. */}
+            <mesh
+                geometry={geometry}
+                material={material}
+                scale={VOXEL}
+                renderOrder={isSelected ? SELECTED_RENDER_ORDER : 0}
+                {...selectable}
+            />
+            {halo !== null && (
                 <mesh
-                    geometry={geometry}
-                    material={material}
+                    geometry={haloGeometry(geometry)}
+                    material={halo}
                     scale={VOXEL}
-                    renderOrder={isSelected ? SELECTED_RENDER_ORDER : 0}
-                    {...selectable}
+                    renderOrder={HALO_RENDER_ORDER}
+                    raycast={() => null}
                 />
-                {halo !== null && (
-                    <mesh
-                        geometry={haloGeometry(geometry)}
-                        material={halo}
-                        scale={VOXEL}
-                        renderOrder={HALO_RENDER_ORDER}
-                        raycast={() => null}
-                    />
-                )}
-            </group>
+            )}
         </group>
     );
 }

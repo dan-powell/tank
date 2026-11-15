@@ -1,6 +1,8 @@
 import { Color, MeshStandardMaterial } from 'three';
 import type { WebGLProgramParametersWithUniforms } from 'three';
 import { applyCaustics } from './caustics';
+import { applyGrow } from './intro-material';
+import type { GrowthShape, RevealUniform } from './intro-material';
 import { sceneClock } from './scene-clock';
 import { applyVoxelTint } from './voxel-material';
 
@@ -12,12 +14,14 @@ import { applyVoxelTint } from './voxel-material';
  * `unitHeight` is the plant's height in local units (voxels), so the sway
  * shape is the same at any size; it is a uniform, so plants of every height
  * share one shader. The material colour multiplies the voxel colours (use
- * {@link healthTint}).
+ * {@link healthTint}). With `growth`, only as much of the plant as it has
+ * grown so far is drawn (see applyGrow).
  */
 export function createSwayMaterial(
     color: Color,
     amplitude: number,
     unitHeight = 1,
+    growth?: PlantGrowth,
 ): MeshStandardMaterial {
     const material = new MeshStandardMaterial({
         color,
@@ -29,11 +33,24 @@ export function createSwayMaterial(
         applyVoxelTint(shader, new Color('#ffffff'));
         applyCaustics(shader);
         applySway(shader, amplitude, unitHeight);
+
+        if (growth !== undefined) {
+            applyGrow(shader, growth.grow, growth.shape, growth.extent);
+        }
     };
-    material.customProgramCacheKey = () => `sway-${amplitude.toFixed(3)}`;
+    material.customProgramCacheKey = () =>
+        `sway-${amplitude.toFixed(3)}${growth === undefined ? '' : `-grow-${growth.shape}`}`;
 
     return material;
 }
+
+/** How far a plant has grown, and the shape it grows in (see applyGrow). */
+export type PlantGrowth = {
+    grow: RevealUniform;
+    shape: GrowthShape;
+    /** Its full height (upright) or reach across the ground (spreading), in voxels. */
+    extent: number;
+};
 
 /**
  * Bend the vertices with the current (see {@link createSwayMaterial}). Shared

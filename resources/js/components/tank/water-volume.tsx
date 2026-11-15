@@ -15,6 +15,7 @@ import {
     WebGLRenderTarget,
 } from 'three';
 import type { Mesh, PerspectiveCamera } from 'three';
+import { easeOutCubic, introProgress, introStarted } from '@/lib/tank/intro';
 import { liveLighting, MAX_LIGHTS } from '@/lib/tank/lighting';
 import { TANK } from '@/lib/tank/space';
 import { MAX_RIPPLES, RIPPLE_LIFETIME } from '@/lib/tank/world';
@@ -517,7 +518,8 @@ export function WaterVolume({ water, isLit, world }: Props) {
                         ),
                     },
                     uBoxMin: { value: box.min },
-                    uBoxMax: { value: box.max },
+                    // Its own copy: the top follows the water as it fills.
+                    uBoxMax: { value: box.max.clone() },
                     uInside: { value: 0 },
                     uWaterColour: { value: new Color() },
                     uExtinction: { value: new Vector3() },
@@ -593,6 +595,15 @@ export function WaterVolume({ water, isLit, world }: Props) {
             return;
         }
 
+        // The tank fills during the intro: the box grows up from the floor.
+        const fill = easeOutCubic(introProgress('water'));
+        const level = WATER_FLOOR + box.height * fill;
+        mesh.current.scale.y = Math.max(fill, 1e-3);
+        mesh.current.position.y = WATER_FLOOR + (box.height * fill) / 2;
+        uniforms.uSurfaceY.value = level;
+        uniforms.uBoxMax.value.y = level;
+        causticUniforms.uCausticWaterLine.value = level;
+
         setInside(
             mesh.current,
             material,
@@ -601,14 +612,16 @@ export function WaterVolume({ water, isLit, world }: Props) {
                 camera.position.z > box.min.z &&
                 camera.position.z < box.max.z &&
                 camera.position.y > box.min.y &&
-                camera.position.y < box.max.y,
+                camera.position.y < level,
         );
 
+        // Drawn before the intro begins too, so its shader is compiled in advance.
+        const isShown = !introStarted() || fill > 0;
         mesh.current.visible = false;
         gl.setRenderTarget(target);
         gl.render(scene, camera);
         gl.setRenderTarget(null);
-        mesh.current.visible = true;
+        mesh.current.visible = isShown;
 
         const perspective = camera as PerspectiveCamera;
         uniforms.uScene.value = target.texture;

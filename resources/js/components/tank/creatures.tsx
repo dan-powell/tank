@@ -15,6 +15,7 @@ import {
     MOVE_CLIP,
 } from '@/lib/tank/animator';
 import type { AnimationState } from '@/lib/tank/animator';
+import { createArrival } from '@/lib/tank/intro';
 import {
     layerDepth,
     layerToZ,
@@ -35,6 +36,7 @@ import {
 } from './halo-material';
 import { useSelectable, useShowsSelectionHalo } from './selection';
 import { HIGHLIGHT_BRIGHTNESS } from './sway-material';
+import type { RevealUniform } from './intro-material';
 import { createVoxelMaterial } from './voxel-material';
 
 type Props = {
@@ -192,6 +194,12 @@ function Creature({
     const shownStage = useRef(stage);
     const popStarted = useRef<number | null>(null);
     const animation = useRef<AnimationState>(createAnimationState(creature.id));
+    const arrival = useMemo(
+        () => createArrival('inhabitants', creature.id),
+        [creature.id],
+    );
+    /** How much of it has appeared, 0..1. */
+    const reveal = useMemo(() => ({ value: 0 }), []);
     const bodyMesh = useRef<Mesh>(null);
     const haloMesh = useRef<Mesh>(null);
     const wander = useRef<WanderState>(createWanderState());
@@ -281,6 +289,10 @@ function Creature({
     };
 
     useFrame((state, delta) => {
+        if (reveal.value < 1) {
+            reveal.value = arrival.progress();
+        }
+
         const object = group.current;
         const turn = yaw.current;
 
@@ -368,6 +380,7 @@ function Creature({
                             tint={tailColour(species, creature.id)}
                             health={creature.health}
                             highlighted={isSelected}
+                            reveal={reveal}
                             bodyRef={bodyMesh}
                             haloRef={haloMesh}
                         />
@@ -411,6 +424,8 @@ type VoxelCreatureProps = {
     opacity?: number;
     /** Selected: brightened and surrounded by a halo. */
     highlighted?: boolean;
+    /** Dissolves it in as it arrives (see applyReveal). */
+    reveal?: RevealUniform;
     /** The meshes, for swapping animation frames in place. */
     bodyRef?: Ref<Mesh>;
     haloRef?: Ref<Mesh>;
@@ -428,6 +443,7 @@ function VoxelCreature({
     shade,
     opacity = 1,
     highlighted = false,
+    reveal,
     bodyRef,
     haloRef,
 }: VoxelCreatureProps) {
@@ -448,12 +464,13 @@ function VoxelCreature({
 
         const created = createVoxelMaterial(new Color(`#${tintHex}`), colour, {
             sheen: true,
+            reveal,
         });
         created.transparent = opacity < 1;
         created.opacity = opacity;
 
         return created;
-    }, [tintHex, shadeHex, health, opacity, highlighted]);
+    }, [tintHex, shadeHex, health, opacity, highlighted, reveal]);
 
     useEffect(() => () => material.dispose(), [material]);
 

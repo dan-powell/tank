@@ -10,6 +10,7 @@ import { applyBrush, settleHeights } from '@/lib/tank/substrate-sculpt';
 import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
 import type { TankGrid } from '@/types';
 import { createCausticMaterial } from './caustics';
+import { introUniforms } from './intro-material';
 
 type Props = {
     grid: TankGrid;
@@ -55,6 +56,8 @@ export function Substrate({
         () =>
             createCausticMaterial(new Color('#b49a72'), 1, {
                 voxelGrain: true,
+                reveal: introUniforms.landscape,
+                revealCell: VOXEL,
             }),
         [],
     );

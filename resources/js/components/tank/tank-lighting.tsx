@@ -13,8 +13,10 @@ import {
     simSecondsNow,
 } from '@/lib/tank/lighting';
 import type { SimClock } from '@/lib/tank/lighting';
+import { introProgress } from '@/lib/tank/intro';
 import { TANK } from '@/lib/tank/space';
 import type { LightFixture, TankGrid, TankLighting as Lighting } from '@/types';
+import { Landing } from './tank-environment';
 import { sheenUniforms } from './voxel-material';
 
 RectAreaLightUniformsLib.init();
@@ -100,21 +102,24 @@ export function TankLighting({
                 color={room.keyColour}
             />
 
-            <GantryFrame lighting={lighting} />
+            {/* Lowered onto the tank once its glass is in place. */}
+            <Landing phase="gantry" height={TANK.height * 1.5}>
+                <GantryFrame lighting={lighting} />
 
-            {fixtures.map((fixture, index) => (
-                <Fixture
-                    key={fixture.id}
-                    index={index}
-                    fixture={fixture}
-                    lighting={lighting}
-                    grid={grid}
-                    lightOn={lightOn}
-                    clock={clock}
-                    isSelected={fixture.id === selectedFixtureId}
-                    onSelect={onSelectFixture}
-                />
-            ))}
+                {fixtures.map((fixture, index) => (
+                    <Fixture
+                        key={fixture.id}
+                        index={index}
+                        fixture={fixture}
+                        lighting={lighting}
+                        grid={grid}
+                        lightOn={lightOn}
+                        clock={clock}
+                        isSelected={fixture.id === selectedFixtureId}
+                        onSelect={onSelectFixture}
+                    />
+                ))}
+            </Landing>
         </group>
     );
 }
@@ -233,7 +238,9 @@ function Fixture({
 
     useFrame(() => {
         const level = lightOn ? levelAt(fixture, simSecondsNow(clock)) : 0;
-        const output = level * (fixture.brightness / 100);
+        // Off until the gantry has landed, then switched on.
+        const output =
+            level * (fixture.brightness / 100) * introProgress('lights');
         const live = liveLighting.lights[index];
 
         live.centre.copy(centre);
