@@ -319,10 +319,14 @@ const BAND_CELLS = 1.25 * CELLS_PER_CM;
 /** Half-width of the solid ledge kept under each plant anchor (0.4 cm). */
 const LEDGE_CELLS = 2;
 
+/** Half-width of the niche opened in front of each LED (0.2 cm). */
+const NICHE_CELLS = 1;
+
 /**
  * A rock built from a seed: a noisy, slightly tilted dome with banded
  * colours, flattened on top by `flatness`. Every anchor is kept as an empty
- * cell above a small solid ledge, as the server's catalogue relies on it.
+ * cell above a small solid ledge, as the server's catalogue relies on it,
+ * and every light point as a solid cell in a niche on the rock's face.
  */
 export function generateRock(
     definition: DecorationDefinition,
@@ -400,7 +404,41 @@ export function generateRock(
         }
     }
 
+    for (const [lx, ly, lz] of definition.light_points) {
+        setLedInNiche(volume, lx, ly, lz);
+    }
+
     return volume;
+}
+
+/**
+ * Sets an LED into the rock's front face whatever shape the seed gave it:
+ * the cell is made solid and joined back to the rock, and a small niche is
+ * opened in front of it so its glow can be seen.
+ */
+function setLedInNiche(
+    volume: VoxelVolume,
+    x: number,
+    y: number,
+    z: number,
+): void {
+    const [, , depth] = volume.size;
+
+    for (let back = z; back >= 0; back--) {
+        if (back < z && voxelAt(volume, x, y, back) !== 0) {
+            break;
+        }
+
+        setVoxel(volume, x, y, back, 1);
+    }
+
+    for (let front = z + 1; front < depth; front++) {
+        for (let dy = -NICHE_CELLS; dy <= NICHE_CELLS; dy++) {
+            for (let dx = -NICHE_CELLS; dx <= NICHE_CELLS; dx++) {
+                setVoxel(volume, x + dx, y + dy, front, 0);
+            }
+        }
+    }
 }
 
 /** A deterministic 0..1 generator (mulberry32). */

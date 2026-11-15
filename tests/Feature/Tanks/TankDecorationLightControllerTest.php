@@ -35,16 +35,4 @@ class TankDecorationLightControllerTest extends TestCase
         $this->assertSame('always', $chest->light_mode);
         $this->assertSame(0, $tank->events()->count());
     }
-
-    public function test_rejects_lights_on_a_decoration_without_any(): void
-    {
-        $tank = Tank::factory()->create();
-        $boulder = Decoration::factory()->for($tank)->create();
-
-        $this->actingAs($tank->user)
-            ->patch(route('tanks.decorations.lights', [$tank, $boulder]), ['lights_on' => true])
-            ->assertSessionHasErrors(['lights_on' => 'This decoration has no lights.']);
-
-        $this->assertFalse($boulder->fresh()->lights_on);
-    }
 }

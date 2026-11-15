@@ -7,6 +7,7 @@ use App\Models\Decoration;
 use App\Models\Plant;
 use App\Models\Tank;
 use App\Models\User;
+use App\Simulation\DecorationCatalogue;
 use App\Simulation\SpeciesCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia;
@@ -63,7 +64,7 @@ class TankControllerTest extends TestCase
                     'position' => [10, 4, 2],
                     'rotation' => 3,
                     'seed' => 99,
-                    'lights' => null,
+                    'lights' => ['on' => false, 'colour' => '#cfe6ff', 'mode' => 'timer'],
                 ])
                 ->where('tank.plants.0.attachment', ['decoration_id' => $decoration->id, 'anchor' => 1])
                 ->where('tank.grid', ['width' => 300, 'height' => 163, 'depth' => 138, 'water_level' => 153, 'max_water_level' => 153])
@@ -73,7 +74,7 @@ class TankControllerTest extends TestCase
                 ->where('tank.land_area_cm2', 0)
                 ->where('species', fn ($species): bool => collect($species)->every(fn (array $entry): bool => isset($entry['habitat'])))
                 ->where('tank.substrate', [10, 300 * 138])
-                ->has('decorationCatalogue', 6)
+                ->has('decorationCatalogue', count(DecorationCatalogue::definitions()))
                 ->where('decorationCatalogue.1.slug', 'boulder')
                 ->where('decorationCatalogue.1.anchors.0', [33, 43, 28]));
     }

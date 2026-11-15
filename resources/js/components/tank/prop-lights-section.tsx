@@ -19,8 +19,9 @@ type Props = {
 };
 
 /**
- * LEDs built into decorations (the treasure chest's glow, the coral wall's
- * crevices). Purely for looks: they don't light the plants.
+ * LEDs built into every decoration (the treasure chest's jewels, the coral
+ * wall's crevices, a niche in each rock). Purely for looks: they don't light
+ * the plants.
  */
 export function PropLightsSection({ tankId, decorations, catalogue }: Props) {
     const lit = decorations.filter((decoration) => decoration.lights !== null);
@@ -29,9 +30,8 @@ export function PropLightsSection({ tankId, decorations, catalogue }: Props) {
         <PanelSection id="prop-lights-heading" title="Decoration LEDs">
             {lit.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                    Some decorations, like the treasure chest and the coral
-                    wall, have LEDs built in. Add one in Aquascaping to light it
-                    up.
+                    Every decoration has LEDs built in. Add one in Aquascaping
+                    to light it up.
                 </p>
             ) : (
                 <ul className="space-y-2">

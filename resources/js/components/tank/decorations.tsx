@@ -2,7 +2,7 @@ import { TransformControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Color, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
+import { BoxGeometry, Color, MeshStandardMaterial, Vector3 } from 'three';
 import type { Group, Object3D, PointLight } from 'three';
 import { useDecorModels } from '@/hooks/use-decor-model';
 import type { DecorModel } from '@/hooks/use-decor-model';
@@ -159,11 +159,7 @@ export function Decorations({
         [material, highlighted, halo],
     );
 
-    /** Only the first few lit decorations cast light on their surroundings; the rest just glow. */
-    const glowingIds = decorations
-        .filter((decoration) => decoration.lights?.on)
-        .slice(0, MAX_LED_GLOWS)
-        .map((decoration) => decoration.id);
+    const glowingIds = decorationsCastingLight(decorations, catalogue);
 
     return (
         <group>
@@ -351,17 +347,50 @@ function DecorationContent({
     );
 }
 
-/** Most decorations whose LEDs cast real light (each point light costs every lit pixel). */
-const MAX_LED_GLOWS = 6;
+/** Most LED voxels in a tank that cast real light (each point light costs every lit pixel). */
+const MAX_LED_LIGHTS = 16;
 
-const LED_BEAD = new SphereGeometry(VOXEL * 1.4, 10, 8);
+/** How far an LED voxel's light reaches (25 cm), and its brightness at full glow. */
+const LED_LIGHT_DISTANCE = 0.25;
+const LED_LIGHT_INTENSITY = 0.12;
 
-/** How brightly an LED bead glows (above 1 so the bloom picks it up). */
+/**
+ * The lit decorations whose LED voxels each cast light on their
+ * surroundings, in order, while they fit within MAX_LED_LIGHTS; the rest
+ * just glow.
+ */
+function decorationsCastingLight(
+    decorations: DecorationSnapshot[],
+    catalogue: Map<string, DecorationDefinition>,
+): number[] {
+    const ids: number[] = [];
+    let lightsLeft = MAX_LED_LIGHTS;
+
+    for (const decoration of decorations) {
+        const pointCount =
+            catalogue.get(decoration.type)?.light_points.length ?? 0;
+
+        if (decoration.lights?.on && pointCount <= lightsLeft) {
+            ids.push(decoration.id);
+            lightsLeft -= pointCount;
+        }
+    }
+
+    return ids;
+}
+
+/**
+ * One lit voxel: a glowing cube over the model's own voxel at the light
+ * point, a hair larger so it covers it without flickering.
+ */
+const LED_VOXEL = new BoxGeometry(VOXEL * 1.02, VOXEL * 1.02, VOXEL * 1.02);
+
+/** How brightly an LED voxel glows (above 1 so the bloom picks it up). */
 const LED_GLOW = 4;
 
 /**
- * A decoration's LEDs: glowing beads at its light points, plus one small
- * light in their midst to tint what's nearby. On a timer they follow the
+ * A decoration's LEDs: each light point's voxel glows and, when `castsLight`,
+ * shines its own small light on what's nearby. On a timer they follow the
  * tank's lights, fading out as those come on (they look best in the dark).
  */
 function DecorationLeds({
@@ -382,8 +411,8 @@ function DecorationLeds({
             }),
         [lights.colour],
     );
-    const glow = useRef<PointLight>(null);
-    const beads = useRef<Group>(null);
+    const glows = useRef<Group>(null);
+    const litVoxels = useRef<Group>(null);
     const positions = useMemo(
         () =>
             points.map(
@@ -396,22 +425,14 @@ function DecorationLeds({
             ),
         [points],
     );
-    const middle = useMemo(
-        () =>
-            positions
-                .reduce((sum, position) => sum.add(position), new Vector3())
-                .divideScalar(Math.max(1, positions.length)),
-        [positions],
-    );
-
     useEffect(() => () => material.dispose(), [material]);
 
     useFrame(() => {
         // Not lit until the decoration itself has appeared.
         const isShown = introUniforms.landscape.value >= 1;
 
-        if (beads.current !== null) {
-            beads.current.visible = isShown;
+        if (litVoxels.current !== null) {
+            litVoxels.current.visible = isShown;
         }
 
         let tankLight = 0;
@@ -425,33 +446,39 @@ function DecorationLeds({
 
         material.emissiveIntensity = 0.3 + level * LED_GLOW;
 
-        if (glow.current !== null) {
-            glow.current.intensity = isShown ? level * 0.25 : 0;
+        for (const light of glows.current?.children ?? []) {
+            (light as PointLight).intensity = isShown
+                ? level * LED_LIGHT_INTENSITY
+                : 0;
         }
     });
 
     return (
         <group>
-            <group ref={beads}>
+            <group ref={litVoxels}>
                 {positions.map((position, index) => (
                     <mesh
                         key={index}
                         position={position}
-                        geometry={LED_BEAD}
+                        geometry={LED_VOXEL}
                         material={material}
                         raycast={() => null}
                     />
                 ))}
             </group>
             {castsLight && (
-                <pointLight
-                    ref={glow}
-                    position={middle}
-                    color={lights.colour}
-                    intensity={0}
-                    distance={0.35}
-                    decay={2}
-                />
+                <group ref={glows}>
+                    {positions.map((position, index) => (
+                        <pointLight
+                            key={index}
+                            position={position}
+                            color={lights.colour}
+                            intensity={0}
+                            distance={LED_LIGHT_DISTANCE}
+                            decay={2}
+                        />
+                    ))}
+                </group>
             )}
         </group>
     );

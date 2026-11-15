@@ -34,6 +34,22 @@ class DecorationCatalogueTest extends TestCase
             $this->assertFalse(isset($solid["{$x},{$y},{$z}"]), "Anchor {$x},{$y},{$z} of {$definition->slug} is inside the model.");
             $this->assertTrue(isset($solid["{$x},".($y - 1).",{$z}"]), "Anchor {$x},{$y},{$z} of {$definition->slug} has nothing beneath it.");
         }
+
+        foreach ($definition->lightPoints as [$x, $y, $z]) {
+            $this->assertTrue(isset($solid["{$x},{$y},{$z}"]), "Light point {$x},{$y},{$z} of {$definition->slug} is not on the model.");
+            $this->assertFalse(
+                isset($solid[($x + 1).",{$y},{$z}"], $solid[($x - 1).",{$y},{$z}"], $solid["{$x},".($y + 1).",{$z}"], $solid["{$x},".($y - 1).",{$z}"], $solid["{$x},{$y},".($z + 1)], $solid["{$x},{$y},".($z - 1)]),
+                "Light point {$x},{$y},{$z} of {$definition->slug} is buried inside the model.",
+            );
+        }
+    }
+
+    public function test_every_decoration_has_led_lights(): void
+    {
+        foreach (DecorationCatalogue::definitions() as $slug => $definition) {
+            $this->assertTrue($definition->hasLights(), "{$slug} has no LED light points.");
+            $this->assertMatchesRegularExpression('/^#[0-9a-f]{6}$/', (string) $definition->lightColour, "{$slug} has no LED colour.");
+        }
     }
 
     public function test_a_quarter_turn_swaps_width_and_depth_and_moves_cells_like_a_ninety_degree_turn(): void
