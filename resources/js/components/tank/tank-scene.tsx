@@ -252,7 +252,7 @@ export function TankScene({
                 mouseButtons={MOUSE_BUTTONS}
             />
             <TankCameraRig mode={viewMode} controls={controls} />
-            <TankPanControls controls={controls} />
+            <TankPanControls controls={controls} mode={viewMode} />
             {placement !== null && (
                 <PlacementController mode={placement} onPlace={onPlace} />
             )}

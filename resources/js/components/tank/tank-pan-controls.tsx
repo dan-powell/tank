@@ -3,10 +3,16 @@ import { useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import type { ComponentRef, RefObject } from 'react';
 import { PerspectiveCamera, Vector3 } from 'three';
+import type { Camera } from 'three';
 import { TANK } from '@/lib/tank/space';
+import type { TankViewMode } from './tank-camera-rig';
+
+type Controls = ComponentRef<typeof OrbitControls>;
 
 type Props = {
-    controls: RefObject<ComponentRef<typeof OrbitControls> | null>;
+    controls: RefObject<Controls | null>;
+    /** `orbit` pans along the camera's own axes; `flat` along the tank's x and y. */
+    mode: TankViewMode;
     /** How far (world units) the view centre may move from the tank's middle along x. */
     xLimit?: number;
     /** Lowest and highest height (world units) the view centre may move to. */
@@ -17,13 +23,20 @@ type Props = {
 const MIN_ALIGNMENT = 0.35;
 
 /**
- * Left-drag (mouse or pen) pans the view along the tank's own x axis (its length) and y axis
- * (its height), never in depth, clamped so the tank can never be dragged out
- * of view. The camera and orbit target move together, so rotating still
- * pivots around a point inside the tank.
+ * Left-drag (mouse or pen) pans the view.
+ *
+ * In the 3D (`orbit`) view the camera slides along its own x and y axes, so
+ * the tank follows the cursor up, down, left or right from any angle. The
+ * centre of the view must keep looking through the tank, so the tank can
+ * never be dragged out of view; on release the orbit target is moved along
+ * the line of sight to a point inside the tank, so rotating pivots around it.
+ *
+ * In the 2D (`flat`) view it pans along the tank's own x axis (its length)
+ * and y axis (its height), never in depth, within `xLimit` and `yRange`.
  */
 export function TankPanControls({
     controls,
+    mode,
     xLimit = TANK.width * 0.4,
     // By default, from just above the gravel to the rim (land may rise above the water).
     yRange = [TANK.substrate + 0.1, TANK.height],
@@ -79,6 +92,17 @@ export function TankPanControls({
             cameraRight.setFromMatrixColumn(camera.matrixWorld, 0);
             cameraUp.setFromMatrixColumn(camera.matrixWorld, 1);
 
+            if (mode === 'orbit') {
+                panAlongCameraAxes(
+                    camera,
+                    orbit,
+                    cameraRight.multiplyScalar(-dx * worldPerPixel),
+                    cameraUp.multiplyScalar(dy * worldPerPixel),
+                );
+
+                return;
+            }
+
             const shiftX =
                 clamp(
                     orbit.target.x +
@@ -108,6 +132,12 @@ export function TankPanControls({
 
             pointerId = null;
 
+            const orbit = controls.current;
+
+            if (mode === 'orbit' && orbit !== null) {
+                pivotInsideTank(camera, orbit);
+            }
+
             if (element.hasPointerCapture(event.pointerId)) {
                 element.releasePointerCapture(event.pointerId);
             }
@@ -128,9 +158,113 @@ export function TankPanControls({
             element.removeEventListener('pointercancel', onPointerUp);
             element.removeEventListener('contextmenu', onContextMenu);
         };
-    }, [camera, element, controls, xLimit, yMin, yMax]);
+    }, [camera, element, controls, mode, xLimit, yMin, yMax]);
 
     return null;
+}
+
+/**
+ * Slide the camera and orbit target together by `right` + `up` (vectors along
+ * the camera's own axes), as far as the centre of the view still looks
+ * through the tank. If the whole move would miss it, the horizontal or
+ * vertical part alone is used so the view slides along the tank's edge, else
+ * the move is shortened to stop at the edge.
+ */
+function panAlongCameraAxes(
+    camera: Camera,
+    orbit: Controls,
+    right: Vector3,
+    up: Vector3,
+): void {
+    const direction = orbit.target.clone().sub(camera.position).normalize();
+    const full = right.clone().add(up);
+    const looksThroughTank = (shift: Vector3) =>
+        sightThroughTank(camera.position.clone().add(shift), direction) !==
+        null;
+
+    let shift = [full, right, up].find(looksThroughTank);
+
+    if (shift === undefined) {
+        let low = 0;
+        let high = 1;
+
+        for (let step = 0; step < 10; step++) {
+            const middle = (low + high) / 2;
+
+            if (looksThroughTank(full.clone().multiplyScalar(middle))) {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+
+        shift = full.multiplyScalar(low);
+    }
+
+    camera.position.add(shift);
+    orbit.target.add(shift);
+    orbit.update();
+}
+
+/**
+ * Move the orbit target along the line of sight (the camera stays put, so the
+ * view doesn't change) to the nearest point inside the tank that is within
+ * the zoom limits, so rotating pivots around the tank.
+ */
+function pivotInsideTank(camera: Camera, orbit: Controls): void {
+    const direction = orbit.target.clone().sub(camera.position);
+    const distance = direction.length();
+    const sight = sightThroughTank(camera.position, direction.normalize());
+
+    if (sight === null) {
+        return;
+    }
+
+    const nearest = Math.max(sight.enter, orbit.minDistance);
+    const farthest = Math.min(sight.exit, orbit.maxDistance);
+
+    if (nearest > farthest) {
+        return;
+    }
+
+    orbit.target
+        .copy(camera.position)
+        .addScaledVector(direction, clamp(distance, nearest, farthest));
+    orbit.update();
+}
+
+/**
+ * Where a line of sight from `origin` along the unit vector `direction`
+ * enters and leaves the tank's volume (distances along it), or null if it
+ * misses the tank or the tank is behind the camera.
+ */
+function sightThroughTank(
+    origin: Vector3,
+    direction: Vector3,
+): { enter: number; exit: number } | null {
+    const min = [-TANK.width / 2, 0, -TANK.depth / 2];
+    const max = [TANK.width / 2, TANK.height, TANK.depth / 2];
+    const from = origin.toArray();
+    const along = direction.toArray();
+    let enter = 0;
+    let exit = Infinity;
+
+    for (let axis = 0; axis < 3; axis++) {
+        if (Math.abs(along[axis]) < 1e-9) {
+            if (from[axis] < min[axis] || from[axis] > max[axis]) {
+                return null;
+            }
+
+            continue;
+        }
+
+        const a = (min[axis] - from[axis]) / along[axis];
+        const b = (max[axis] - from[axis]) / along[axis];
+        enter = Math.max(enter, Math.min(a, b));
+        exit = Math.min(exit, Math.max(a, b));
+    }
+
+    return enter <= exit ? { enter, exit } : null;
 }
 
 /** A signed axis alignment, kept away from zero. */
