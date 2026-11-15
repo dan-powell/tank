@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Simulation\Systems;
 
+use App\Enums\CreatureIntent;
 use App\Simulation\Systems\FeedingSystem;
 use PHPUnit\Framework\TestCase;
 use Tests\Unit\Simulation\BuildsSimulationState;
@@ -77,5 +78,48 @@ class FeedingSystemTest extends TestCase
 
         $this->assertSame(0.5, $state->uneatenFood);
         $this->assertSame(0.8, $toad->hunger);
+    }
+
+    public function test_hunting_animals_reach_scarce_food_first(): void
+    {
+        $wandering = array_map(fn (): mixed => $this->creature('guppy', ['hunger' => 1.0]), range(1, 3));
+        $hunter = $this->creature('guppy', ['hunger' => 1.0, 'intent' => CreatureIntent::Hunt]);
+        $state = $this->tankState(['uneatenFood' => 0.005, 'creatures' => [...$wandering, $hunter]]);
+
+        (new FeedingSystem)->apply($state, $this->context($state, dtSeconds: 900));
+
+        $this->assertLessThan(1.0, $hunter->hunger);
+        $this->assertSame([1.0, 1.0, 1.0], array_map(fn (mixed $guppy): float => $guppy->hunger, $wandering));
+    }
+
+    public function test_hunting_animals_eat_faster_than_resting_ones(): void
+    {
+        $hunter = $this->creature('guppy', ['hunger' => 0.8, 'intent' => CreatureIntent::Hunt]);
+        $resting = $this->creature('guppy', ['hunger' => 0.8, 'intent' => CreatureIntent::Rest]);
+        $state = $this->tankState(['uneatenFood' => 1.0, 'creatures' => [$hunter, $resting]]);
+
+        (new FeedingSystem)->apply($state, $this->context($state, dtSeconds: 60));
+
+        $this->assertLessThan($resting->hunger, $hunter->hunger);
+    }
+
+    public function test_prey_that_is_hiding_is_caught_less_often(): void
+    {
+        $hiddenCaught = 0;
+        $openCaught = 0;
+
+        foreach (range(1, 100) as $seed) {
+            $toad = $this->creature('fire-bellied-toad', ['hunger' => 0.8]);
+            $hiding = $this->creature('springtail', ['intent' => CreatureIntent::Hide]);
+            $inTheOpen = $this->creature('springtail');
+            $state = $this->tankState(['creatures' => [$toad, $hiding, $inTheOpen]]);
+
+            (new FeedingSystem)->apply($state, $this->context($state, dtSeconds: 60, seed: $seed));
+
+            $hiddenCaught += (int) $hiding->isDead;
+            $openCaught += (int) $inTheOpen->isDead;
+        }
+
+        $this->assertGreaterThan($hiddenCaught * 2, $openCaught);
     }
 }

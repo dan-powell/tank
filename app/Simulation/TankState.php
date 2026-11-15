@@ -12,6 +12,9 @@ use App\Enums\Habitat;
  */
 final class TankState
 {
+    /** Fry are vulnerable until they reach this fraction of adult size. */
+    public const float FRY_SIZE_FRACTION = 0.35;
+
     /** Whether any light is reaching the tank during the current step (derived each step). */
     public bool $isLit = false;
 
@@ -120,6 +123,26 @@ final class TankState
     public function livingCreatures(): array
     {
         return array_values(array_filter($this->creatures, fn (CreatureState $creature): bool => ! $creature->isDead));
+    }
+
+    /**
+     * Whether a creature is still small enough to be eaten by fry-eating adults.
+     */
+    public function isFry(CreatureState $creature): bool
+    {
+        return $creature->size < $this->speciesOf($creature)->number('adult_size', 1) * self::FRY_SIZE_FRACTION;
+    }
+
+    /**
+     * How many grown fry-eaters (e.g. adult guppies) live in the tank.
+     */
+    public function fryPredatorCount(): int
+    {
+        return count(array_filter(
+            $this->livingCreatures(),
+            fn (CreatureState $creature): bool => $this->speciesOf($creature)->param('eats_fry', false)
+                && ! $this->isFry($creature),
+        ));
     }
 
     /**

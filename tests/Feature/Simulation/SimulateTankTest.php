@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Simulation;
 
+use App\Enums\CreatureIntent;
+use App\Enums\CreatureMood;
 use App\Enums\Sex;
 use App\Enums\TankEventType;
 use App\Events\TankUpdated;
@@ -10,6 +12,7 @@ use App\Models\Creature;
 use App\Models\Plant;
 use App\Models\Species;
 use App\Models\Tank;
+use App\Simulation\SpeciesCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
@@ -134,5 +137,18 @@ class SimulateTankTest extends TestCase
 
         $this->assertEqualsWithDelta(1.0 - 0.02, $onLand->fresh()->health, 0.0001);
         $this->assertSame(1.0, $underWater->fresh()->health);
+    }
+
+    public function test_persists_what_each_creature_is_busy_doing(): void
+    {
+        $tank = Tank::factory()->create(['last_simulated_at' => now()->subMinutes(10)]);
+        $toad = Creature::factory()->for($tank)->for(SpeciesCatalogue::resolve('fire-bellied-toad'))
+            ->create(['hunger' => 1.0, 'health' => 0.3]);
+
+        SimulateTank::dispatchSync($tank);
+
+        $toad->refresh();
+        $this->assertSame(CreatureIntent::Hunt, $toad->intent);
+        $this->assertArrayHasKey(CreatureMood::Skittish->value, $toad->moods);
     }
 }

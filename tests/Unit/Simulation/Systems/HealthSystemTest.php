@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Simulation\Systems;
 
+use App\Enums\CreatureIntent;
 use App\Simulation\Systems\HealthSystem;
 use PHPUnit\Framework\TestCase;
 use Tests\Unit\Simulation\BuildsSimulationState;
@@ -85,5 +86,16 @@ class HealthSystemTest extends TestCase
         (new HealthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
 
         $this->assertSame('drowning', $springtail->mainStressor);
+    }
+
+    public function test_resting_animals_recover_faster(): void
+    {
+        $resting = $this->creature('guppy', ['health' => 0.5, 'hunger' => 0.1, 'intent' => CreatureIntent::Rest]);
+        $wandering = $this->creature('guppy', ['health' => 0.5, 'hunger' => 0.1]);
+        $state = $this->tankState(['creatures' => [$resting, $wandering]]);
+
+        (new HealthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertGreaterThan($wandering->health, $resting->health);
     }
 }

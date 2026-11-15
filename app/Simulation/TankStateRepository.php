@@ -45,6 +45,9 @@ final class TankStateRepository
                 layer: $creature->layer,
                 zoneRadius: $creature->zone_radius,
                 generation: $creature->generation,
+                intent: $creature->intent,
+                intentSeconds: $creature->intent_seconds,
+                moods: $creature->moods ?? [],
             ))->all();
 
         return new TankState(
@@ -242,12 +245,16 @@ final class TankStateRepository
             'layer' => $creature->layer,
             'zone_radius' => $creature->zoneRadius,
             'generation' => $creature->generation,
+            'intent' => $creature->intent->value,
+            'intent_seconds' => $creature->intentSeconds,
+            'moods' => json_encode((object) $creature->moods),
             'died_at' => $creature->isDead ? $now : null,
             'death_cause' => $creature->deathCause,
         ], $creatures);
 
         $this->persist(Creature::class, $rows, [
-            'size', 'hunger', 'health', 'age_seconds', 'gestation_seconds', 'died_at', 'death_cause',
+            'size', 'hunger', 'health', 'age_seconds', 'gestation_seconds', 'intent', 'intent_seconds', 'moods',
+            'died_at', 'death_cause',
         ]);
     }
 

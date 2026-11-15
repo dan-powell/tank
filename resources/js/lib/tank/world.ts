@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+import type { CreatureIntent, CreatureMood } from '@/types';
 import { TANK } from './space';
 import type { TerrainField } from './terrain-field';
 
@@ -17,6 +18,17 @@ export type CreatureBody = {
     homeLayer: number;
     /** Heading in radians about the vertical axis: 0 faces +x (right), as models are drawn. */
     yaw: number;
+    /** What it is doing right now, as resolved in the browser (see resolveBehaviour). */
+    intent: CreatureIntent;
+    moods: CreatureMood[];
+    /** Still small: fry take fright at grown-ups, not at each other. */
+    isYoung: boolean;
+};
+
+/** A plant that creatures can hide in: its roots and how tall it stands (world units). */
+export type PlantCover = {
+    root: Vector3;
+    height: number;
 };
 
 /** A ring spreading across the water surface from where something landed. */
@@ -52,6 +64,9 @@ export class TankWorld {
 
     /** Creatures the user took out, so they vanish rather than float up as if dead. */
     removedCreatures = new Set<number>();
+
+    /** Rooted plants creatures can take cover in, by plant id. */
+    plantCover = new Map<number, PlantCover>();
 
     /** The substrate and decorations, once their models have loaded. */
     terrain: TerrainField | null = null;

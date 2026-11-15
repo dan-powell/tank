@@ -32,6 +32,22 @@ const FREE_SEARCH_RADIUS = 60;
 /** How far (in cells) moveToLandNear searches: 20 cm. */
 const LAND_SEARCH_RADIUS = 100;
 
+/** Spots coverNear tries. */
+const COVER_SAMPLES = 12;
+
+/** The ways coverNear looks for shelter: sideways, front and back, and overhead (not below: the floor is everywhere). */
+const SHELTER_DIRECTIONS: [number, number, number][] = [
+    [1, 0, 0],
+    [-1, 0, 0],
+    [0, 0, 1],
+    [0, 0, -1],
+    [0, 1, 0],
+];
+
+const coverCandidate = new Vector3();
+const coverProbe = new Vector3();
+const coverOffset = new Vector3();
+
 /**
  * Everything solid in the tank (substrate and decorations) and where the
  * water ends, on the grid. Steering asks it what is underfoot and what lies
@@ -120,6 +136,53 @@ export class TerrainField {
             this.cellAt(x, y, z) ===
             (medium === 'water' ? Cell.Water : Cell.Air)
         );
+    }
+
+    /**
+     * Find a sheltered open spot (water or air, as `medium` says) within `radius` of `point`: one
+     * hemmed in by decorations or the substrate on as many sides as possible
+     * (looking `reach` world units each way). Writes it to `out` and returns
+     * true, or false when there is no sheltered water nearby.
+     */
+    coverNear(
+        point: Vector3,
+        radius: number,
+        out: Vector3,
+        medium: Medium = 'water',
+        reach = 0.04,
+    ): boolean {
+        let bestShelter = 0;
+
+        for (let attempt = 0; attempt < COVER_SAMPLES; attempt++) {
+            coverCandidate.set(
+                point.x + (Math.random() * 2 - 1) * radius,
+                Math.max(0, point.y + (Math.random() * 2 - 1) * radius * 0.5),
+                point.z + (Math.random() * 2 - 1) * radius,
+            );
+
+            if (!this.isFree(coverCandidate, medium)) {
+                continue;
+            }
+
+            let shelter = 0;
+
+            for (const [dx, dy, dz] of SHELTER_DIRECTIONS) {
+                coverProbe
+                    .copy(coverCandidate)
+                    .add(coverOffset.set(dx * reach, dy * reach, dz * reach));
+
+                if (this.isSolid(coverProbe)) {
+                    shelter++;
+                }
+            }
+
+            if (shelter > bestShelter) {
+                bestShelter = shelter;
+                out.copy(coverCandidate);
+            }
+        }
+
+        return bestShelter > 0;
     }
 
     /**

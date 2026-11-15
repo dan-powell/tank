@@ -55,6 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Move a selected animal or plant: choose Move, then click its new spot (swimmers in the water at their depth, everything else on the gravel or a decoration). Spots that don't suit it are refused, e.g. fish on dry land.
 - The tank page remembers 2D/3D (fly mode as 3D) and the open side panel tab across reloads.
 - Tank load-in animation: a spinner while models load, then the glass panels fly together, the light gantry lands and switches on, the gravel and decor dissolve in, the water fills, plants grow and the inhabitants appear. Skipped when the system asks for reduced motion.
+- Creature behaviours: each animal has one intent (wandering, exploring, hunting, resting, hiding, shoaling, patrolling) plus moods (zoomies, skittish, sluggish), chosen by the simulation from species, age, hunger, health and the tank. They steer movement and colouring, change hunger, feeding, recovery and predation, and show live in the inhabitant panel.
 
 ### Changed
 

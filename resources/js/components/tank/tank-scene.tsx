@@ -297,6 +297,7 @@ export function TankScene({
                     <Suspense fallback={null}>
                         <Plants
                             plants={rootedPlants}
+                            world={world}
                             species={speciesById}
                             layerCount={tank.layer_count}
                             grid={tank.grid}

@@ -53,17 +53,53 @@ ${shader.fragmentShader}`.replace(
     );
 }
 
+/** A creature's live colouring (see resolveBehaviour): 1 and 1 leave it unchanged. */
+export type MoodUniforms = {
+    uMoodSaturation: { value: number };
+    uMoodBrightness: { value: number };
+};
+
+export function createMoodUniforms(): MoodUniforms {
+    return { uMoodSaturation: { value: 1 }, uMoodBrightness: { value: 1 } };
+}
+
+/**
+ * Wash out or enrich a creature's colours (saturation) and lighten or
+ * darken them (brightness) as its mood changes, through uniforms that can
+ * change every frame without rebuilding the material.
+ */
+function applyMood(
+    shader: WebGLProgramParametersWithUniforms,
+    mood: MoodUniforms,
+): void {
+    Object.assign(shader.uniforms, mood);
+
+    shader.fragmentShader = `uniform float uMoodSaturation;
+uniform float uMoodBrightness;
+${shader.fragmentShader}`.replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        float moodLuma = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+        diffuseColor.rgb = max(mix(vec3(moodLuma), diffuseColor.rgb, uMoodSaturation), 0.0) * uMoodBrightness;`,
+    );
+}
+
 /**
  * A material for voxel creatures: sprite colours, with tint-keyed pixels
  * recoloured per individual, multiplied by `color` (white = unchanged), lit
  * by the water's caustics. With `sheen`, it also catches a glint in the
  * lights' colour (for fish and other animals). With `reveal`, it dissolves
- * in voxel by voxel (see applyReveal).
+ * in voxel by voxel (see applyReveal). With `mood`, its colouring follows
+ * those uniforms (see applyMood).
  */
 export function createVoxelMaterial(
     tint: Color,
     color = new Color('#ffffff'),
-    { sheen = false, reveal }: { sheen?: boolean; reveal?: RevealUniform } = {},
+    {
+        sheen = false,
+        reveal,
+        mood,
+    }: { sheen?: boolean; reveal?: RevealUniform; mood?: MoodUniforms } = {},
 ): MeshStandardMaterial {
     const material = new MeshStandardMaterial({
         color,
@@ -83,9 +119,13 @@ export function createVoxelMaterial(
         if (reveal !== undefined) {
             applyReveal(shader, reveal);
         }
+
+        if (mood !== undefined) {
+            applyMood(shader, mood);
+        }
     };
     material.customProgramCacheKey = () =>
-        `voxel-tint${sheen ? '-sheen' : ''}${reveal === undefined ? '' : '-reveal'}`;
+        `voxel-tint${sheen ? '-sheen' : ''}${reveal === undefined ? '' : '-reveal'}${mood === undefined ? '' : '-mood'}`;
 
     return material;
 }

@@ -1,6 +1,6 @@
 import { router } from '@inertiajs/react';
 import { Move, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import InputError from '@/components/input-error';
 import {
@@ -14,6 +14,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,7 +24,13 @@ import { CELLS_PER_CM, CM, PLANT_HEIGHT_UNIT } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import creatureRoutes from '@/routes/tanks/creatures';
 import plantRoutes from '@/routes/tanks/plants';
-import type { CreatureSnapshot, PlantSnapshot, Species } from '@/types';
+import type {
+    CreatureIntent,
+    CreatureMood,
+    CreatureSnapshot,
+    PlantSnapshot,
+    Species,
+} from '@/types';
 import { SelectionPanelHeader } from './panel-section';
 
 export type Inhabitant =
@@ -108,6 +115,7 @@ export function InhabitantPanel({
                     <CreatureStats
                         creature={inhabitant.entity}
                         species={species}
+                        world={world}
                     />
                 ) : (
                     <PlantStats plant={inhabitant.entity} species={species} />
@@ -154,9 +162,11 @@ export function InhabitantPanel({
 function CreatureStats({
     creature,
     species,
+    world,
 }: {
     creature: CreatureSnapshot;
     species: Species;
+    world: TankWorld;
 }) {
     const isFry = creature.size < (species.adult_size ?? 1) * 0.35;
 
@@ -188,7 +198,83 @@ function CreatureStats({
                     className="bg-amber-500"
                 />
             </Stat>
+            <Stat label="Behaviour">
+                <LiveBehaviour creature={creature} world={world} />
+            </Stat>
         </>
+    );
+}
+
+const intentLabels: Record<CreatureIntent, string> = {
+    wander: 'Wandering',
+    explore: 'Exploring',
+    hunt: 'Hunting',
+    rest: 'Resting',
+    hide: 'Hiding',
+    shoal: 'Shoaling',
+    patrol: 'Patrolling',
+};
+
+const moodLabels: Record<CreatureMood, string> = {
+    zoomies: 'Zoomies',
+    skittish: 'Skittish',
+    sluggish: 'Sluggish',
+};
+
+/** How often (ms) the behaviour badges catch up with the scene. */
+const BEHAVIOUR_REFRESH_MS = 250;
+
+function readBehaviour(
+    creature: CreatureSnapshot,
+    world: TankWorld,
+): { intent: CreatureIntent; moods: CreatureMood[] } {
+    const body = world.creatures.get(creature.id);
+
+    return {
+        intent: body?.intent ?? creature.intent,
+        moods: body?.moods ?? creature.moods,
+    };
+}
+
+/**
+ * What the creature is doing right now, as the scene has it (e.g. hunting
+ * the moment it spots food), rather than as of the last snapshot.
+ */
+function LiveBehaviour({
+    creature,
+    world,
+}: {
+    creature: CreatureSnapshot;
+    world: TankWorld;
+}) {
+    const [behaviour, setBehaviour] = useState(() =>
+        readBehaviour(creature, world),
+    );
+
+    useEffect(() => {
+        const timer = window.setInterval(() => {
+            const next = readBehaviour(creature, world);
+
+            setBehaviour((current) =>
+                current.intent === next.intent &&
+                current.moods.join() === next.moods.join()
+                    ? current
+                    : next,
+            );
+        }, BEHAVIOUR_REFRESH_MS);
+
+        return () => window.clearInterval(timer);
+    }, [creature, world]);
+
+    return (
+        <span className="inline-flex flex-wrap justify-end gap-1">
+            <Badge variant="secondary">{intentLabels[behaviour.intent]}</Badge>
+            {behaviour.moods.map((mood) => (
+                <Badge key={mood} variant="outline">
+                    {moodLabels[mood]}
+                </Badge>
+            ))}
+        </span>
     );
 }
 

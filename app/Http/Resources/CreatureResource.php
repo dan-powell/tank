@@ -29,6 +29,8 @@ class CreatureResource extends JsonResource
             'age_days' => round($this->age_seconds / 86400, 1),
             'is_pregnant' => $this->gestation_seconds !== null,
             'generation' => $this->generation,
+            'intent' => $this->intent,
+            'moods' => array_keys($this->moods ?? []),
             'zone' => [
                 'center' => [round($this->zone_x, 3), round($this->zone_y, 3)],
                 'layer' => $this->layer,

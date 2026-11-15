@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Tanks;
 
+use App\Enums\CreatureIntent;
+use App\Enums\CreatureMood;
 use App\Models\Creature;
 use App\Models\Decoration;
 use App\Models\Plant;
@@ -194,5 +196,27 @@ class TankControllerTest extends TestCase
             ->assertSessionHasErrors(['name' => 'You cannot keep any more tanks.']);
 
         $this->assertSame(1, $tank->user->tanks()->count());
+    }
+
+    public function test_creatures_show_what_they_are_busy_doing(): void
+    {
+        $tank = Tank::factory()->create();
+        Creature::factory()->for($tank)->for(SpeciesCatalogue::resolve('guppy'))
+            ->create(['intent' => CreatureIntent::Hide, 'moods' => [CreatureMood::Zoomies->value => 600]]);
+        SpeciesCatalogue::resolve('fire-bellied-toad');
+        SpeciesCatalogue::resolve('springtail');
+
+        $this->actingAs($tank->user)
+            ->get(route('tanks.show', $tank))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('tank.creatures.0.intent', 'hide')
+                ->where('tank.creatures.0.moods', ['zoomies'])
+                ->where('species', fn ($species): bool => collect($species)->keyBy('slug')->map(
+                    fn (array $entry): array => [$entry['hunts_prey'], $entry['is_prey']],
+                )->only(['guppy', 'fire-bellied-toad', 'springtail'])->sortKeys()->all() === [
+                    'fire-bellied-toad' => [true, false],
+                    'guppy' => [false, false],
+                    'springtail' => [false, true],
+                ]));
     }
 }

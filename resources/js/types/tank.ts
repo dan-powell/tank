@@ -35,6 +35,19 @@ export type PlantSnapshot = {
     age_days: number;
 };
 
+/** What an animal is busy doing: one at a time, it decides where it heads. */
+export type CreatureIntent =
+    | 'wander'
+    | 'explore'
+    | 'hunt'
+    | 'rest'
+    | 'hide'
+    | 'shoal'
+    | 'patrol';
+
+/** Passing states stacked on top of an animal's intent. */
+export type CreatureMood = 'zoomies' | 'skittish' | 'sluggish';
+
 export type CreatureSnapshot = {
     id: number;
     species_id: number;
@@ -46,6 +59,9 @@ export type CreatureSnapshot = {
     age_days: number;
     is_pregnant: boolean;
     generation: number;
+    /** What it is busy doing (decided by the simulation). */
+    intent: CreatureIntent;
+    moods: CreatureMood[];
     zone: {
         center: PlanePoint;
         /** Home depth layer, 0 = back glass. */
@@ -254,6 +270,10 @@ export type Species = {
     anchorage: 'substrate' | 'decor' | 'any' | null;
     /** Plants: [daily light it needs, light at which it grows fastest]; null for animals. */
     light: [number, number] | null;
+    /** Small animals that hunters (e.g. toads) catch and eat. */
+    is_prey: boolean;
+    /** Animals that catch `is_prey` animals. */
+    hunts_prey: boolean;
     render: SpeciesRender;
 };
 

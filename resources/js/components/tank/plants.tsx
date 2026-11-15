@@ -4,10 +4,17 @@ import type { Vector3 } from 'three';
 import { useSpeciesModel } from '@/hooks/use-species-model';
 import { createArrival, easeOutCubic } from '@/lib/tank/intro';
 import { assembleMoss, assemblePlant } from '@/lib/tank/plant-assembly';
-import { laneOffset, layerToZ, toWorld, VOXEL } from '@/lib/tank/space';
+import {
+    laneOffset,
+    layerToZ,
+    PLANT_HEIGHT_UNIT,
+    toWorld,
+    VOXEL,
+} from '@/lib/tank/space';
 import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { substrateHeightAt } from '@/lib/tank/terrain-field';
 import { buildVolumeGeometry, TINT_INDEX } from '@/lib/tank/voxel-volume';
+import type { TankWorld } from '@/lib/tank/world';
 import type { PlantSnapshot, Species, TankGrid } from '@/types';
 import {
     createHaloMaterial,
@@ -26,6 +33,8 @@ import type { PlantGrowth } from './sway-material';
 type Props = {
     /** Plants rooted in the substrate (attached plants render with their decoration). */
     plants: PlantSnapshot[];
+    /** Where they are registered as cover for creatures to hide in. */
+    world: TankWorld;
     species: Map<number, Species>;
     layerCount: number;
     grid: TankGrid;
@@ -36,6 +45,7 @@ type Props = {
 
 export function Plants({
     plants,
+    world,
     species,
     layerCount,
     grid,
@@ -57,6 +67,7 @@ export function Plants({
                         key={plant.id}
                         plant={plant}
                         species={definition}
+                        world={world}
                         layerCount={layerCount}
                         grid={grid}
                         substrate={substrate}
@@ -72,11 +83,13 @@ export function Plants({
 /** A plant rooted in its depth layer, standing on the substrate's surface. */
 function RootedPlant({
     plant,
+    world,
     layerCount,
     grid,
     substrate,
     ...props
 }: Omit<PlantProps, 'position' | 'groundAt'> & {
+    world: TankWorld;
     layerCount: number;
     grid: TankGrid;
     substrate: Heightmap;
@@ -90,6 +103,22 @@ function RootedPlant({
 
         return root.setY(substrateHeightAt(grid, substrate, root.x, root.z));
     }, [plant.id, plant.root, layer, layerCount, grid, substrate]);
+    const coverHeight =
+        plant.segments *
+        (props.species.render.segment_height ?? 0.05) *
+        PLANT_HEIGHT_UNIT;
+
+    useEffect(() => {
+        world.plantCover.set(plant.id, {
+            root: position,
+            height: coverHeight,
+        });
+
+        return () => {
+            world.plantCover.delete(plant.id);
+        };
+    }, [world, plant.id, position, coverHeight]);
+
     const groundAt = useCallback(
         (dx: number, dz: number) =>
             (substrateHeightAt(

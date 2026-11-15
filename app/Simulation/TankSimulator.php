@@ -5,6 +5,7 @@ namespace App\Simulation;
 use App\Simulation\Systems\AirSystem;
 use App\Simulation\Systems\AlgaeSystem;
 use App\Simulation\Systems\AutoFeederSystem;
+use App\Simulation\Systems\BehaviourSystem;
 use App\Simulation\Systems\FeedingSystem;
 use App\Simulation\Systems\HealthSystem;
 use App\Simulation\Systems\LightingSystem;
@@ -53,6 +54,7 @@ final class TankSimulator
             new PhotosynthesisSystem,
             new PlantGrowthSystem,
             new AlgaeSystem,
+            new BehaviourSystem,
             new MetabolismSystem,
             new AutoFeederSystem,
             new FeedingSystem,

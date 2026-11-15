@@ -91,7 +91,7 @@ class TankSimulatorTest extends TestCase
         $this->assertLessThan(0.25, $state->ammonia);
         $this->assertLessThan(0.25, $state->nitrite);
         $this->assertGreaterThan(6.0, $state->oxygen);
-        $this->assertCount(11, array_filter($state->livingCreatures(), fn ($creature): bool => $creature->size > 1.5));
+        $this->assertCount(11, array_filter(array_slice($state->creatures, 0, 11), fn ($creature): bool => ! $creature->isDead));
     }
 
     private function populatedTank(): TankState

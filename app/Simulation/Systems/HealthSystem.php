@@ -2,6 +2,7 @@
 
 namespace App\Simulation\Systems;
 
+use App\Enums\CreatureIntent;
 use App\Enums\Habitat;
 use App\Simulation\CreatureState;
 use App\Simulation\SpeciesDefinition;
@@ -10,13 +11,16 @@ use App\Simulation\TankState;
 
 /**
  * Poor water quality, unsuitable temperature/pH and starvation damage
- * health; good conditions let creatures recover. Land animals suffer from
+ * health; good conditions let creatures recover (faster while resting). Land animals suffer from
  * stale or dry air instead, and drown without dry land; amphibians need
  * both water and land.
  */
 final class HealthSystem implements SimulationSystem
 {
     private const float RECOVERY_PER_HOUR = 0.03;
+
+    /** Resting animals recover this much faster. */
+    private const float RESTING_RECOVERY = 1.5;
 
     public function apply(TankState $state, StepContext $context): void
     {
@@ -31,7 +35,8 @@ final class HealthSystem implements SimulationSystem
                 $creature->health -= $total * $context->hours;
             } else {
                 $creature->mainStressor = null;
-                $creature->health += self::RECOVERY_PER_HOUR * (1 - $creature->hunger) * $context->hours;
+                $rest = $creature->intent === CreatureIntent::Rest ? self::RESTING_RECOVERY : 1.0;
+                $creature->health += self::RECOVERY_PER_HOUR * $rest * (1 - $creature->hunger) * $context->hours;
             }
 
             $creature->health = min(1.0, max(0.0, $creature->health));

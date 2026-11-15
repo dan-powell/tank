@@ -15,6 +15,8 @@ import {
     MOVE_CLIP,
 } from '@/lib/tank/animator';
 import type { AnimationState } from '@/lib/tank/animator';
+import { createBehaviourState, resolveBehaviour } from '@/lib/tank/behaviours';
+import type { BehaviourState } from '@/lib/tank/behaviours';
 import { createArrival } from '@/lib/tank/intro';
 import {
     layerDepth,
@@ -24,7 +26,12 @@ import {
     VOXEL,
     zoneRadiusToWorld,
 } from '@/lib/tank/space';
-import { createWanderState, standsOnBase, steer } from '@/lib/tank/steering';
+import {
+    createWanderState,
+    eatsDroppedFood,
+    standsOnBase,
+    steer,
+} from '@/lib/tank/steering';
 import type { SteeringProfile, WanderState } from '@/lib/tank/steering';
 import type { CreatureBody, TankWorld } from '@/lib/tank/world';
 import type { CreatureSnapshot, Species } from '@/types';
@@ -37,7 +44,8 @@ import {
 import { useSelectable, useShowsSelectionHalo } from './selection';
 import { HIGHLIGHT_BRIGHTNESS } from './sway-material';
 import type { RevealUniform } from './intro-material';
-import { createVoxelMaterial } from './voxel-material';
+import { createMoodUniforms, createVoxelMaterial } from './voxel-material';
+import type { MoodUniforms } from './voxel-material';
 
 type Props = {
     creatures: CreatureSnapshot[];
@@ -74,6 +82,15 @@ export function Creatures({
 }: Props) {
     const [departed, setDeparted] = useState<Departed[]>([]);
     const previous = useRef<CreatureSnapshot[]>(creatures);
+    const preySpeciesIds = useMemo(
+        () =>
+            new Set(
+                [...species.values()]
+                    .filter((definition) => definition.is_prey)
+                    .map((definition) => definition.id),
+            ),
+        [species],
+    );
 
     useEffect(() => {
         const currentIds = new Set(creatures.map((creature) => creature.id));
@@ -125,6 +142,9 @@ export function Creatures({
                         layerCount={layerCount}
                         isLit={isLit}
                         lowOxygen={lowOxygen}
+                        preySpeciesIds={
+                            definition.hunts_prey ? preySpeciesIds : NO_PREY
+                        }
                         isSelected={creature.id === selectedId}
                         onSelect={() => onSelect(creature.id)}
                     />
@@ -152,9 +172,17 @@ type CreatureProps = {
     layerCount: number;
     isLit: boolean;
     lowOxygen: boolean;
+    /** Species it stalks when hunting. */
+    preySpeciesIds: ReadonlySet<number>;
     isSelected: boolean;
     onSelect: () => void;
 };
+
+/** For animals that don't catch prey. */
+const NO_PREY: ReadonlySet<number> = new Set();
+
+/** Below this share of adult size an animal counts as young (slower, and wary of grown-ups). */
+const YOUNG_SHARE = 0.35;
 
 /** Smallest hit box (world units), so fry stay clickable. */
 const MIN_HIT_SIZE = 0.06;
@@ -172,6 +200,7 @@ function Creature({
     layerCount,
     isLit,
     lowOxygen,
+    preySpeciesIds,
     isSelected,
     onSelect,
 }: CreatureProps) {
@@ -203,6 +232,9 @@ function Creature({
     const bodyMesh = useRef<Mesh>(null);
     const haloMesh = useRef<Mesh>(null);
     const wander = useRef<WanderState>(createWanderState());
+    const behaviourState = useRef<BehaviourState>(createBehaviourState());
+    const mood = useMemo<MoodUniforms>(() => createMoodUniforms(), []);
+    const isYoung = creature.size < (species.adult_size ?? 1) * YOUNG_SHARE;
     const hasTurned = useRef(false);
     const homeLayer = Math.min(layerCount - 1, creature.zone.layer);
     const [zoneX, zoneY] = creature.zone.center;
@@ -230,6 +262,9 @@ function Creature({
             velocity: new Vector3(),
             homeLayer,
             yaw: Math.random() * Math.PI * 2,
+            intent: creature.intent,
+            moods: creature.moods,
+            isYoung: false,
         };
 
         if (world.terrain !== null) {
@@ -274,18 +309,16 @@ function Creature({
         id: creature.id,
         behaviour: species.behaviour,
         habitat: species.habitat,
-        speed:
-            (species.render.speed ?? 0.25) *
-            (creature.size < (species.adult_size ?? 1) * 0.35 ? 0.7 : 1),
+        speed: (species.render.speed ?? 0.25) * (isYoung ? 0.7 : 1),
         schooling: species.render.schooling ?? 0,
         layerRoam: species.render.layer_roam ?? 0,
         layerCount,
         zoneCenter,
         zoneRadius: zoneRadiusToWorld(creature.zone.radius),
-        hunger: creature.hunger,
         health: creature.health,
         isLit,
         lowOxygen,
+        preySpeciesIds,
     };
 
     useFrame((state, delta) => {
@@ -300,7 +333,28 @@ function Creature({
             return;
         }
 
-        steer(body, wander.current, profile, world, delta);
+        body.isYoung = isYoung;
+        const behaviour = resolveBehaviour(
+            behaviourState.current,
+            {
+                id: creature.id,
+                intent: creature.intent,
+                moods: creature.moods,
+                hunger: creature.hunger,
+                health: creature.health,
+                eatsFood: eatsDroppedFood(species.behaviour),
+                eatsSunkenFood: species.behaviour === 'bottom_dweller',
+                isYoung,
+                isLit,
+                speed: profile.speed,
+            },
+            body,
+            world,
+            delta,
+        );
+        steer(body, wander.current, profile, behaviour, world, delta);
+        mood.uMoodSaturation.value = behaviourState.current.saturation;
+        mood.uMoodBrightness.value = behaviourState.current.brightness;
         object.position.copy(body.position);
 
         // Turn towards the heading by the shortest way round, at a limited rate.
@@ -381,6 +435,7 @@ function Creature({
                             health={creature.health}
                             highlighted={isSelected}
                             reveal={reveal}
+                            mood={mood}
                             bodyRef={bodyMesh}
                             haloRef={haloMesh}
                         />
@@ -426,6 +481,8 @@ type VoxelCreatureProps = {
     highlighted?: boolean;
     /** Dissolves it in as it arrives (see applyReveal). */
     reveal?: RevealUniform;
+    /** Its live colouring (see resolveBehaviour). */
+    mood?: MoodUniforms;
     /** The meshes, for swapping animation frames in place. */
     bodyRef?: Ref<Mesh>;
     haloRef?: Ref<Mesh>;
@@ -444,6 +501,7 @@ function VoxelCreature({
     opacity = 1,
     highlighted = false,
     reveal,
+    mood,
     bodyRef,
     haloRef,
 }: VoxelCreatureProps) {
@@ -465,12 +523,13 @@ function VoxelCreature({
         const created = createVoxelMaterial(new Color(`#${tintHex}`), colour, {
             sheen: true,
             reveal,
+            mood,
         });
         created.transparent = opacity < 1;
         created.opacity = opacity;
 
         return created;
-    }, [tintHex, shadeHex, health, opacity, highlighted, reveal]);
+    }, [tintHex, shadeHex, health, opacity, highlighted, reveal, mood]);
 
     useEffect(() => () => material.dispose(), [material]);
 
