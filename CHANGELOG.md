@@ -60,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Vite dev server works under DDEV (served at https://tank.ddev.site:5173 instead of 127.0.0.1).
 - Z-fighting between creatures and plants sharing a depth layer.
 - Assets blocked as mixed content behind an HTTPS reverse proxy (proxies are now trusted).
 
