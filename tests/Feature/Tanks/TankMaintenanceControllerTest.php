@@ -93,14 +93,14 @@ class TankMaintenanceControllerTest extends TestCase
         $this->assertEqualsWithDelta(14, $tank->fresh()->algae, 0.0001);
     }
 
-    public function test_light_switch_toggles_the_lamp(): void
+    public function test_master_switch_turns_all_the_lights_off(): void
     {
         $tank = Tank::factory()->create(['light_on' => true]);
 
         $this->actingAs($tank->user)->post(route('tanks.light', $tank))->assertRedirect();
 
         $this->assertFalse($tank->fresh()->light_on);
-        $this->assertSame('You switched the lamp off.', $tank->events()->sole()->message);
+        $this->assertSame('You switched all the lights off.', $tank->events()->sole()->message);
     }
 
     public function test_other_users_cannot_maintain_the_tank(): void

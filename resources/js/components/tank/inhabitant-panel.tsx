@@ -213,7 +213,45 @@ function PlantStats({
                     className="bg-emerald-500"
                 />
             </Stat>
+            {species.light !== null && (
+                <Stat label="Light">
+                    <LightVerdict light={plant.light} needs={species.light} />
+                </Stat>
+            )}
         </>
+    );
+}
+
+/** Daily light, as a multiple of the top of a species' range, that scorches it (matches PlantGrowthSystem). */
+const SCORCH_MULTIPLE = 2.5;
+
+/**
+ * How a plant's daily light compares with what its species needs: too
+ * little starves it, up to the top of its range speeds its growth.
+ */
+function LightVerdict({
+    light,
+    needs: [minimum, saturation],
+}: {
+    light: number;
+    needs: [number, number];
+}) {
+    const [verdict, tone] =
+        light < minimum
+            ? ['Too dark', 'text-amber-600 dark:text-amber-400']
+            : light > saturation * SCORCH_MULTIPLE
+              ? ['Scorching', 'text-amber-600 dark:text-amber-400']
+              : light >= saturation
+                ? ['Bright', 'text-emerald-600 dark:text-emerald-400']
+                : ['Enough', ''];
+
+    return (
+        <span
+            className={tone}
+            title={`${light.toFixed(2)} a day; needs ${minimum}, thrives from ${saturation}`}
+        >
+            {verdict}
+        </span>
     );
 }
 

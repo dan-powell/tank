@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Models\Tank;
 use App\Models\User;
+use App\Simulation\Gantry;
 use App\Simulation\SubstrateHeightmap;
 use App\Simulation\TankGeometry;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -140,5 +141,15 @@ class TankFactory extends Factory
             'auto_feeder_unlimited' => false,
             'auto_feeder_portions' => config('simulation.auto_feeder.hopper_capacity'),
         ]);
+    }
+
+    /**
+     * A tank lit like a new one: an LED tube along the gantry on the default timer.
+     */
+    public function lit(): static
+    {
+        return $this->afterCreating(function (Tank $tank): void {
+            $tank->lightFixtures()->create(Gantry::of($tank)->defaultFixture());
+        });
     }
 }

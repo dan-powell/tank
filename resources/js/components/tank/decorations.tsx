@@ -1,10 +1,12 @@
 import { TransformControls } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { Color, Vector3 } from 'three';
-import type { Group, Object3D } from 'three';
+import { Color, MeshStandardMaterial, SphereGeometry, Vector3 } from 'three';
+import type { Group, Object3D, PointLight } from 'three';
 import { useDecorModels } from '@/hooks/use-decor-model';
 import type { DecorModel } from '@/hooks/use-decor-model';
+import { liveLighting } from '@/lib/tank/lighting';
 import { cellToWorld, VOXEL, worldToCell } from '@/lib/tank/space';
 import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { TerrainField } from '@/lib/tank/terrain-field';
@@ -13,6 +15,7 @@ import type { TankAxis } from '@/lib/tank/views';
 import type { TankWorld } from '@/lib/tank/world';
 import type {
     DecorationDefinition,
+    DecorationLights,
     DecorationSnapshot,
     GridCell,
     PlantSnapshot,
@@ -150,6 +153,12 @@ export function Decorations({
         [material, highlighted, halo],
     );
 
+    /** Only the first few lit decorations cast light on their surroundings; the rest just glow. */
+    const glowingIds = decorations
+        .filter((decoration) => decoration.lights?.on)
+        .slice(0, MAX_LED_GLOWS)
+        .map((decoration) => decoration.id);
+
     return (
         <group>
             {decorations.map((decoration) => {
@@ -180,6 +189,7 @@ export function Decorations({
                         onSelectAnchor={(anchor) =>
                             onSelectAnchor(decoration.id, anchor)
                         }
+                        castsLight={glowingIds.includes(decoration.id)}
                     />
                 );
 
@@ -223,6 +233,8 @@ type ContentProps = {
     onSelect: () => void;
     onSelectPlant: (plantId: number) => void;
     onSelectAnchor: (anchor: number) => void;
+    /** Whether its LEDs light their surroundings, not just glow. */
+    castsLight: boolean;
 };
 
 /**
@@ -241,6 +253,7 @@ function DecorationContent({
     onSelect,
     onSelectPlant,
     onSelectAnchor,
+    castsLight,
 }: ContentProps) {
     const selectable = useSelectable(onSelect);
     const anchors = useMemo(
@@ -311,7 +324,112 @@ function DecorationContent({
                     />
                 );
             })}
+            {decoration.lights?.on && (
+                <DecorationLeds
+                    lights={decoration.lights}
+                    points={definition.light_points.map((point) =>
+                        rotateCell(point, definition.size, decoration.rotation),
+                    )}
+                    castsLight={castsLight}
+                />
+            )}
         </>
+    );
+}
+
+/** Most decorations whose LEDs cast real light (each point light costs every lit pixel). */
+const MAX_LED_GLOWS = 6;
+
+const LED_BEAD = new SphereGeometry(VOXEL * 1.4, 10, 8);
+
+/** How brightly an LED bead glows (above 1 so the bloom picks it up). */
+const LED_GLOW = 4;
+
+/**
+ * A decoration's LEDs: glowing beads at its light points, plus one small
+ * light in their midst to tint what's nearby. On a timer they follow the
+ * tank's lights, fading out as those come on (they look best in the dark).
+ */
+function DecorationLeds({
+    lights,
+    points,
+    castsLight,
+}: {
+    lights: DecorationLights;
+    points: GridCell[];
+    castsLight: boolean;
+}) {
+    const material = useMemo(
+        () =>
+            new MeshStandardMaterial({
+                color: lights.colour,
+                emissive: lights.colour,
+                toneMapped: false,
+            }),
+        [lights.colour],
+    );
+    const glow = useRef<PointLight>(null);
+    const positions = useMemo(
+        () =>
+            points.map(
+                ([x, y, z]) =>
+                    new Vector3(
+                        (x + 0.5) * VOXEL,
+                        (y + 0.5) * VOXEL,
+                        (z + 0.5) * VOXEL,
+                    ),
+            ),
+        [points],
+    );
+    const middle = useMemo(
+        () =>
+            positions
+                .reduce((sum, position) => sum.add(position), new Vector3())
+                .divideScalar(Math.max(1, positions.length)),
+        [positions],
+    );
+
+    useEffect(() => () => material.dispose(), [material]);
+
+    useFrame(() => {
+        let tankLight = 0;
+
+        for (let index = 0; index < liveLighting.count; index++) {
+            tankLight += liveLighting.lights[index].intensity;
+        }
+
+        const level =
+            lights.mode === 'always' ? 1 : Math.max(0, 1 - tankLight * 1.5);
+
+        material.emissiveIntensity = 0.3 + level * LED_GLOW;
+
+        if (glow.current !== null) {
+            glow.current.intensity = level * 0.25;
+        }
+    });
+
+    return (
+        <group>
+            {positions.map((position, index) => (
+                <mesh
+                    key={index}
+                    position={position}
+                    geometry={LED_BEAD}
+                    material={material}
+                    raycast={() => null}
+                />
+            ))}
+            {castsLight && (
+                <pointLight
+                    ref={glow}
+                    position={middle}
+                    color={lights.colour}
+                    intensity={0}
+                    distance={0.35}
+                    decay={2}
+                />
+            )}
+        </group>
     );
 }
 

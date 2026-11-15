@@ -12,8 +12,17 @@ use App\Enums\Habitat;
  */
 final class TankState
 {
-    /** Whether the tank is lit during the current step (derived each step). */
+    /** Whether any light is reaching the tank during the current step (derived each step). */
     public bool $isLit = false;
+
+    /** Average light across the substrate this step, in LightField units (derived each step). */
+    public float $lightLevel = LightField::REFERENCE_FLOOR_LIGHT;
+
+    /** Hours per day the lighting runs at a useful level (derived each step). */
+    public float $photoperiodHours = 12.0;
+
+    /** The tank's light field, built once per simulation run by the lighting system. */
+    public ?LightField $lightField = null;
 
     /**
      * @param  array<int, SpeciesDefinition>  $species  Keyed by species id.
@@ -33,6 +42,9 @@ final class TankState
      * @param  float  $waterSurfaceShare  Share of the floor plan that is open water (0..1).
      * @param  bool  $isSealed  Whether the lid is sealed (no air exchange with the room).
      * @param  SubstrateHeightmap|null  $substrate  The substrate heightmap (null when flat).
+     * @param  int  $gridHeight  Interior height (glass floor to rim) in grid cells.
+     * @param  list<LightFixtureState>  $lightFixtures
+     * @param  array<int, GridBox>  $decorationBoxes  Every decoration's box, keyed by decoration id.
      */
     public function __construct(
         public int $volumeLitres,
@@ -71,6 +83,9 @@ final class TankState
         public float $waterSurfaceShare = 1.0,
         public bool $isSealed = false,
         public ?SubstrateHeightmap $substrate = null,
+        public int $gridHeight = TankGeometry::DEFAULT_HEIGHT,
+        public array $lightFixtures = [],
+        public array $decorationBoxes = [],
     ) {}
 
     /**

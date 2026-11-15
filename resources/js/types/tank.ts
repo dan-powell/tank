@@ -30,6 +30,8 @@ export type PlantSnapshot = {
     size: number;
     segments: number;
     health: number;
+    /** A day's light at its crown: 1 = ten hours of medium light. */
+    light: number;
     age_days: number;
 };
 
@@ -60,6 +62,18 @@ export type DecorationSnapshot = {
     /** Quarter turns about the vertical axis (0-3). */
     rotation: number;
     seed: number;
+    /** Its decorative LEDs; null when the model has none. */
+    lights: DecorationLights | null;
+};
+
+export type DecorationLightMode = 'timer' | 'always';
+
+export type DecorationLights = {
+    on: boolean;
+    /** #rrggbb */
+    colour: string;
+    /** `timer` follows the tank's lights; `always` stays on. */
+    mode: DecorationLightMode;
 };
 
 export type DecorationDefinition = {
@@ -77,6 +91,48 @@ export type DecorationDefinition = {
         roughness?: number;
         flatness?: number;
     };
+    /** Cells where decorative LEDs glow, unrotated. */
+    light_points: GridCell[];
+    light_colour: string | null;
+};
+
+/** A light fixture in the catalogue. */
+export type LightDefinition = {
+    slug: 'led-tube' | 'spotlight' | 'flood';
+    name: string;
+    description: string;
+    /** Tubes run along a gantry row over several slots; the rest fill one slot. */
+    is_tube: boolean;
+    /** Full cone angle in degrees (point fixtures). */
+    beam_angle: number;
+    default_colour: string;
+    min_length: number;
+};
+
+/** A light on the gantry. Times are minutes of the simulated day. */
+export type LightFixture = {
+    id: number;
+    type: LightDefinition['slug'];
+    column: number;
+    row: number;
+    /** Slots it spans along its row (1 for point fixtures). */
+    length: number;
+    /** #rrggbb */
+    colour: string;
+    /** Percent. */
+    brightness: number;
+    on_minute: number;
+    off_minute: number;
+    ramp_minutes: number;
+};
+
+export type TankLighting = {
+    /** Slots across the width (columns) and front to back (rows); fixtures hang `clearance` cells above the rim. */
+    gantry: { columns: number; rows: number; clearance: number };
+    fixtures: LightFixture[];
+    max_fixtures: number;
+    /** Hours per day the lighting runs at a useful level. */
+    photoperiod_hours: number;
 };
 
 /** The decoration grid (0.2 cm cells) shared by decorations, substrate and water. */
@@ -133,11 +189,16 @@ export type TankSnapshot = {
     /** Substrate height in cells per grid column, row by row from the back glass, as run-length [height, count, ...] pairs (see decodeSubstrate). */
     substrate: number[];
     water: WaterParameters;
+    /** Master switch for every light on the gantry. */
     light_on: boolean;
+    /** Whether any light is on right now. */
     is_lit: boolean;
+    lighting: TankLighting;
     auto_feeder: AutoFeeder | null;
     sim_tick: number;
     sim_seconds: number;
+    /** Simulated seconds per real second. */
+    time_scale: number;
     last_simulated_at: string | null;
     plants: PlantSnapshot[];
     creatures: CreatureSnapshot[];
@@ -191,6 +252,8 @@ export type Species = {
     max_size: number | null;
     /** Where a plant can grow; null for animals. */
     anchorage: 'substrate' | 'decor' | 'any' | null;
+    /** Plants: [daily light it needs, light at which it grows fastest]; null for animals. */
+    light: [number, number] | null;
     render: SpeciesRender;
 };
 
@@ -207,6 +270,7 @@ export type TankEventType =
     | 'vacuum'
     | 'algae_scrub'
     | 'light_toggled'
+    | 'lighting'
     | 'lid'
     | 'livestock_added'
     | 'removed'

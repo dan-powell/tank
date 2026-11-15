@@ -5,6 +5,8 @@ use App\Http\Controllers\TankAutoFeederController;
 use App\Http\Controllers\TankController;
 use App\Http\Controllers\TankCreatureController;
 use App\Http\Controllers\TankDecorationController;
+use App\Http\Controllers\TankDecorationLightController;
+use App\Http\Controllers\TankLightFixtureController;
 use App\Http\Controllers\TankMaintenanceController;
 use App\Http\Controllers\TankPlantController;
 use App\Http\Controllers\TankStockController;
@@ -31,6 +33,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::put('background', [TankMaintenanceController::class, 'setBackground'])->name('background');
             Route::patch('creatures/{creature}', [TankCreatureController::class, 'update'])->name('creatures.update');
             Route::patch('plants/{plant}', [TankPlantController::class, 'update'])->name('plants.update');
+            Route::post('lights', [TankLightFixtureController::class, 'store'])->name('lights.store');
+            Route::patch('lights/{lightFixture}', [TankLightFixtureController::class, 'update'])->name('lights.update');
+            Route::delete('lights/{lightFixture}', [TankLightFixtureController::class, 'destroy'])->name('lights.destroy');
+            Route::patch('decorations/{decoration}/lights', [TankDecorationLightController::class, 'update'])->name('decorations.lights');
 
             Route::middleware(EnsureTankIsOpen::class)->group(function () {
                 Route::post('feed', [TankMaintenanceController::class, 'feed'])->name('feed');

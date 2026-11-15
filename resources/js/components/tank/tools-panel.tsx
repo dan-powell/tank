@@ -1,12 +1,5 @@
 import { router } from '@inertiajs/react';
-import {
-    Droplets,
-    Fish,
-    Lightbulb,
-    LightbulbOff,
-    Sparkles,
-    Waves,
-} from 'lucide-react';
+import { Droplets, Fish, Sparkles, Waves } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -17,16 +10,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { light, scrub, vacuum, waterChange } from '@/routes/tanks';
+import { scrub, vacuum, waterChange } from '@/routes/tanks';
 
 import { PanelSection, SealedGuard } from './panel-section';
 
 type Props = {
     tankId: number;
-    lightOn: boolean;
     /** Feeding and water changes need water in the tank. */
     hasWater: boolean;
-    /** Only the lamp works through a sealed lid. */
+    /** Feeding and cleaning can't be done through a sealed lid. */
     isSealed: boolean;
     onFeedRandomly: () => void;
 };
@@ -36,7 +28,6 @@ const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
 /** Hands-on care and cleaning for the tank. */
 export function ToolsPanel({
     tankId,
-    lightOn,
     hasWater,
     isSealed,
     onFeedRandomly,
@@ -53,16 +44,6 @@ export function ToolsPanel({
                         onClick={onFeedRandomly}
                     >
                         <Fish /> Feed
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                            router.post(light.url(tankId), {}, visitOptions)
-                        }
-                    >
-                        {lightOn ? <LightbulbOff /> : <Lightbulb />}
-                        {lightOn ? 'Lamp off' : 'Lamp on'}
                     </Button>
                 </div>
             </PanelSection>

@@ -8,6 +8,7 @@ import {
     Fish,
     History,
     LayoutDashboard,
+    Lightbulb,
     Mountain,
     Navigation,
     Square,
@@ -24,6 +25,7 @@ import { SubstratePanel } from '@/components/tank/substrate-panel';
 import { EventLog } from '@/components/tank/event-log';
 import { InhabitantList } from '@/components/tank/inhabitant-list';
 import { InhabitantPanel } from '@/components/tank/inhabitant-panel';
+import { LightingPanel } from '@/components/tank/lighting-panel';
 import type { Inhabitant } from '@/components/tank/inhabitant-panel';
 import type {
     TankViewMode,
@@ -60,6 +62,7 @@ import {
     zToLayer,
 } from '@/lib/tank/space';
 import { cn } from '@/lib/utils';
+import { useSimClock } from '@/lib/tank/lighting';
 import { TankWorld } from '@/lib/tank/world';
 import { dashboard } from '@/routes';
 import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
@@ -72,6 +75,7 @@ import decorationRoutes from '@/routes/tanks/decorations';
 import type {
     DecorationDefinition,
     GridCell,
+    LightDefinition,
     Species,
     TankBackground,
     TankEvent,
@@ -85,6 +89,7 @@ type Props = {
     tank: TankSnapshot;
     species: Species[];
     decorationCatalogue: DecorationDefinition[];
+    lightCatalogue: LightDefinition[];
     events: TankEvent[];
 };
 
@@ -99,6 +104,7 @@ type PanelTab =
     | 'inhabitants'
     | 'management'
     | 'decor'
+    | 'lighting'
     | 'equipment';
 
 /** Which way new tab content slides in: from the side of the tab chosen. */
@@ -110,6 +116,7 @@ const PANEL_TABS: { value: PanelTab; label: string; icon: LucideIcon }[] = [
     { value: 'inhabitants', label: 'Inhabitants', icon: Fish },
     { value: 'management', label: 'Management', icon: Wrench },
     { value: 'decor', label: 'Aquascaping', icon: Mountain },
+    { value: 'lighting', label: 'Lighting', icon: Lightbulb },
     { value: 'equipment', label: 'Equipment', icon: Cog },
 ];
 
@@ -162,6 +169,7 @@ export default function ShowTank({
     tank,
     species,
     decorationCatalogue,
+    lightCatalogue,
     events,
 }: Props) {
     const { width, height, depth } = tank.grid;
@@ -196,6 +204,10 @@ export default function ShowTank({
     const [previewBackground, setPreviewBackground] =
         useState<TankBackground | null>(null);
     const [tabDirection, setTabDirection] = useState<TabDirection>('right');
+    const [selectedFixtureId, setSelectedFixtureId] = useState<number | null>(
+        null,
+    );
+    const simClock = useSimClock(tank.sim_seconds, tank.time_scale);
 
     /** Swing the camera round to `view`; in 2D it also becomes the side the flat view looks from. */
     const selectView = (view: TankView) => {
@@ -221,6 +233,17 @@ export default function ShowTank({
     };
 
     const togglePanel = () => setIsPanelOpen((open) => !open);
+
+    /** Pick a light (clicked in the scene): open the Lighting tab on it. */
+    const selectFixture = (id: number) => {
+        setSelection(null);
+        setSelectedFixtureId(id);
+        setIsPanelOpen(true);
+
+        if (tab !== 'lighting') {
+            changeTab('lighting');
+        }
+    };
 
     const select = (next: TankSelection | null) => {
         setSelection(next);
@@ -490,6 +513,11 @@ export default function ShowTank({
                         placement={placement}
                         onPlace={placeMoving}
                         previewBackground={previewBackground}
+                        simClock={simClock}
+                        selectedFixtureId={
+                            tab === 'lighting' ? selectedFixtureId : null
+                        }
+                        onSelectFixture={selectFixture}
                     />
 
                     {movingInhabitant !== null && (
@@ -672,7 +700,7 @@ export default function ShowTank({
                                     'hidden',
                             )}
                         >
-                            <TabsList className="grid w-full shrink-0 grid-cols-6 gap-0 border-b border-sidebar-border bg-sidebar/60 p-0 group-data-horizontal/tabs:h-11">
+                            <TabsList className="grid w-full shrink-0 grid-cols-7 gap-0 border-b border-sidebar-border bg-sidebar/60 p-0 group-data-horizontal/tabs:h-11">
                                 {PANEL_TABS.map(
                                     ({ value, label, icon: Icon }) => (
                                         <Tooltip key={value}>
@@ -751,7 +779,6 @@ export default function ShowTank({
                             >
                                 <ToolsPanel
                                     tankId={tank.id}
-                                    lightOn={tank.light_on}
                                     hasWater={tank.has_water}
                                     isSealed={tank.is_sealed}
                                     onFeedRandomly={feedRandomly}
@@ -789,6 +816,23 @@ export default function ShowTank({
                                         }
                                     />
                                 </SealedGuard>
+                            </PanelTabContent>
+
+                            <PanelTabContent
+                                value="lighting"
+                                direction={tabDirection}
+                            >
+                                <LightingPanel
+                                    tankId={tank.id}
+                                    lighting={tank.lighting}
+                                    lightOn={tank.light_on}
+                                    clock={simClock}
+                                    catalogue={lightCatalogue}
+                                    decorations={tank.decorations}
+                                    decorationCatalogue={decorationCatalogue}
+                                    selectedFixtureId={selectedFixtureId}
+                                    onSelectFixture={setSelectedFixtureId}
+                                />
                             </PanelTabContent>
 
                             <PanelTabContent

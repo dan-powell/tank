@@ -46,7 +46,7 @@ use Illuminate\Support\Carbon;
  * @property float $humidity Relative humidity of the air above the water, %.
  * @property float $air_oxygen Oxygen in the air above the water, % by volume.
  * @property float $air_co2 CO2 in the air above the water, ppm.
- * @property bool $light_on
+ * @property bool $light_on Master switch for every light fixture.
  * @property bool $is_sealed Whether the lid is sealed, cutting the tank off from the room.
  * @property string $background_colour Backdrop behind the tank as #rrggbb (the top of a gradient).
  * @property string|null $background_gradient_colour Bottom of the backdrop's gradient as #rrggbb (null = solid).
@@ -104,6 +104,14 @@ class Tank extends Model
     public function decorations(): HasMany
     {
         return $this->hasMany(Decoration::class);
+    }
+
+    /**
+     * @return HasMany<LightFixture, $this>
+     */
+    public function lightFixtures(): HasMany
+    {
+        return $this->hasMany(LightFixture::class);
     }
 
     /**

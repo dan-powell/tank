@@ -11,6 +11,7 @@ const OWN_ACTIONS: TankEventType[] = [
     'vacuum',
     'algae_scrub',
     'light_toggled',
+    'lighting',
     'lid',
     'water_level',
     'livestock_added',

@@ -11,7 +11,7 @@ class ToggleLight
     use MutatesTank;
 
     /**
-     * Flip the lamp's master switch. While on, the lamp follows its daily timer.
+     * Flip the master switch for every light on the gantry. While on, each light follows its own timer.
      */
     public function handle(Tank $tank): void
     {
@@ -21,7 +21,7 @@ class ToggleLight
             return $this->event(
                 $tank,
                 TankEventType::LightToggled,
-                $tank->light_on ? 'You switched the lamp timer on.' : 'You switched the lamp off.',
+                $tank->light_on ? 'You switched the lights back on to their timers.' : 'You switched all the lights off.',
                 ['light_on' => $tank->light_on],
             );
         });

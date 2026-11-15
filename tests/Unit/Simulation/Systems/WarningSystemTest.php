@@ -45,4 +45,16 @@ class WarningSystemTest extends TestCase
 
         $this->assertSame(['parameter' => 'oxygen'], $context->events()[0]->payload);
     }
+
+    public function test_warns_when_plants_start_going_short_of_light(): void
+    {
+        $plant = $this->plant();
+        $state = $this->tankState(['plants' => [$plant]]);
+        $context = $this->context($state);
+        $plant->dailyLight = 0.1;
+
+        (new WarningSystem)->apply($state, $context);
+
+        $this->assertSame(['parameter' => 'light'], $context->events()[0]->payload);
+    }
 }

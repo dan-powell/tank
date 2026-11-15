@@ -55,6 +55,8 @@ final class DecorationCatalogue
                 source: DecorationSource::Vox,
                 size: [120, 90, 30],
                 anchors: [[21, 30, 21], [61, 50, 18], [98, 38, 21], [61, 58, 6]],
+                lightPoints: [[60, 42, 13], [22, 40, 17], [54, 24, 17]],
+                lightColour: '#4fe3ff',
             ),
             'driftwood-arch' => new DecorationDefinition(
                 slug: 'driftwood-arch',
@@ -70,6 +72,8 @@ final class DecorationCatalogue
                 description: 'Every aquarium needs one.',
                 source: DecorationSource::Vox,
                 size: [40, 33, 28],
+                lightPoints: [[12, 18, 27], [20, 21, 27], [28, 18, 27]],
+                lightColour: '#ffc34d',
             ),
         ];
     }

@@ -10,14 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Laravel React starter kit (Inertia v3, React 19, Fortify, Wayfinder, Tailwind 4) with Reverb realtime and DDEV daemons.
 - Tank simulation: species catalogue, deterministic simulator, scheduled ticks and live updates.
-- Tank care: feeding, water changes, gravel vacuum, algae scrub, lamp, stocking and an auto-feeder.
+- Tank care: feeding, water changes, gravel vacuum, algae scrub, stocking and an auto-feeder.
 - Starter tank for every new user, and a dashboard listing their tanks with their sizes.
-- Tank view: 2.5D depth layers with voxel artwork, and spotlights. Animals and plants are MagicaVoxel models (resources/models/species) at the shared voxel size.
+- Tank view: 2.5D depth layers with voxel artwork. Animals and plants are MagicaVoxel models (resources/models/species) at the shared voxel size.
 - 2D (default) and 3D view toggle, bottom left; left-drag pans (in 3D along the camera's own axes, keeping the tank in view), right-drag rotates. The 2D view hides the glass edge lines.
 - View cube above the 2D/3D toggle: click a face, edge or top corner to swing the camera to that side or a 45° view, fitted to the whole tank; in 2D it picks the side the flat view looks from. The 3D view can now look straight down.
 - Fly mode (third view toggle option): click the tank to capture the mouse and look around, WASD/arrows to move, E/Space up, Q down, Shift faster; flies in and around the tank. The view cube switches back to 3D.
 - Underwater view (any mode, e.g. a 3D close-up or flying): inside the water the camera sees tint, fog, light shafts and the surface from below.
-- Tabbed tank side panel with animated transitions: Summary (tank name and clock, water, inhabitants, latest activity that fits without scrolling), Activity (full log), Inhabitants, Management and Equipment (auto-feeder); icon tabs with tooltips.
+- Tabbed tank side panel with animated transitions: Summary (tank name and clock, water, inhabitants, latest activity that fits without scrolling), Activity (full log), Inhabitants, Management, Aquascaping, Lighting and Equipment (auto-feeder); icon tabs with tooltips.
 - Searchable, sortable list of every inhabitant; choosing one selects it, as clicking it in the tank does.
 - Full-window tank view with a frosted side panel that slides over the tank (pull tab on its edge or `P`); the choice is remembered.
 - Per-tank backdrop (Equipment): a solid colour or top-to-bottom gradient, with presets and a live preview; dims with the light, and colours the tank's dashboard card.
@@ -37,6 +37,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Adjustable water level, set when a tank is created and from Management (fill to the top, a chosen depth, or empty): draining keeps the water as it is, topping up mixes in tap water.
 - Empty tanks: water chemistry pauses; feeding, water changes and adding water animals are refused, and a tank can't be emptied while water animals live in it.
 - Plants whose roots are out of the water stop growing and wilt, dying back after about two simulated days.
+- Lighting tab: hang LED tubes, spotlights and LED floods on a gantry above the tank (up to 8, picked from a top-down slot map or by clicking them in 3D), each with its own colour, brightness and timer with fade in/out; a master switch, a day timeline and the hours of light a day. New and existing tanks start with one full-length LED tube on 08:00–20:00.
+- Light in the simulation: each plant gets the light at its crown (from the lights above, dimmed by water depth and shaded by decorations) and grows in proportion, up to its species' needs; plants short of daily light lose health (with a warning), and brighter light and days over 12 hours feed algae. Plant colour matters a little (green light is least useful). The plant panel shows whether it gets enough light.
+- Decoration LEDs (treasure chest and coral wall): switch on, pick a colour, and choose glow-after-dark or always on; purely decorative.
+- Glow (bloom) on lit lights and LEDs; the water's shafts, glints and tint follow the lights.
 - Gravel sculpting (at 0.2 cm detail) in the Aquascaping tab: preset shapes (flat, slope, beaches, island, terraces) and a Raise / Lower / Smooth / Flatten brush in three sizes, with Undo; changes save in batches every 2 seconds (and when leaving the page). Raised gravel displaces water and becomes land above the waterline; decorations stay put.
 - Land and edge life: cushion moss and maidenhair fern grow above the water, pothos and dwarf rush at the waterline; springtails, dwarf white isopods and garlic glass-snails live on land, and the fire-bellied toad moves between water and land, hunting the small invertebrates.
 - Air above the water (humidity, oxygen, CO2) on the Summary tab: land plants and animals breathe it, open tanks share the room's air, and land plants feed on detritus.

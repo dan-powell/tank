@@ -31,6 +31,7 @@ class PlantResource extends JsonResource
             'size' => round($this->size, 2),
             'segments' => $this->segments,
             'health' => round($this->health, 2),
+            'light' => round($this->light, 2),
             'age_days' => round($this->age_seconds / 86400, 1),
         ];
     }

@@ -34,4 +34,20 @@ class AlgaeSystemTest extends TestCase
 
         $this->assertLessThan(10.0, $state->algae);
     }
+
+    public function test_algae_grow_faster_with_long_days_and_bright_light(): void
+    {
+        $default = $this->tankState(['nitrate' => 30.0, 'algae' => 10.0]);
+        $longDays = $this->tankState(['nitrate' => 30.0, 'algae' => 10.0]);
+        $longDays->photoperiodHours = 16.0;
+        $bright = $this->tankState(['nitrate' => 30.0, 'algae' => 10.0]);
+        $bright->lightLevel = 1.5;
+
+        foreach ([$default, $longDays, $bright] as $state) {
+            (new AlgaeSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+        }
+
+        $this->assertGreaterThan($default->algae, $longDays->algae);
+        $this->assertGreaterThan($default->algae, $bright->algae);
+    }
 }

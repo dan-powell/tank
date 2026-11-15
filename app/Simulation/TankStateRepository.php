@@ -4,6 +4,7 @@ namespace App\Simulation;
 
 use App\Models\Creature;
 use App\Models\Decoration;
+use App\Models\LightFixture;
 use App\Models\Plant;
 use App\Models\Species;
 use App\Models\Tank;
@@ -21,23 +22,10 @@ final class TankStateRepository
         ])->all();
 
         $decorations = $tank->decorations()->get()->keyBy('id');
+        $gantry = Gantry::of($tank);
 
         $plants = Plant::query()->whereBelongsTo($tank)->alive()->orderBy('id')->get()
-            ->map(fn (Plant $plant): PlantState => new PlantState(
-                id: $plant->id,
-                speciesId: $plant->species_id,
-                parentId: $plant->parent_id,
-                rootX: $plant->root_x,
-                rootY: $plant->root_y,
-                layer: $plant->layer,
-                size: $plant->size,
-                segments: $plant->segments,
-                health: $plant->health,
-                ageSeconds: $plant->age_seconds,
-                decorationId: $plant->decoration_id,
-                anchorIndex: $plant->anchor_index,
-                rootHeight: $this->rootHeight($tank, $plant, $decorations->get($plant->decoration_id)),
-            ))->all();
+            ->map(fn (Plant $plant): PlantState => $this->plantState($tank, $plant, $decorations->get($plant->decoration_id)))->all();
 
         $creatures = Creature::query()->whereBelongsTo($tank)->alive()->orderBy('id')->get()
             ->map(fn (Creature $creature): CreatureState => new CreatureState(
@@ -103,7 +91,37 @@ final class TankStateRepository
             waterSurfaceShare: TankGeometry::waterSurfaceShare($tank),
             isSealed: $tank->is_sealed,
             substrate: $tank->substrate_heights === null ? null : SubstrateHeightmap::of($tank),
+            gridHeight: $tank->grid_height,
+            lightFixtures: $tank->lightFixtures()->orderBy('id')->get()
+                ->map(fn (LightFixture $fixture): LightFixtureState => LightFixtureState::fromModel($fixture, $gantry))
+                ->all(),
+            decorationBoxes: $decorations->map(fn (Decoration $decoration): GridBox => TankGeometry::footprint($decoration))->all(),
         );
+    }
+
+    /**
+     * A plant's working state, starting from the daily light it last had.
+     */
+    private function plantState(Tank $tank, Plant $plant, ?Decoration $decoration): PlantState
+    {
+        $state = new PlantState(
+            id: $plant->id,
+            speciesId: $plant->species_id,
+            parentId: $plant->parent_id,
+            rootX: $plant->root_x,
+            rootY: $plant->root_y,
+            layer: $plant->layer,
+            size: $plant->size,
+            segments: $plant->segments,
+            health: $plant->health,
+            ageSeconds: $plant->age_seconds,
+            decorationId: $plant->decoration_id,
+            anchorIndex: $plant->anchor_index,
+            rootHeight: $this->rootHeight($tank, $plant, $decoration),
+        );
+        $state->dailyLight = $plant->light;
+
+        return $state;
     }
 
     /**
@@ -193,11 +211,12 @@ final class TankStateRepository
             'size' => $plant->size,
             'segments' => $plant->segments,
             'health' => $plant->health,
+            'light' => $plant->dailyLight,
             'age_seconds' => $plant->ageSeconds,
             'died_at' => $plant->isDead ? $now : null,
         ], $plants);
 
-        $this->persist(Plant::class, $rows, ['size', 'segments', 'health', 'age_seconds', 'died_at']);
+        $this->persist(Plant::class, $rows, ['size', 'segments', 'health', 'light', 'age_seconds', 'died_at']);
     }
 
     /**

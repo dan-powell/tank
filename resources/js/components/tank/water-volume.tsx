@@ -15,6 +15,7 @@ import {
     WebGLRenderTarget,
 } from 'three';
 import type { Mesh, PerspectiveCamera } from 'three';
+import { liveLighting, MAX_LIGHTS } from '@/lib/tank/lighting';
 import { TANK } from '@/lib/tank/space';
 import { MAX_RIPPLES, RIPPLE_LIFETIME } from '@/lib/tank/world';
 import type { TankWorld } from '@/lib/tank/world';
@@ -22,7 +23,6 @@ import type { WaterParameters } from '@/types';
 import { airStone } from './bubbles';
 import { CAUSTIC_GLSL, causticUniforms } from './caustics';
 import { sceneClock } from './scene-clock';
-import { hoodHeight, spotPositions } from './tank-lighting';
 
 type Props = {
     water: WaterParameters;
@@ -54,6 +54,53 @@ const NIGHT = {
     caustics: 0.5,
     causticTint: new Color('#dfe6ff'),
 };
+
+/**
+ * Copy this frame's lights (see liveLighting) into the shader: their
+ * positions and strengths for the shafts and glints, their mixed colour,
+ * and shafts that fade as the lights dim.
+ */
+function followLights(
+    uniforms: ShaderMaterial['uniforms'],
+    preset: typeof DAY,
+    shaftBase: number,
+): void {
+    let total = 0;
+    mixedColour.setRGB(0, 0, 0);
+
+    for (let index = 0; index < MAX_LIGHTS; index++) {
+        const light = liveLighting.lights[index];
+        const isActive = index < liveLighting.count;
+        const intensity = isActive ? light.intensity : 0;
+
+        uniforms.uLights.value[index].set(
+            light.centre.x,
+            light.centre.y,
+            light.centre.z,
+            intensity,
+        );
+        uniforms.uLightShapes.value[index].set(
+            light.halfLength,
+            light.cosOuter,
+        );
+        mixedColour.r += light.colour.r * intensity;
+        mixedColour.g += light.colour.g * intensity;
+        mixedColour.b += light.colour.b * intensity;
+        total += intensity;
+    }
+
+    uniforms.uLightCount.value = liveLighting.count;
+
+    if (total > 0.01) {
+        uniforms.uLightColour.value.copy(mixedColour.multiplyScalar(1 / total));
+    } else {
+        uniforms.uLightColour.value.copy(preset.light);
+    }
+
+    uniforms.uShaftStrength.value = shaftBase * Math.min(1, 0.25 + total);
+}
+
+const mixedColour = new Color();
 
 /** Height of the water box's floor, just clear of the glass. */
 const WATER_FLOOR = 0.002;
@@ -179,7 +226,12 @@ uniform vec3 uLightColour;
 uniform vec3 uRoomColour;
 uniform vec3 uSkyColour;
 uniform float uShaftStrength;
-uniform vec3 uSpots[3];
+#define MAX_LIGHTS ${MAX_LIGHTS}
+/** Each light's centre (xyz) and current intensity (w). */
+uniform vec4 uLights[MAX_LIGHTS];
+/** Each light's half length along x (tubes; 0 for point lights) and the cosine of its beam's edge (-1 for tubes). */
+uniform vec2 uLightShapes[MAX_LIGHTS];
+uniform int uLightCount;
 
 varying vec3 vWorld;
 varying float vTop;
@@ -222,16 +274,31 @@ float shaftPattern(vec2 p, float t) {
     return pow(max(0.0, (a + b + c) / 3.0 + 0.25), 3.0);
 }
 
-/** How much of the lamps' cones reaches a point. */
-float spotCover(vec3 p) {
-    float cover = 0.25;
+/** The nearest point of a light (along a tube, or the light itself) to p. */
+vec3 nearestLightPoint(int i, vec3 p) {
+    vec3 centre = uLights[i].xyz;
 
-    for (int i = 0; i < 3; i++) {
-        vec3 toPoint = normalize(p - uSpots[i]);
-        cover += smoothstep(0.73, 0.93, -toPoint.y);
+    return vec3(clamp(p.x, centre.x - uLightShapes[i].x, centre.x + uLightShapes[i].x), centre.yz);
+}
+
+/** How much of the lights' beams reaches a point. */
+float spotCover(vec3 p) {
+    float cover = 0.15;
+
+    for (int i = 0; i < MAX_LIGHTS; i++) {
+        if (i >= uLightCount) {
+            break;
+        }
+
+        vec3 toPoint = normalize(p - nearestLightPoint(i, p));
+        float cosOuter = uLightShapes[i].y;
+        float beam = cosOuter < -0.5
+            ? smoothstep(0.45, 0.85, -toPoint.y)
+            : smoothstep(cosOuter, min(cosOuter + 0.15, 1.0), -toPoint.y);
+        cover += beam * min(uLights[i].w, 1.0);
     }
 
-    return min(cover, 1.4);
+    return min(cover, 1.6);
 }
 
 float interleavedNoise(vec2 pixel) {
@@ -337,10 +404,14 @@ void main() {
         vec3 environment = mix(uRoomColour, uSkyColour, smoothstep(-0.1, 0.7, reflected.y));
         float glints = 0.0;
 
-        for (int i = 0; i < 3; i++) {
-            vec3 toLight = normalize(uSpots[i] - vWorld);
+        for (int i = 0; i < MAX_LIGHTS; i++) {
+            if (i >= uLightCount) {
+                break;
+            }
+
+            vec3 toLight = normalize(nearestLightPoint(i, vWorld) - vWorld);
             vec3 halfway = normalize(toLight + viewDir);
-            glints += pow(max(dot(normal, halfway), 0.0), 3000.0) * 4.0;
+            glints += pow(max(dot(normal, halfway), 0.0), 3000.0) * 4.0 * min(uLights[i].w, 1.0);
         }
 
         // Break each lamp's reflection into sparkles on the wavelets.
@@ -375,6 +446,7 @@ export function WaterVolume({ water, isLit, world }: Props) {
     const target = useSceneTarget();
     const preset = isLit ? DAY : NIGHT;
     const [box] = useState(waterBox);
+    const shaftBase = useRef(0);
 
     const algae = Math.min(1, water.algae / 100);
     const murk = Math.min(1, water.detritus / 4);
@@ -412,11 +484,19 @@ export function WaterVolume({ water, isLit, world }: Props) {
                     uRoomColour: { value: new Color() },
                     uSkyColour: { value: new Color() },
                     uShaftStrength: { value: 0 },
-                    uSpots: {
-                        value: spotPositions().map(
-                            (x) => new Vector3(x, hoodHeight(), 0),
+                    uLights: {
+                        value: Array.from(
+                            { length: MAX_LIGHTS },
+                            () => new Vector4(),
                         ),
                     },
+                    uLightShapes: {
+                        value: Array.from(
+                            { length: MAX_LIGHTS },
+                            () => new Vector2(0, -1),
+                        ),
+                    },
+                    uLightCount: { value: 0 },
                 },
             }),
         [box],
@@ -439,10 +519,10 @@ export function WaterVolume({ water, isLit, world }: Props) {
             (1 - colour.b * 0.75) * 0.45 + haze,
         );
         uniforms.uAmbient.value = preset.ambient * (1 + murk * 0.6);
-        uniforms.uLightColour.value.copy(preset.light);
         uniforms.uRoomColour.value.copy(preset.room);
         uniforms.uSkyColour.value.copy(preset.sky);
         uniforms.uShaftStrength.value = preset.shafts * (1 - murk * 0.5);
+        shaftBase.current = uniforms.uShaftStrength.value;
 
         causticUniforms.uCausticColour.value.copy(preset.causticTint);
         causticUniforms.uCausticStrength.value =
@@ -451,6 +531,8 @@ export function WaterVolume({ water, isLit, world }: Props) {
 
     useFrame(({ gl, scene, camera }) => {
         const uniforms = material.uniforms;
+
+        followLights(uniforms, preset, shaftBase.current);
 
         world.ripples.forEach((ripple, index) => {
             uniforms.uRipples.value[index].set(

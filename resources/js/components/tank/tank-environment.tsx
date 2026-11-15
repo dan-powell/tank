@@ -6,7 +6,6 @@ import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { substrateHeightAt } from '@/lib/tank/terrain-field';
 import type { TankGrid, WaterParameters } from '@/types';
 import { Bubbles } from './bubbles';
-import { TankLighting } from './tank-lighting';
 
 type Props = {
     water: WaterParameters;
@@ -40,8 +39,6 @@ export function TankEnvironment({
 
     return (
         <group>
-            <TankLighting isLit={isLit} />
-
             <Detritus
                 amount={water.detritus}
                 grid={grid}

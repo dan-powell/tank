@@ -1,5 +1,11 @@
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import {
+    Bloom,
+    EffectComposer,
+    ToneMapping,
+} from '@react-three/postprocessing';
+import { ToneMappingMode } from 'postprocessing';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentRef } from 'react';
 import { MOUSE } from 'three';
@@ -7,6 +13,7 @@ import type { Quaternion, Vector3 } from 'three';
 import { TANK } from '@/lib/tank/space';
 import { facingAxis } from '@/lib/tank/views';
 import type { TankView } from '@/lib/tank/views';
+import type { SimClock } from '@/lib/tank/lighting';
 import type { TankWorld } from '@/lib/tank/world';
 import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
@@ -34,6 +41,7 @@ import { orbitStart, TankCameraRig } from './tank-camera-rig';
 import type { TankViewMode, TankViewRequest } from './tank-camera-rig';
 import { TankPanControls } from './tank-pan-controls';
 import { TankEnvironment } from './tank-environment';
+import { TankLighting } from './tank-lighting';
 import { WaterVolume } from './water-volume';
 
 type Props = {
@@ -63,6 +71,10 @@ type Props = {
     onPlace: (point: Vector3) => void;
     /** An unsaved backdrop being tried out, shown instead of the tank's own. */
     previewBackground?: TankBackground | null;
+    /** Simulated time, run on between snapshots so the lights' timers move smoothly. */
+    simClock: SimClock;
+    selectedFixtureId: number | null;
+    onSelectFixture: (id: number) => void;
 };
 
 /** Clicks this soon (ms) after a gizmo drag ends belong to the gizmo, not the empty water. */
@@ -96,6 +108,9 @@ export function TankScene({
     placement,
     onPlace,
     previewBackground = null,
+    simClock,
+    selectedFixtureId,
+    onSelectFixture,
 }: Props) {
     const isSculpting = sculptBrush !== null || placement !== null;
     /** Clicks while fly mode has captured the mouse only look around. */
@@ -185,6 +200,19 @@ export function TankScene({
                 isLit={tank.is_lit}
             />
             <SceneClock />
+            <TankLighting
+                lighting={tank.lighting}
+                lightOn={tank.light_on}
+                isLit={tank.is_lit}
+                grid={tank.grid}
+                clock={simClock}
+                selectedFixtureId={selectedFixtureId}
+                onSelectFixture={(id) => {
+                    if (canPick()) {
+                        onSelectFixture(id);
+                    }
+                }}
+            />
             <HaloResolution />
             <TankEnvironment
                 water={tank.water}
@@ -292,6 +320,17 @@ export function TankScene({
                     world={world}
                 />
             )}
+            {/* Lit lenses, tubes and LEDs glow (only colours brighter than white bloom). */}
+            <EffectComposer multisampling={4}>
+                <Bloom
+                    mipmapBlur
+                    luminanceThreshold={1}
+                    luminanceSmoothing={0.2}
+                    intensity={0.9}
+                    radius={0.7}
+                />
+                <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+            </EffectComposer>
         </Canvas>
     );
 }

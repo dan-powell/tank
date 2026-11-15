@@ -63,6 +63,7 @@ class TankControllerTest extends TestCase
                     'position' => [10, 4, 2],
                     'rotation' => 3,
                     'seed' => 99,
+                    'lights' => null,
                 ])
                 ->where('tank.plants.0.attachment', ['decoration_id' => $decoration->id, 'anchor' => 1])
                 ->where('tank.grid', ['width' => 300, 'height' => 163, 'depth' => 138, 'water_level' => 153, 'max_water_level' => 153])

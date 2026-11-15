@@ -123,7 +123,7 @@ class SimulateTankTest extends TestCase
 
     public function test_plants_on_gravel_raised_above_the_water_wilt(): void
     {
-        $tank = Tank::factory()->withWaterDepth(10)->withSubstrate(fn (int $x, int $z): int => $z < 40 ? 125 : 10)->create([
+        $tank = Tank::factory()->lit()->withWaterDepth(10)->withSubstrate(fn (int $x, int $z): int => $z < 40 ? 125 : 10)->create([
             'last_simulated_at' => now()->subHour(),
             'layer_count' => 5,
         ]);
