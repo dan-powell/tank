@@ -220,7 +220,7 @@ export function TankScene({
                 />
                 <TankLighting
                     lighting={tank.lighting}
-                    lightOn={tank.light_on}
+                    lightMode={tank.light_mode}
                     isLit={tank.is_lit}
                     grid={tank.grid}
                     clock={simClock}

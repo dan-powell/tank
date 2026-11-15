@@ -1,15 +1,20 @@
 import { LampCeiling, MoveRight, Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { levelAt } from '@/lib/tank/lighting';
+import { fixtureLevel } from '@/lib/tank/lighting';
 import { cn } from '@/lib/utils';
-import type { LightDefinition, LightFixture, TankLighting } from '@/types';
+import type {
+    LightDefinition,
+    LightFixture,
+    LightMode,
+    TankLighting,
+} from '@/types';
 import type { LightActions } from './lighting-panel';
 
 type Props = {
     lighting: TankLighting;
     catalogue: LightDefinition[];
-    lightOn: boolean;
+    lightMode: LightMode;
     simSeconds: number;
     selectedFixtureId: number | null;
     onSelectFixture: (id: number | null) => void;
@@ -29,7 +34,7 @@ const DEFAULT_TUBE_LENGTH = 4;
 export function GantryMap({
     lighting,
     catalogue,
-    lightOn,
+    lightMode,
     simSeconds,
     selectedFixtureId,
     onSelectFixture,
@@ -103,7 +108,7 @@ export function GantryMap({
                     ),
                 )}
                 {lighting.fixtures.map((fixture) => {
-                    const level = lightOn ? levelAt(fixture, simSeconds) : 0;
+                    const level = fixtureLevel(fixture, simSeconds, lightMode);
                     const name =
                         catalogue.find((entry) => entry.slug === fixture.type)
                             ?.name ?? fixture.type;

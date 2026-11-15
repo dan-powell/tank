@@ -58,7 +58,7 @@ class TankResource extends JsonResource
                 'uneaten_food' => round($this->uneaten_food, 3),
                 'algae' => round($this->algae, 1),
             ],
-            'light_on' => $this->light_on,
+            'light_mode' => $this->light_mode,
             'is_lit' => $this->isLit(),
             'lighting' => $this->lighting($request),
             'auto_feeder' => $this->auto_feeder_installed ? [
@@ -83,8 +83,7 @@ class TankResource extends JsonResource
      */
     private function isLit(): bool
     {
-        return $this->light_on
-            && array_any($this->fixtureStates(), fn (LightFixtureState $fixture): bool => $fixture->levelAt($this->sim_seconds) > 0);
+        return array_any($this->fixtureStates(), fn (LightFixtureState $fixture): bool => $fixture->levelAt($this->sim_seconds) > 0);
     }
 
     /**
@@ -109,12 +108,16 @@ class TankResource extends JsonResource
     }
 
     /**
+     * The lights as the master switch runs them.
+     *
      * @return list<LightFixtureState>
      */
     private function fixtureStates(): array
     {
         $gantry = Gantry::of($this->resource);
 
-        return $this->lightFixtures->map(fn (LightFixture $fixture): LightFixtureState => LightFixtureState::fromModel($fixture, $gantry))->all();
+        return $this->light_mode->fixturesInEffect(
+            $this->lightFixtures->map(fn (LightFixture $fixture): LightFixtureState => LightFixtureState::fromModel($fixture, $gantry))->all(),
+        );
     }
 }

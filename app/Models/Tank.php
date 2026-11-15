@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Habitat;
+use App\Enums\LightMode;
 use App\Enums\TankEventType;
 use Database\Factories\TankFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -46,7 +47,7 @@ use Illuminate\Support\Carbon;
  * @property float $humidity Relative humidity of the air above the water, %.
  * @property float $air_oxygen Oxygen in the air above the water, % by volume.
  * @property float $air_co2 CO2 in the air above the water, ppm.
- * @property bool $light_on Master switch for every light fixture.
+ * @property LightMode $light_mode Master switch for every light fixture.
  * @property bool $is_sealed Whether the lid is sealed, cutting the tank off from the room.
  * @property string $background_colour Backdrop behind the tank as #rrggbb (the top of a gradient).
  * @property string|null $background_gradient_colour Bottom of the backdrop's gradient as #rrggbb (null = solid).
@@ -65,7 +66,7 @@ use Illuminate\Support\Carbon;
 #[Fillable([
     'name', 'volume_litres', 'grid_width', 'grid_height', 'grid_depth', 'water_level', 'layer_count', 'substrate_heights', 'temperature', 'target_temperature', 'ph', 'ammonia', 'nitrite',
     'nitrate', 'oxygen', 'co2', 'detritus', 'uneaten_food', 'algae', 'bacteria', 'humidity', 'air_oxygen',
-    'air_co2', 'light_on', 'is_sealed', 'background_colour', 'background_gradient_colour',
+    'air_co2', 'light_mode', 'is_sealed', 'background_colour', 'background_gradient_colour',
     'auto_feeder_installed', 'auto_feeder_feeds_per_day', 'auto_feeder_unlimited', 'auto_feeder_portions',
     'is_active', 'sim_tick', 'sim_seconds', 'rng_seed', 'last_simulated_at',
 ])]
@@ -188,7 +189,7 @@ class Tank extends Model
             'air_oxygen' => 'float',
             'air_co2' => 'float',
             'is_sealed' => 'boolean',
-            'light_on' => 'boolean',
+            'light_mode' => LightMode::class,
             'auto_feeder_installed' => 'boolean',
             'auto_feeder_feeds_per_day' => 'integer',
             'auto_feeder_unlimited' => 'boolean',

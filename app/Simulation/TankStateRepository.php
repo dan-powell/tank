@@ -65,7 +65,7 @@ final class TankStateRepository
             uneatenFood: $tank->uneaten_food,
             algae: $tank->algae,
             bacteria: $tank->bacteria,
-            lightOn: $tank->light_on,
+            lightMode: $tank->light_mode,
             simTick: $tank->sim_tick,
             simSeconds: $tank->sim_seconds,
             rngSeed: $tank->rng_seed,

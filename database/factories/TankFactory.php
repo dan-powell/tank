@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\LightMode;
 use App\Models\Tank;
 use App\Models\User;
 use App\Simulation\Gantry;
@@ -45,7 +46,7 @@ class TankFactory extends Factory
             'humidity' => 70,
             'air_oxygen' => 20.9,
             'air_co2' => 420,
-            'light_on' => true,
+            'light_mode' => LightMode::Timer,
             'is_active' => true,
             'sim_tick' => 0,
             'sim_seconds' => 12 * 3600,

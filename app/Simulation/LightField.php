@@ -48,9 +48,12 @@ final class LightField
         private readonly array $obstacles = [],
     ) {}
 
+    /**
+     * The field of a tank's lights as its master switch runs them (see LightMode).
+     */
     public static function forState(TankState $state): self
     {
-        return new self($state->lightFixtures, $state->waterLevel, $state->hasWater, $state->decorationBoxes);
+        return new self($state->lightMode->fixturesInEffect($state->lightFixtures), $state->waterLevel, $state->hasWater, $state->decorationBoxes);
     }
 
     /**

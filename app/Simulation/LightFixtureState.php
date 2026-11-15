@@ -54,6 +54,26 @@ final readonly class LightFixtureState
     }
 
     /**
+     * This fixture with its timer set to on all day, as the master switch's "on" runs it.
+     */
+    public function alwaysOn(): self
+    {
+        return new self(
+            definition: $this->definition,
+            fromX: $this->fromX,
+            toX: $this->toX,
+            y: $this->y,
+            z: $this->z,
+            colour: $this->colour,
+            brightness: $this->brightness,
+            onMinute: 0,
+            offMinute: 0,
+            rampMinutes: 0,
+            slots: $this->slots,
+        );
+    }
+
+    /**
      * How far the timer has it turned up (0-1) at a moment of simulated time,
      * ramping linearly up after switching on and down before switching off.
      * An off time before the on time runs past midnight; equal times mean always on.

@@ -905,7 +905,7 @@ export default function ShowTank({
                                 <LightingPanel
                                     tankId={tank.id}
                                     lighting={tank.lighting}
-                                    lightOn={tank.light_on}
+                                    lightMode={tank.light_mode}
                                     clock={simClock}
                                     catalogue={lightCatalogue}
                                     decorations={tank.decorations}

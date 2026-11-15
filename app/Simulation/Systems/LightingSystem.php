@@ -10,7 +10,7 @@ use App\Simulation\TankState;
 
 /**
  * Work out the light in the tank this step: each fixture follows its own
- * timer while the master switch is on. Every plant gets the light at its
+ * timer, or the master switch holds them all on or off. Every plant gets the light at its
  * crown (now, and over a whole day); the tank gets its average light on the
  * substrate and its photoperiod, which drive algae.
  */
@@ -24,7 +24,7 @@ final class LightingSystem implements SimulationSystem
 
     public function apply(TankState $state, StepContext $context): void
     {
-        if (! $state->lightOn || $state->lightFixtures === []) {
+        if ($state->lightMode->fixturesInEffect($state->lightFixtures) === []) {
             $this->darken($state);
 
             return;

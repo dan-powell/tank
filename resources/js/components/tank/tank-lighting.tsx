@@ -8,7 +8,7 @@ import {
     fadeTowards,
     fixturePlacement,
     gantryHeight,
-    levelAt,
+    fixtureLevel,
     liveLighting,
     MAX_LIGHTS,
     simSecondsNow,
@@ -16,7 +16,12 @@ import {
 import type { SimClock } from '@/lib/tank/lighting';
 import { introProgress } from '@/lib/tank/intro';
 import { TANK } from '@/lib/tank/space';
-import type { LightFixture, TankGrid, TankLighting as Lighting } from '@/types';
+import type {
+    LightFixture,
+    LightMode,
+    TankGrid,
+    TankLighting as Lighting,
+} from '@/types';
 import { Landing } from './tank-environment';
 import { sheenUniforms } from './voxel-material';
 
@@ -25,7 +30,7 @@ RectAreaLightUniformsLib.init();
 type Props = {
     lighting: Lighting;
     /** The master switch. */
-    lightOn: boolean;
+    lightMode: LightMode;
     /** Whether any light is on (sets the room's mood). */
     isLit: boolean;
     grid: TankGrid;
@@ -69,12 +74,12 @@ const SELECTED_COLOUR = '#3b82f6';
 
 /**
  * The gantry above the tank and the lights hanging from it. Each light
- * follows its own timer, worked out every frame from the simulated clock,
+ * follows its own timer (or the master switch holds it on or off), worked out every frame from the simulated clock,
  * and shares its state with the water (see liveLighting).
  */
 export function TankLighting({
     lighting,
-    lightOn,
+    lightMode,
     isLit,
     grid,
     clock,
@@ -114,7 +119,7 @@ export function TankLighting({
                         fixture={fixture}
                         lighting={lighting}
                         grid={grid}
-                        lightOn={lightOn}
+                        lightMode={lightMode}
                         clock={clock}
                         isSelected={fixture.id === selectedFixtureId}
                         onSelect={onSelectFixture}
@@ -209,7 +214,7 @@ type FixtureProps = {
     fixture: LightFixture;
     lighting: Lighting;
     grid: TankGrid;
-    lightOn: boolean;
+    lightMode: LightMode;
     clock: SimClock;
     isSelected: boolean;
     onSelect: (id: number) => void;
@@ -220,7 +225,7 @@ function Fixture({
     fixture,
     lighting,
     grid,
-    lightOn,
+    lightMode,
     clock,
     isSelected,
     onSelect,
@@ -241,7 +246,7 @@ function Fixture({
     const fadedLevel = useRef(0);
 
     useFrame((_, deltaSeconds) => {
-        const level = lightOn ? levelAt(fixture, simSecondsNow(clock)) : 0;
+        const level = fixtureLevel(fixture, simSecondsNow(clock), lightMode);
         fadedLevel.current = fadeTowards(
             fadedLevel.current,
             level * (fixture.brightness / 100),

@@ -1,11 +1,11 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
-import { Switch } from '@/components/ui/switch';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
     combinedLevel,
+    fixtureLevel,
     formatMinute,
-    levelAt,
     useSimSecondsNow,
 } from '@/lib/tank/lighting';
 import type { SimClock } from '@/lib/tank/lighting';
@@ -17,6 +17,7 @@ import type {
     DecorationSnapshot,
     LightDefinition,
     LightFixture,
+    LightMode,
     TankLighting,
     TankSnapshot,
 } from '@/types';
@@ -28,7 +29,7 @@ import { PropLightsSection } from './prop-lights-section';
 type Props = {
     tankId: number;
     lighting: TankLighting;
-    lightOn: boolean;
+    lightMode: LightMode;
     clock: SimClock;
     catalogue: LightDefinition[];
     decorations: DecorationSnapshot[];
@@ -41,6 +42,38 @@ type Props = {
 const LONG_DAY_HOURS = 12;
 
 const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
+
+const LIGHT_MODES: { mode: LightMode; label: string; title: string }[] = [
+    {
+        mode: 'timer',
+        label: 'Timers',
+        title: 'Each light follows its own timer',
+    },
+    {
+        mode: 'on',
+        label: 'On',
+        title: 'Every light on, whatever its timer says',
+    },
+    {
+        mode: 'off',
+        label: 'Off',
+        title: 'Every light off, whatever its timer says',
+    },
+];
+
+/** Set the master switch, shown straight away. */
+function setLightMode(tankId: number, mode: LightMode): void {
+    router.put(
+        light.url(tankId),
+        { mode },
+        {
+            ...visitOptions,
+            optimistic: (props) => ({
+                tank: { ...(props.tank as TankSnapshot), light_mode: mode },
+            }),
+        },
+    );
+}
 
 /** Changes to a tank's lights, shown straight away and rolled back if refused. */
 export type LightActions = {
@@ -107,13 +140,13 @@ function useLightActions(tankId: number): LightActions {
 }
 
 /**
- * The Lighting tab: the master switch and today's light, the gantry to hang
+ * The Lighting tab: the master switch (timers, all on or all off) and today's light, the gantry to hang
  * lights on, each light's settings, and decorations' LEDs.
  */
 export function LightingPanel({
     tankId,
     lighting,
-    lightOn,
+    lightMode,
     clock,
     catalogue,
     decorations,
@@ -139,8 +172,8 @@ export function LightingPanel({
             }),
         [onSelectFixture],
     );
-    const level = lightOn ? combinedLevel(lighting, now) : 0;
-    const photoperiod = lightOn ? lighting.photoperiod_hours : 0;
+    const level = combinedLevel(lighting, now, lightMode);
+    const photoperiod = lighting.photoperiod_hours;
 
     return (
         <>
@@ -148,16 +181,29 @@ export function LightingPanel({
                 id="lighting-heading"
                 title="Lighting"
                 action={
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {lightOn ? 'On' : 'All off'}
-                        <Switch
-                            checked={lightOn}
-                            aria-label="Master switch for all the lights"
-                            onCheckedChange={() =>
-                                router.post(light.url(tankId), {}, visitOptions)
-                            }
-                        />
-                    </label>
+                    <ToggleGroup
+                        type="single"
+                        variant="outline"
+                        size="sm"
+                        aria-label="Master switch for all the lights"
+                        value={lightMode}
+                        onValueChange={(value) =>
+                            value &&
+                            value !== lightMode &&
+                            setLightMode(tankId, value as LightMode)
+                        }
+                    >
+                        {LIGHT_MODES.map(({ mode, label, title }) => (
+                            <ToggleGroupItem
+                                key={mode}
+                                value={mode}
+                                title={title}
+                                className="h-7 px-2 text-xs"
+                            >
+                                {label}
+                            </ToggleGroupItem>
+                        ))}
+                    </ToggleGroup>
                 }
             >
                 <p className="text-sm">
@@ -167,10 +213,11 @@ export function LightingPanel({
                         : level > 0
                           ? `lights fading (${Math.round(level * 100)}% of full)`
                           : 'lights off'}
+                    {lightMode !== 'timer' && ' · timers overridden'}
                 </p>
                 <DayTimeline
                     lighting={lighting}
-                    lightOn={lightOn}
+                    lightMode={lightMode}
                     minuteNow={(now / 60) % 1440}
                 />
                 <p
@@ -202,7 +249,7 @@ export function LightingPanel({
                 <GantryMap
                     lighting={lighting}
                     catalogue={catalogue}
-                    lightOn={lightOn}
+                    lightMode={lightMode}
                     simSeconds={now}
                     selectedFixtureId={selectedFixtureId}
                     onSelectFixture={onSelectFixture}
@@ -212,7 +259,7 @@ export function LightingPanel({
                     lighting={lighting}
                     catalogue={catalogue}
                     levels={lighting.fixtures.map((fixture) =>
-                        lightOn ? levelAt(fixture, now) : 0,
+                        fixtureLevel(fixture, now, lightMode),
                     )}
                     selectedFixtureId={selectedFixtureId}
                     onSelectFixture={onSelectFixture}
@@ -239,15 +286,15 @@ function formatHours(hours: number): string {
 /** The day's light as a bar per quarter hour, with a marker at the current time. */
 function DayTimeline({
     lighting,
-    lightOn,
+    lightMode,
     minuteNow,
 }: {
     lighting: TankLighting;
-    lightOn: boolean;
+    lightMode: LightMode;
     minuteNow: number;
 }) {
     const bars = Array.from({ length: 96 }, (_, index) =>
-        lightOn ? combinedLevel(lighting, index * 900 + 450) : 0,
+        combinedLevel(lighting, index * 900 + 450, lightMode),
     );
 
     return (

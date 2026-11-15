@@ -3,6 +3,7 @@
 namespace App\Simulation;
 
 use App\Enums\Habitat;
+use App\Enums\LightMode;
 
 /**
  * Mutable working copy of a tank's full simulated state.
@@ -64,7 +65,7 @@ final class TankState
         public float $uneatenFood,
         public float $algae,
         public float $bacteria,
-        public bool $lightOn,
+        public LightMode $lightMode,
         public int $simTick,
         public int $simSeconds,
         public int $rngSeed,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Color, Vector3 } from 'three';
-import type { LightFixture, TankGrid, TankLighting } from '@/types';
+import type { LightFixture, LightMode, TankGrid, TankLighting } from '@/types';
 import { TANK, VOXEL } from './space';
 
 /** Most lights a gantry can take (matches config simulation.lighting.max_fixtures). */
@@ -61,13 +61,30 @@ export function levelAt(fixture: LightFixture, simSeconds: number): number {
 }
 
 /**
+ * How far a fixture is turned up (0-1) at a moment as the master switch
+ * runs it: its timer, or held fully on or off. Mirrors LightMode::fixturesInEffect().
+ */
+export function fixtureLevel(
+    fixture: LightFixture,
+    simSeconds: number,
+    mode: LightMode,
+): number {
+    if (mode === 'off') {
+        return 0;
+    }
+
+    return mode === 'on' ? 1 : levelAt(fixture, simSeconds);
+}
+
+/**
  * The combined output of all the lights (0-1 of their total at full) at a
- * moment, weighting each by brightness and size. Used for the day timeline
- * and the room's mood.
+ * moment as the master switch runs them, weighting each by brightness and
+ * size. Used for the day timeline and the room's mood.
  */
 export function combinedLevel(
     lighting: TankLighting,
     simSeconds: number,
+    mode: LightMode,
 ): number {
     const weights = lighting.fixtures.map(fixtureWeight);
     const total = weights.reduce((sum, weight) => sum + weight, 0);
@@ -79,7 +96,7 @@ export function combinedLevel(
     return (
         lighting.fixtures.reduce(
             (sum, fixture, index) =>
-                sum + weights[index] * levelAt(fixture, simSeconds),
+                sum + weights[index] * fixtureLevel(fixture, simSeconds, mode),
             0,
         ) / total
     );

@@ -206,7 +206,7 @@ export type TankSnapshot = {
     substrate: number[];
     water: WaterParameters;
     /** Master switch for every light on the gantry. */
-    light_on: boolean;
+    light_mode: LightMode;
     /** Whether any light is on right now. */
     is_lit: boolean;
     lighting: TankLighting;
@@ -220,6 +220,9 @@ export type TankSnapshot = {
     creatures: CreatureSnapshot[];
     decorations: DecorationSnapshot[];
 };
+
+/** The master switch: each light on its own timer, or all held on or off. */
+export type LightMode = 'timer' | 'on' | 'off';
 
 export type SpeciesBehaviour =
     | 'ribbon'

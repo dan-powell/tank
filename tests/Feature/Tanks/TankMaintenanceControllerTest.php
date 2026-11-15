@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Tanks;
 
+use App\Enums\LightMode;
 use App\Enums\TankEventType;
 use App\Events\TankUpdated;
 use App\Models\Creature;
@@ -10,6 +11,7 @@ use App\Models\Tank;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class TankMaintenanceControllerTest extends TestCase
@@ -95,12 +97,33 @@ class TankMaintenanceControllerTest extends TestCase
 
     public function test_master_switch_turns_all_the_lights_off(): void
     {
-        $tank = Tank::factory()->create(['light_on' => true]);
+        $tank = Tank::factory()->create(['light_mode' => LightMode::Timer]);
 
-        $this->actingAs($tank->user)->post(route('tanks.light', $tank))->assertRedirect();
+        $this->actingAs($tank->user)->put(route('tanks.light', $tank), ['mode' => 'off'])->assertRedirect();
 
-        $this->assertFalse($tank->fresh()->light_on);
+        $this->assertSame(LightMode::Off, $tank->fresh()->light_mode);
         $this->assertSame('You switched all the lights off.', $tank->events()->sole()->message);
+    }
+
+    public function test_master_switch_turns_all_the_lights_on_regardless_of_their_timers(): void
+    {
+        $tank = Tank::factory()->lit()->create(['light_mode' => LightMode::Off, 'sim_seconds' => 2 * 3600]);
+
+        $this->actingAs($tank->user)->put(route('tanks.light', $tank), ['mode' => 'on'])->assertRedirect();
+
+        $this->assertSame(LightMode::On, $tank->fresh()->light_mode);
+        $this->assertSame('You switched all the lights on.', $tank->events()->sole()->message);
+        $this->actingAs($tank->user)->get(route('tanks.show', $tank))
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('tank.is_lit', true)->where('tank.light_mode', 'on'));
+    }
+
+    public function test_master_switch_rejects_an_unknown_mode(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs($tank->user)->put(route('tanks.light', $tank), ['mode' => 'dim'])->assertSessionHasErrors('mode');
+
+        $this->assertSame(LightMode::Timer, $tank->fresh()->light_mode);
     }
 
     public function test_other_users_cannot_maintain_the_tank(): void

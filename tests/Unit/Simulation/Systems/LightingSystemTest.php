@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Simulation\Systems;
 
+use App\Enums\LightMode;
 use App\Simulation\Gantry;
 use App\Simulation\GridBox;
 use App\Simulation\LightCatalogue;
@@ -44,13 +45,25 @@ class LightingSystemTest extends TestCase
     public function test_the_master_switch_turns_every_light_off(): void
     {
         $plant = $this->plant();
-        $state = $this->tankState(['lightOn' => false, 'plants' => [$plant], 'lightFixtures' => [$this->tube()]]);
+        $state = $this->tankState(['lightMode' => LightMode::Off, 'plants' => [$plant], 'lightFixtures' => [$this->tube()]]);
 
         (new LightingSystem)->apply($state, $this->context($state));
 
         $this->assertFalse($state->isLit);
         $this->assertSame(0.0, $state->lightLevel);
         $this->assertSame([0.0, 0.0], [$plant->light, $plant->dailyLight]);
+    }
+
+    public function test_the_master_switch_turns_every_light_on_at_night(): void
+    {
+        $plant = $this->plant();
+        $state = $this->tankState(['lightMode' => LightMode::On, 'simSeconds' => 2 * 3600, 'plants' => [$plant], 'lightFixtures' => [$this->tube()]]);
+
+        (new LightingSystem)->apply($state, $this->context($state));
+
+        $this->assertTrue($state->isLit);
+        $this->assertGreaterThan(0.0, $plant->light);
+        $this->assertSame(24.0, $state->photoperiodHours);
     }
 
     public function test_plants_under_a_decoration_get_less_light(): void
