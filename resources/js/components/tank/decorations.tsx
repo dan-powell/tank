@@ -1,12 +1,12 @@
 import { TransformControls } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { BoxGeometry, Color, MeshStandardMaterial, Vector3 } from 'three';
 import type { Group, Object3D, PointLight } from 'three';
 import { useDecorModels } from '@/hooks/use-decor-model';
 import type { DecorModel } from '@/hooks/use-decor-model';
-import { liveLighting } from '@/lib/tank/lighting';
+import { fadeTowards, liveLighting } from '@/lib/tank/lighting';
 import { cellToWorld, VOXEL, worldToCell } from '@/lib/tank/space';
 import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { TerrainField } from '@/lib/tank/terrain-field';
@@ -334,7 +334,7 @@ function DecorationContent({
                     />
                 );
             })}
-            {decoration.lights?.on && (
+            {decoration.lights !== null && (
                 <DecorationLeds
                     lights={decoration.lights}
                     points={definition.light_points.map((point) =>
@@ -392,6 +392,8 @@ const LED_GLOW = 4;
  * A decoration's LEDs: each light point's voxel glows and, when `castsLight`,
  * shines its own small light on what's nearby. On a timer they follow the
  * tank's lights, fading out as those come on (they look best in the dark).
+ * Switching them, or their mode, fades rather than snaps; they stay mounted
+ * while off so they can fade out.
  */
 function DecorationLeds({
     lights,
@@ -408,11 +410,24 @@ function DecorationLeds({
                 color: lights.colour,
                 emissive: lights.colour,
                 toneMapped: false,
+                transparent: true,
+                opacity: 0,
             }),
         [lights.colour],
     );
     const glows = useRef<Group>(null);
     const litVoxels = useRef<Group>(null);
+    /** How far switched on the LEDs are (0..1), faded as they are switched. */
+    const power = useRef(0);
+    /** Their glow (0..1), faded as the mode or the tank's lights change. */
+    const glowLevel = useRef(0);
+    /** Lights kept while fading out after the decoration stops casting light. */
+    const [keepsLights, setKeepsLights] = useState(castsLight);
+
+    if (castsLight && !keepsLights) {
+        setKeepsLights(true);
+    }
+
     const positions = useMemo(
         () =>
             points.map(
@@ -427,13 +442,9 @@ function DecorationLeds({
     );
     useEffect(() => () => material.dispose(), [material]);
 
-    useFrame(() => {
+    useFrame((_, deltaSeconds) => {
         // Not lit until the decoration itself has appeared.
         const isShown = introUniforms.landscape.value >= 1;
-
-        if (litVoxels.current !== null) {
-            litVoxels.current.visible = isShown;
-        }
 
         let tankLight = 0;
 
@@ -444,12 +455,32 @@ function DecorationLeds({
         const level =
             lights.mode === 'always' ? 1 : Math.max(0, 1 - tankLight * 1.5);
 
-        material.emissiveIntensity = 0.3 + level * LED_GLOW;
+        power.current = fadeTowards(
+            power.current,
+            lights.on && isShown ? 1 : 0,
+            deltaSeconds,
+        );
+        glowLevel.current = fadeTowards(
+            glowLevel.current,
+            lights.on && isShown ? level : 0,
+            deltaSeconds,
+        );
+
+        // The lit voxel blends from the model's own colour into the LED's.
+        material.opacity = power.current;
+        material.emissiveIntensity = 0.3 + glowLevel.current * LED_GLOW;
+
+        if (litVoxels.current !== null) {
+            litVoxels.current.visible = power.current > 0;
+        }
 
         for (const light of glows.current?.children ?? []) {
-            (light as PointLight).intensity = isShown
-                ? level * LED_LIGHT_INTENSITY
-                : 0;
+            (light as PointLight).intensity =
+                glowLevel.current * LED_LIGHT_INTENSITY;
+        }
+
+        if (!castsLight && keepsLights && glowLevel.current === 0) {
+            setKeepsLights(false);
         }
     });
 
@@ -466,7 +497,7 @@ function DecorationLeds({
                     />
                 ))}
             </group>
-            {castsLight && (
+            {(castsLight || keepsLights) && (
                 <group ref={glows}>
                     {positions.map((position, index) => (
                         <pointLight

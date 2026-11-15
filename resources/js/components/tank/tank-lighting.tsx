@@ -5,6 +5,7 @@ import { Color, Object3D } from 'three';
 import type { MeshStandardMaterial, RectAreaLight, SpotLight } from 'three';
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import {
+    fadeTowards,
     fixturePlacement,
     gantryHeight,
     levelAt,
@@ -236,11 +237,18 @@ function Fixture({
     const target = useMemo(() => new Object3D(), []);
     const beamAngle = fixture.type === 'spotlight' ? 40 : 100;
 
-    useFrame(() => {
+    /** The fixture's output before the intro, faded towards its setting. */
+    const fadedLevel = useRef(0);
+
+    useFrame((_, deltaSeconds) => {
         const level = lightOn ? levelAt(fixture, simSecondsNow(clock)) : 0;
+        fadedLevel.current = fadeTowards(
+            fadedLevel.current,
+            level * (fixture.brightness / 100),
+            deltaSeconds,
+        );
         // Off until the gantry has landed, then switched on.
-        const output =
-            level * (fixture.brightness / 100) * introProgress('lights');
+        const output = fadedLevel.current * introProgress('lights');
         const live = liveLighting.lights[index];
 
         live.centre.copy(centre);

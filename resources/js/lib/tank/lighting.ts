@@ -8,6 +8,24 @@ export const MAX_LIGHTS = 8;
 
 const DAY_MINUTES = 1440;
 
+/** Seconds (real time) a light takes to fade fully in or out when it is switched. */
+export const LIGHT_FADE_SECONDS = 1.5;
+
+/**
+ * A light's output this frame, moved steadily from `current` towards
+ * `target` so switching on or off fades over LIGHT_FADE_SECONDS rather than
+ * snapping. Slow changes, like a timer's ramp, are followed as they are.
+ */
+export function fadeTowards(
+    current: number,
+    target: number,
+    deltaSeconds: number,
+): number {
+    const step = deltaSeconds / LIGHT_FADE_SECONDS;
+
+    return current + Math.max(-step, Math.min(step, target - current));
+}
+
 /** Minutes per day a fixture's timer has it on, ramps included (equal times = all day). */
 export function onMinutes(fixture: LightFixture): number {
     const duration =
