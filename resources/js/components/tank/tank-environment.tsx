@@ -1,14 +1,13 @@
 import { Edges } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { DoubleSide, Object3D, Vector3 } from 'three';
+import { DoubleSide, MeshBasicMaterial, Object3D, Vector3 } from 'three';
 import type {
     Group,
     InstancedMesh,
     Line,
     Mesh,
-    MeshBasicMaterial,
     MeshPhysicalMaterial,
     MeshStandardMaterial,
 } from 'three';
@@ -56,7 +55,19 @@ export function TankEnvironment({
     // Condensation beads on the glass once sealed air nears saturation.
     const mist = isSealed ? Math.min(1, Math.max(0, (humidity - 80) / 18)) : 0;
     const algaeMaterial = useRef<MeshStandardMaterial>(null);
-    const mistMaterial = useRef<MeshBasicMaterial>(null);
+    const mistMaterial = useMemo(
+        () =>
+            new MeshBasicMaterial({
+                color: '#f2f8fb',
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+                side: DoubleSide,
+            }),
+        [],
+    );
+
+    useEffect(() => () => mistMaterial.dispose(), [mistMaterial]);
 
     // The algae and mist arrive with what they grow on, not before.
     useFrame(() => {
@@ -65,10 +76,7 @@ export function TankEnvironment({
                 algae * 0.7 * introUniforms.landscape.value;
         }
 
-        if (mistMaterial.current !== null) {
-            mistMaterial.current.opacity =
-                mist * 0.22 * introProgress('panels');
-        }
+        mistMaterial.opacity = mist * 0.22 * introProgress('panels');
     });
 
     return (
@@ -99,23 +107,10 @@ export function TankEnvironment({
             <GlassPanels showEdges={showEdges} />
 
             {mist > 0.01 && (
-                <mesh position={[0, TANK.height / 2, 0]} raycast={() => null}>
-                    <boxGeometry
-                        args={[
-                            TANK.width - 0.004,
-                            TANK.height - 0.004,
-                            TANK.depth - 0.004,
-                        ]}
-                    />
-                    <meshBasicMaterial
-                        ref={mistMaterial}
-                        color="#f2f8fb"
-                        transparent
-                        opacity={0}
-                        depthWrite={false}
-                        side={DoubleSide}
-                    />
-                </mesh>
+                <Condensation
+                    material={mistMaterial}
+                    bottom={hasWater ? TANK.waterLine : 0}
+                />
             )}
 
             {isSealed && (
@@ -138,6 +133,76 @@ export function TankEnvironment({
                     </mesh>
                 </Landing>
             )}
+        </group>
+    );
+}
+
+/** How far inside the glass the condensation film sits. */
+const CONDENSATION_INSET = 0.002;
+
+/**
+ * Condensation on the inside of a sealed tank: beads on the glass walls
+ * above the water and under the lid. Glass below the waterline is wet, not
+ * misted, so the water and everything in it stays clear.
+ */
+function Condensation({
+    material,
+    bottom,
+}: {
+    material: MeshBasicMaterial;
+    /** Where the misted glass starts: the water surface, or the floor when dry. */
+    bottom: number;
+}) {
+    const top = TANK.height - CONDENSATION_INSET;
+    const gap = top - bottom;
+    const middle = bottom + gap / 2;
+    const halfWidth = TANK.width / 2 - CONDENSATION_INSET;
+    const halfDepth = TANK.depth / 2 - CONDENSATION_INSET;
+    const walls: {
+        position: [number, number, number];
+        rotation: number;
+        width: number;
+    }[] = [
+        {
+            position: [0, middle, -halfDepth],
+            rotation: 0,
+            width: halfWidth * 2,
+        },
+        { position: [0, middle, halfDepth], rotation: 0, width: halfWidth * 2 },
+        {
+            position: [-halfWidth, middle, 0],
+            rotation: Math.PI / 2,
+            width: halfDepth * 2,
+        },
+        {
+            position: [halfWidth, middle, 0],
+            rotation: Math.PI / 2,
+            width: halfDepth * 2,
+        },
+    ];
+
+    return (
+        <group>
+            {gap > 0.004 &&
+                walls.map((wall, index) => (
+                    <mesh
+                        key={index}
+                        position={wall.position}
+                        rotation={[0, wall.rotation, 0]}
+                        material={material}
+                        raycast={() => null}
+                    >
+                        <planeGeometry args={[wall.width, gap]} />
+                    </mesh>
+                ))}
+            <mesh
+                position={[0, top, 0]}
+                rotation={[-Math.PI / 2, 0, 0]}
+                material={material}
+                raycast={() => null}
+            >
+                <planeGeometry args={[halfWidth * 2, halfDepth * 2]} />
+            </mesh>
         </group>
     );
 }

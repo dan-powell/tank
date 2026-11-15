@@ -78,6 +78,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Assets blocked as mixed content behind an HTTPS reverse proxy (proxies are now trusted).
 - New plants no longer show beneath the tank as they appear.
 - Gradient backdrops no longer garble the tank behind the water.
+- Condensation in a sealed tank now mists only the glass above the water and under the lid, not the whole tank.
 
 ## 2026-11-06: Initial commits
 
