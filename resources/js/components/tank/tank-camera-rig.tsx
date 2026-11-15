@@ -1,15 +1,21 @@
 import type { OrbitControls } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ComponentRef, RefObject } from 'react';
 import { MathUtils, PerspectiveCamera, Spherical, Vector3 } from 'three';
-import type { Quaternion } from 'three';
-import { TANK } from '@/lib/tank/space';
+import type { Box3, Quaternion } from 'three';
+import { flyBounds, flyStateFrom, stepFly } from '@/lib/tank/fly';
+import type { FlyState } from '@/lib/tank/fly';
+import { sightThroughTank, TANK } from '@/lib/tank/space';
 import { TANK_VIEWS, viewAngles } from '@/lib/tank/views';
 import type { TankView } from '@/lib/tank/views';
+import { useFlyInput } from './tank-fly-controls';
 
-/** `orbit`: free 3D view. `flat`: near-orthographic 2D-style view from one side. */
-export type TankViewMode = 'orbit' | 'flat';
+/**
+ * `orbit`: free 3D view around a pivot. `flat`: near-orthographic 2D-style
+ * view from one side. `fly`: first-person, moved with the keyboard.
+ */
+export type TankViewMode = 'orbit' | 'flat' | 'fly';
 
 /** A request (from the view cube) to swing the camera round to look from `view`. */
 export type TankViewRequest = { view: TankView; id: number };
@@ -66,6 +72,12 @@ const ORBIT_MAX_DISTANCE = 4.5;
 /** The near clipping plane as a share of the camera's distance to its pivot, so close-ups aren't clipped. */
 const NEAR_PER_DISTANCE = 0.02;
 
+/** Clipping planes while flying, when there is no pivot: near enough to brush past a fish. */
+const FLY_NEAR = 0.003;
+
+/** The far clipping plane while flying, in tank scales. */
+const FLY_FAR = 12;
+
 /**
  * A camera pose. Size is held as the visible half-height at the target, so
  * blending between a wide and a narrow field of view keeps the tank roughly
@@ -93,10 +105,12 @@ type Props = {
 };
 
 /**
- * Moves the camera between the free orbit view and the flat view, and to
- * views picked on the view cube, animating each move and applying each
- * mode's rotation and zoom limits. Each mode keeps its own last view, so
- * switching back restores it.
+ * Moves the camera between the orbit, flat and fly views, and to views
+ * picked on the view cube, animating each move and applying each mode's
+ * rotation and zoom limits. Orbit and flat each keep their own last view, so
+ * switching back restores them; leaving fly for orbit carries on from where
+ * the camera flew to. While flying it steers the camera from the keyboard
+ * and mouse.
  */
 export function TankCameraRig({
     mode,
@@ -106,6 +120,10 @@ export function TankCameraRig({
     controls,
 }: Props) {
     const camera = useThree((state) => state.camera);
+    const element = useThree((state) => state.gl.domElement);
+    const flyInput = useFlyInput(element, mode === 'fly');
+    const flyState = useRef<FlyState | null>(null);
+    const [bounds] = useState(flyBounds);
     const aspect = useThree((state) => state.size.width / state.size.height);
     const transition = useRef<Transition | null>(null);
     const savedOrbit = useRef<Pose | null>(null);
@@ -137,6 +155,11 @@ export function TankCameraRig({
                 );
             }
 
+            if (mode === 'fly') {
+                orbit.enabled = false;
+                bounds.clampPoint(camera.position, camera.position);
+            }
+
             applyLimits(orbit, mode, aspect, flatView);
 
             return;
@@ -152,26 +175,50 @@ export function TankCameraRig({
             return;
         }
 
+        const previous = appliedMode.current;
         appliedMode.current = mode;
-        // Mid-way through a move, the view being left is where that move was heading.
-        const leaving = transition.current?.to ?? currentPose(camera, orbit);
+        flyState.current = null;
 
-        if (mode === 'flat') {
+        // The orbit target is left behind while flying: put it ahead, inside the tank.
+        if (previous === 'fly' && transition.current === null) {
+            orbit.target.copy(pivotAhead(camera));
+        }
+
+        const now = currentPose(camera, orbit);
+        // Mid-way through a move, the view being left is where that move was heading.
+        const leaving = transition.current?.to ?? now;
+
+        if (previous === 'orbit') {
             savedOrbit.current = leaving;
-        } else {
+        } else if (previous === 'flat') {
             savedFlat.current = leaving;
         }
 
-        startTransition(
-            transition,
-            orbit,
-            currentPose(camera, orbit),
-            mode === 'flat'
-                ? (savedFlat.current ??
-                      fitPose(flatView, aspect, FLAT_FOV, 'cover'))
-                : (savedOrbit.current ?? orbitStartPose()),
-        );
-    }, [mode, flatView, aspect, camera, controls]);
+        let to: Pose;
+
+        if (mode === 'flat') {
+            to =
+                savedFlat.current ??
+                fitPose(flatView, aspect, FLAT_FOV, 'cover');
+        } else if (mode === 'orbit') {
+            to =
+                previous === 'fly'
+                    ? {
+                          ...leaving,
+                          polar: Math.min(leaving.polar, Math.PI / 2),
+                      }
+                    : (savedOrbit.current ?? orbitStartPose());
+        } else {
+            to = withinBounds(
+                previous === 'flat'
+                    ? fitPose(flatView, aspect, ORBIT_FOV, 'contain')
+                    : leaving,
+                bounds,
+            );
+        }
+
+        startTransition(transition, orbit, now, to);
+    }, [mode, flatView, aspect, camera, controls, bounds]);
 
     useEffect(() => {
         const orbit = controls.current;
@@ -204,35 +251,48 @@ export function TankCameraRig({
         const active = transition.current;
         const orbit = controls.current;
 
-        orientation.copy(camera.quaternion);
-
         if (orbit === null || !(camera instanceof PerspectiveCamera)) {
+            orientation.copy(camera.quaternion);
+
             return;
         }
 
-        fitClipPlanes(camera, orbit);
-
-        if (active === null) {
-            return;
-        }
-
-        active.progress = Math.min(
-            1,
-            active.progress + delta / TRANSITION_SECONDS,
-        );
-        const eased = MathUtils.smootherstep(active.progress, 0, 1);
-        applyPose(camera, orbit, blendPoses(active.from, active.to, eased));
-
-        if (active.progress >= 1) {
-            transition.current = null;
-            applyLimits(
-                orbit,
-                appliedMode.current ?? 'orbit',
-                camera.aspect,
-                flatViewRef.current,
+        if (active !== null) {
+            active.progress = Math.min(
+                1,
+                active.progress + delta / TRANSITION_SECONDS,
             );
-            orbit.enabled = true;
+            const eased = MathUtils.smootherstep(active.progress, 0, 1);
+            applyPose(camera, orbit, blendPoses(active.from, active.to, eased));
+
+            if (active.progress >= 1) {
+                transition.current = null;
+                applyLimits(
+                    orbit,
+                    appliedMode.current ?? 'orbit',
+                    camera.aspect,
+                    flatViewRef.current,
+                );
+                orbit.enabled = appliedMode.current !== 'fly';
+            }
+        } else if (appliedMode.current === 'fly') {
+            if (flyState.current === null) {
+                // Start from where the camera is looking, ignoring mouse movement during the move in.
+                flyState.current = flyStateFrom(camera);
+                flyInput.current.lookX = 0;
+                flyInput.current.lookY = 0;
+            }
+
+            stepFly(camera, flyState.current, flyInput.current, bounds, delta);
         }
+
+        fitClipPlanes(
+            camera,
+            appliedMode.current === 'fly' && transition.current === null
+                ? null
+                : camera.position.distanceTo(orbit.target),
+        );
+        orientation.copy(camera.quaternion);
     });
 
     return null;
@@ -391,6 +451,12 @@ function applyLimits(
     aspect: number,
     flatView: TankView,
 ): void {
+    if (mode === 'fly') {
+        unlockLimits(orbit);
+
+        return;
+    }
+
     if (mode === 'orbit') {
         orbit.minDistance = ORBIT_MIN_DISTANCE * tankScale();
         orbit.maxDistance = ORBIT_MAX_DISTANCE * tankScale();
@@ -420,11 +486,18 @@ function applyLimits(
 /**
  * Keep the clipping planes in step with the zoom: a near plane close enough
  * for close-ups, without losing depth precision when the camera is far off.
+ * `distance` is how far the camera is from its pivot, or null while flying.
  */
-function fitClipPlanes(camera: PerspectiveCamera, orbit: Controls): void {
-    const distance = camera.position.distanceTo(orbit.target);
-    const near = Math.max(0.001, distance * NEAR_PER_DISTANCE);
-    const far = distance + 10 * tankScale();
+function fitClipPlanes(
+    camera: PerspectiveCamera,
+    distance: number | null,
+): void {
+    const near =
+        distance === null
+            ? FLY_NEAR
+            : Math.max(0.001, distance * NEAR_PER_DISTANCE);
+    const far =
+        distance === null ? FLY_FAR * tankScale() : distance + 10 * tankScale();
 
     if (
         Math.abs(camera.near - near) > near * 0.05 ||
@@ -434,6 +507,51 @@ function fitClipPlanes(camera: PerspectiveCamera, orbit: Controls): void {
         camera.far = far;
         camera.updateProjectionMatrix();
     }
+}
+
+/**
+ * A pivot along the camera's line of sight: the middle of its path through
+ * the tank, within the orbit zoom limits, or a tank scale ahead if it misses.
+ */
+function pivotAhead(camera: PerspectiveCamera): Vector3 {
+    const direction = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    const sight = sightThroughTank(camera.position, direction);
+    const distance =
+        sight === null
+            ? tankScale()
+            : MathUtils.clamp(
+                  (sight.enter + sight.exit) / 2,
+                  ORBIT_MIN_DISTANCE * tankScale(),
+                  ORBIT_MAX_DISTANCE * tankScale(),
+              );
+
+    return camera.position.clone().addScaledVector(direction, distance);
+}
+
+/** `pose`, brought closer to its target as needed so the camera is inside the fly bounds. */
+function withinBounds(pose: Pose, bounds: Box3): Pose {
+    const position = new Vector3();
+    let halfHeight = pose.halfHeight;
+
+    for (let step = 0; step < 40; step++) {
+        position
+            .setFromSpherical(
+                new Spherical(
+                    halfHeight / halfFovTan(pose.fov),
+                    Math.max(MIN_POLAR, pose.polar),
+                    pose.azimuth,
+                ),
+            )
+            .add(pose.target);
+
+        if (bounds.containsPoint(position)) {
+            break;
+        }
+
+        halfHeight *= 0.9;
+    }
+
+    return { ...pose, halfHeight };
 }
 
 /** Remove all limits so a transition is never clamped mid-way. */

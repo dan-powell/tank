@@ -9,6 +9,7 @@ import {
     History,
     LayoutDashboard,
     Mountain,
+    Navigation,
     Square,
     Wrench,
 } from 'lucide-react';
@@ -46,6 +47,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { usePointerLocked } from '@/hooks/use-pointer-locked';
 import { useSubstrateSync } from '@/hooks/use-substrate-sync';
 import { useTankChannel } from '@/hooks/use-tank-channel';
 import {
@@ -182,6 +184,7 @@ export default function ShowTank({
     );
     /** The camera's orientation, shared from the scene to the view cube each frame. */
     const [cameraOrientation] = useState(() => new Quaternion());
+    const isPointerLocked = usePointerLocked();
     const [isPanelOpen, setIsPanelOpen] = useState(initialPanelOpen);
     const [selection, setSelection] = useState<TankSelection | null>(null);
     const [selectedAnchor, setSelectedAnchor] = useState<number | null>(null);
@@ -198,6 +201,8 @@ export default function ShowTank({
     const selectView = (view: TankView) => {
         if (viewMode === 'flat') {
             setFlatView(view);
+        } else if (viewMode === 'fly') {
+            setViewMode('orbit');
         }
 
         setViewRequest((previous) => ({
@@ -545,6 +550,10 @@ export default function ShowTank({
                         </Tooltip>
                     </div>
 
+                    {viewMode === 'fly' && (
+                        <FlyHud isMouseCaptured={isPointerLocked} />
+                    )}
+
                     <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col items-start gap-2">
                         <TankViewCube
                             key={sizeKey}
@@ -557,9 +566,20 @@ export default function ShowTank({
                             size="sm"
                             spacing={0}
                             value={viewMode}
-                            onValueChange={(value) =>
-                                value && setViewMode(value as TankViewMode)
-                            }
+                            onValueChange={(value) => {
+                                if (!value) {
+                                    return;
+                                }
+
+                                // So Space (fly up) can't press the toggle again.
+                                if (value === 'fly') {
+                                    (
+                                        document.activeElement as HTMLElement | null
+                                    )?.blur();
+                                }
+
+                                setViewMode(value as TankViewMode);
+                            }}
                             aria-label="Tank view"
                             className={cn(
                                 hudSurface,
@@ -581,6 +601,14 @@ export default function ShowTank({
                             >
                                 <Square className="size-4" />
                                 2D
+                            </ToggleGroupItem>
+                            <ToggleGroupItem
+                                value="fly"
+                                aria-label="First-person fly view"
+                                className={viewToggleItem}
+                            >
+                                <Navigation className="size-4" />
+                                Fly
                             </ToggleGroupItem>
                         </ToggleGroup>
                     </div>
@@ -900,4 +928,49 @@ function findInhabitant(
     return entity && definition
         ? { kind: 'plant', entity, species: definition }
         : null;
+}
+
+/** Fly mode's crosshair (while the mouse is captured) and a hint of its controls. */
+function FlyHud({ isMouseCaptured }: { isMouseCaptured: boolean }) {
+    return (
+        <>
+            {isMouseCaptured && (
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute top-1/2 left-1/2 size-4 -translate-x-1/2 -translate-y-1/2 before:absolute before:inset-x-0 before:top-1/2 before:h-px before:-translate-y-1/2 before:bg-white/80 after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-white/80"
+                />
+            )}
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-56">
+                <div
+                    className={cn(
+                        hudSurface,
+                        'flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-md px-3 py-1.5 text-xs',
+                    )}
+                >
+                    {isMouseCaptured ? (
+                        <>
+                            <span>
+                                <Kbd>W</Kbd> <Kbd>A</Kbd> <Kbd>S</Kbd>{' '}
+                                <Kbd>D</Kbd> or arrows move
+                            </span>
+                            <span>
+                                <Kbd>E</Kbd> / <Kbd>Q</Kbd> up / down
+                            </span>
+                            <span>
+                                <Kbd>Shift</Kbd> faster
+                            </span>
+                            <span>
+                                <Kbd>Esc</Kbd> releases mouse
+                            </span>
+                        </>
+                    ) : (
+                        <span>
+                            Click the tank to look around · <Kbd>W</Kbd>{' '}
+                            <Kbd>A</Kbd> <Kbd>S</Kbd> <Kbd>D</Kbd> to move
+                        </span>
+                    )}
+                </div>
+            </div>
+        </>
+    );
 }

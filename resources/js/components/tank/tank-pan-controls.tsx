@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import type { ComponentRef, RefObject } from 'react';
 import { PerspectiveCamera, Vector3 } from 'three';
 import type { Camera } from 'three';
-import { TANK } from '@/lib/tank/space';
+import { sightThroughTank, TANK } from '@/lib/tank/space';
 import { facingAxis } from '@/lib/tank/views';
 import type { TankView } from '@/lib/tank/views';
 import type { TankViewMode } from './tank-camera-rig';
@@ -230,40 +230,6 @@ function pivotInsideTank(camera: Camera, orbit: Controls): void {
         .copy(camera.position)
         .addScaledVector(direction, clamp(distance, nearest, farthest));
     orbit.update();
-}
-
-/**
- * Where a line of sight from `origin` along the unit vector `direction`
- * enters and leaves the tank's volume (distances along it), or null if it
- * misses the tank or the tank is behind the camera.
- */
-function sightThroughTank(
-    origin: Vector3,
-    direction: Vector3,
-): { enter: number; exit: number } | null {
-    const min = [-TANK.width / 2, 0, -TANK.depth / 2];
-    const max = [TANK.width / 2, TANK.height, TANK.depth / 2];
-    const from = origin.toArray();
-    const along = direction.toArray();
-    let enter = 0;
-    let exit = Infinity;
-
-    for (let axis = 0; axis < 3; axis++) {
-        if (Math.abs(along[axis]) < 1e-9) {
-            if (from[axis] < min[axis] || from[axis] > max[axis]) {
-                return null;
-            }
-
-            continue;
-        }
-
-        const a = (min[axis] - from[axis]) / along[axis];
-        const b = (max[axis] - from[axis]) / along[axis];
-        enter = Math.max(enter, Math.min(a, b));
-        exit = Math.min(exit, Math.max(a, b));
-    }
-
-    return enter <= exit ? { enter, exit } : null;
 }
 
 function clamp(value: number, min: number, max: number): number {

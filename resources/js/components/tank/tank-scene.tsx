@@ -98,13 +98,15 @@ export function TankScene({
     previewBackground = null,
 }: Props) {
     const isSculpting = sculptBrush !== null || placement !== null;
+    /** Clicks while fly mode has captured the mouse only look around. */
+    const canPick = () => !isSculpting && document.pointerLockElement === null;
     const onSelect = (next: TankSelection | null) => {
-        if (!isSculpting) {
+        if (canPick()) {
             select(next);
         }
     };
     const onSelectAnchor = (decorationId: number, anchor: number) => {
-        if (!isSculpting) {
+        if (canPick()) {
             selectAnchor(decorationId, anchor);
         }
     };
@@ -147,12 +149,12 @@ export function TankScene({
         (plant) => !attachedPlants.includes(plant),
     );
 
-    /** While dragging a decoration, orbiting and panning (which checks `enabled`) stand aside. */
+    /** While dragging a decoration, orbiting and panning (which checks `enabled`) stand aside; flying keeps them off. */
     const setGizmoDragging = (isDragging: boolean) => {
         lastGizmoUse.current = performance.now();
 
         if (controls.current !== null) {
-            controls.current.enabled = !isDragging;
+            controls.current.enabled = !isDragging && viewMode !== 'fly';
         }
     };
 
@@ -192,7 +194,7 @@ export function TankScene({
                 hasWater={tank.has_water}
                 isSealed={tank.is_sealed}
                 humidity={tank.air.humidity}
-                showEdges={viewMode === 'orbit'}
+                showEdges={viewMode !== 'flat'}
             />
             <Substrate
                 grid={tank.grid}
@@ -271,11 +273,13 @@ export function TankScene({
                 orientation={cameraOrientation}
                 controls={controls}
             />
-            <TankPanControls
-                controls={controls}
-                mode={viewMode}
-                flatView={flatView}
-            />
+            {viewMode !== 'fly' && (
+                <TankPanControls
+                    controls={controls}
+                    mode={viewMode}
+                    flatView={flatView}
+                />
+            )}
             {placement !== null && (
                 <PlacementController mode={placement} onPlace={onPlace} />
             )}

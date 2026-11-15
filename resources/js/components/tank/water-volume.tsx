@@ -1,6 +1,8 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+    BackSide,
+    FrontSide,
     Color,
     DepthTexture,
     FloatType,
@@ -58,6 +60,12 @@ const WATER_FLOOR = 0.002;
 
 /** Surface subdivisions per world unit; the top face is displaced by the ripple field. */
 const SURFACE_SEGMENTS_PER_UNIT = 66;
+
+/** From outside, the water is drawn first so whatever is in front of it covers it. */
+const OUTSIDE_RENDER_ORDER = -1;
+
+/** From inside, it is drawn after everything else, over the whole view. */
+const INSIDE_RENDER_ORDER = 999;
 
 /**
  * The water's box in the current tank, from just above the glass floor to the
@@ -161,6 +169,8 @@ uniform vec2 uBubbleSource;
 uniform vec4 uRipples[MAX_RIPPLES];
 uniform vec3 uBoxMin;
 uniform vec3 uBoxMax;
+/** 1 while the camera is under the water: the box's inside faces are drawn, and the path starts at the camera. */
+uniform float uInside;
 
 uniform vec3 uWaterColour;
 uniform vec3 uExtinction;
@@ -231,7 +241,8 @@ float interleavedNoise(vec2 pixel) {
 void main() {
     vec2 uv = gl_FragCoord.xy / uResolution;
     vec3 rayDir = normalize(vWorld - cameraPosition);
-    float entryDist = distance(vWorld, cameraPosition);
+    float fragDist = distance(vWorld, cameraPosition);
+    float entryDist = uInside > 0.5 ? 0.0 : fragDist;
     float fragViewZ = (viewMatrix * vec4(vWorld, 1.0)).z;
 
     // Where the ray leaves the water box, and where it hits the scene.
@@ -240,7 +251,7 @@ void main() {
     vec3 t1 = (uBoxMax - cameraPosition) / safeDir;
     vec3 tFar = max(t0, t1);
     float exitDist = min(min(tFar.x, tFar.y), tFar.z);
-    float sceneDist = entryDist * sceneViewZ(uv) / fragViewZ;
+    float sceneDist = fragDist * sceneViewZ(uv) / fragViewZ;
     float pathLength = max(min(sceneDist, exitDist) - entryDist, 0.0);
 
     // Refraction. The flat faces' own bend is left out (in screen space it
@@ -278,7 +289,7 @@ void main() {
     vec3 behind = texture2D(uScene, refractedUv).rgb;
 
     // Fog by the depth of what is actually seen through the refraction.
-    pathLength = max(min(entryDist * seenViewZ / fragViewZ, exitDist) - entryDist, 0.0);
+    pathLength = max(min(fragDist * seenViewZ / fragViewZ, exitDist) - entryDist, 0.0);
 
     // Underside of the surface seen through the glass: total internal reflection.
     bool exitsThroughSurface = tFar.y <= min(tFar.x, tFar.z) && rayDir.y > 0.0;
@@ -352,6 +363,11 @@ void main() {
  * surface, and reflect the room (from above) or the tank itself (total
  * internal reflection from below).
  *
+ * With the camera under the water (in any view mode) the box's inside faces
+ * are drawn instead, last and over everything, so the water surrounds the
+ * camera: everything seen is fogged from the camera outwards, and the
+ * surface is seen from below.
+ *
  * Mount this after the camera controls so its pass uses this frame's camera.
  */
 export function WaterVolume({ water, isLit, world }: Props) {
@@ -388,6 +404,7 @@ export function WaterVolume({ water, isLit, world }: Props) {
                     },
                     uBoxMin: { value: box.min },
                     uBoxMax: { value: box.max },
+                    uInside: { value: 0 },
                     uWaterColour: { value: new Color() },
                     uExtinction: { value: new Vector3() },
                     uAmbient: { value: 0 },
@@ -452,6 +469,17 @@ export function WaterVolume({ water, isLit, world }: Props) {
             return;
         }
 
+        setInside(
+            mesh.current,
+            material,
+            camera.position.x > box.min.x &&
+                camera.position.x < box.max.x &&
+                camera.position.z > box.min.z &&
+                camera.position.z < box.max.z &&
+                camera.position.y > box.min.y &&
+                camera.position.y < box.max.y,
+        );
+
         mesh.current.visible = false;
         gl.setRenderTarget(target);
         gl.render(scene, camera);
@@ -475,7 +503,7 @@ export function WaterVolume({ water, isLit, world }: Props) {
             ref={mesh}
             material={material}
             position={[0, WATER_FLOOR + box.height / 2, 0]}
-            renderOrder={-1}
+            renderOrder={OUTSIDE_RENDER_ORDER}
             raycast={() => null}
         >
             <boxGeometry
@@ -490,6 +518,25 @@ export function WaterVolume({ water, isLit, world }: Props) {
             />
         </mesh>
     );
+}
+
+/**
+ * Switch between drawing the water from outside (its outer faces, early in
+ * the opaque pass, hidden behind anything in front of it) and from inside
+ * (its inner faces, which surround the camera, drawn last over everything;
+ * everything is in the scene pass it composites, so all of it is fogged).
+ */
+function setInside(mesh: Mesh, material: ShaderMaterial, isInside: boolean) {
+    if ((material.uniforms.uInside.value === 1) === isInside) {
+        return;
+    }
+
+    material.uniforms.uInside.value = isInside ? 1 : 0;
+    material.side = isInside ? BackSide : FrontSide;
+    material.transparent = isInside;
+    material.depthTest = !isInside;
+    material.depthWrite = !isInside;
+    mesh.renderOrder = isInside ? INSIDE_RENDER_ORDER : OUTSIDE_RENDER_ORDER;
 }
 
 /**

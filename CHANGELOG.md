@@ -15,6 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tank view: 2.5D depth layers with voxel artwork, and spotlights. Animals and plants are MagicaVoxel models (resources/models/species) at the shared voxel size.
 - 2D (default) and 3D view toggle, bottom left; left-drag pans (in 3D along the camera's own axes, keeping the tank in view), right-drag rotates. The 2D view hides the glass edge lines.
 - View cube above the 2D/3D toggle: click a face, edge or top corner to swing the camera to that side or a 45° view, fitted to the whole tank; in 2D it picks the side the flat view looks from. The 3D view can now look straight down.
+- Fly mode (third view toggle option): click the tank to capture the mouse and look around, WASD/arrows to move, E/Space up, Q down, Shift faster; flies in and around the tank. The view cube switches back to 3D.
+- Underwater view (any mode, e.g. a 3D close-up or flying): inside the water the camera sees tint, fog, light shafts and the surface from below.
 - Tabbed tank side panel with animated transitions: Summary (tank name and clock, water, inhabitants, latest activity that fits without scrolling), Activity (full log), Inhabitants, Management and Equipment (auto-feeder); icon tabs with tooltips.
 - Searchable, sortable list of every inhabitant; choosing one selects it, as clicking it in the tank does.
 - Full-window tank view with a frosted side panel that slides over the tank (pull tab on its edge or `P`); the choice is remembered.
