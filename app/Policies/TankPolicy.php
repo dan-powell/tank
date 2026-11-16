@@ -22,4 +22,12 @@ class TankPolicy
     {
         return $user->id === $tank->user_id;
     }
+
+    /**
+     * Determine whether the user can delete the tank.
+     */
+    public function delete(User $user, Tank $tank): bool
+    {
+        return $user->id === $tank->user_id;
+    }
 }

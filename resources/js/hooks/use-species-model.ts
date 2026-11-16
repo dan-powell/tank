@@ -1,6 +1,7 @@
 import { use } from 'react';
 import { Color } from 'three';
 import type { BufferGeometry } from 'three';
+import { SPECIES_MODEL_FILES } from '@/lib/tank/species-files';
 import { CELLS_PER_CM } from '@/lib/tank/space';
 import {
     buildVolumeGeometry,
@@ -11,23 +12,6 @@ import {
 } from '@/lib/tank/voxel-volume';
 import type { VoxelVolume } from '@/lib/tank/voxel-volume';
 import type { Species } from '@/types';
-
-/**
- * Model file URLs keyed by species slug. Drop `{slug}.vox` files into
- * resources/models/species to add or replace a species' look.
- */
-const FILES: Record<string, string> = Object.fromEntries(
-    Object.entries(
-        import.meta.glob<string>('/resources/models/species/*.vox', {
-            eager: true,
-            query: '?url',
-            import: 'default',
-        }),
-    ).map(([path, url]) => [
-        (path.split('/').pop() as string).replace(/\.vox$/, ''),
-        url,
-    ]),
-);
 
 /** One MagicaVoxel object as a mesh: centred on x/z with its base at y = 0, in voxels. */
 export type ModelFrame = {
@@ -67,7 +51,7 @@ export function useSpeciesModel(species: Species): SpeciesModel {
 }
 
 async function loadModel(species: Species): Promise<SpeciesModel> {
-    const url = FILES[species.slug];
+    const url = SPECIES_MODEL_FILES[species.slug];
 
     if (url !== undefined) {
         try {

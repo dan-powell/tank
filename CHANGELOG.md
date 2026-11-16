@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Tank simulation: species catalogue, deterministic simulator, scheduled ticks and live updates.
 - Tank care: feeding, water changes, gravel vacuum, algae scrub, stocking and an auto-feeder.
 - Starter tank for every new user, and a dashboard listing their tanks with their sizes.
+- Dashboard tank cards: rename and delete from a menu, paused and active-alert badges, and pixel-art icons of the main species.
 - Tank view: 2.5D depth layers with voxel artwork. Animals and plants are MagicaVoxel models (resources/models/species) at the shared voxel size.
 - 2D (default) and 3D view toggle, bottom left; left-drag pans (in 3D along the camera's own axes, keeping the tank in view), right-drag rotates. The 2D view hides the glass edge lines.
 - View cube above the 2D/3D toggle: click a face, edge or top corner to swing the camera to that side or a 45° view, fitted to the whole tank; in 2D it picks the side the flat view looks from. The 3D view can now look straight down.

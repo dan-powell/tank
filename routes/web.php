@@ -25,6 +25,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('tanks', [TankController::class, 'store'])->name('tanks.store');
     Route::get('tanks/{tank}', [TankController::class, 'show'])->can('view', 'tank')->name('tanks.show');
+    Route::patch('tanks/{tank}', [TankController::class, 'update'])->can('update', 'tank')->middleware('throttle:tank-actions')->name('tanks.update');
+    Route::delete('tanks/{tank}', [TankController::class, 'destroy'])->can('delete', 'tank')->middleware('throttle:tank-actions')->name('tanks.destroy');
 
     Route::prefix('tanks/{tank}')
         ->name('tanks.')

@@ -37,7 +37,13 @@ export type PlantSnapshot = {
 
 /** What an animal is busy doing: one at a time, it decides where it heads. */
 export type CreatureIntent =
-    'wander' | 'explore' | 'hunt' | 'rest' | 'hide' | 'shoal' | 'patrol';
+    | 'wander'
+    | 'explore'
+    | 'hunt'
+    | 'rest'
+    | 'hide'
+    | 'shoal'
+    | 'patrol';
 
 /** Passing states stacked on top of an animal's intent. */
 export type CreatureMood = 'zoomies' | 'skittish' | 'sluggish';
@@ -387,6 +393,25 @@ export type DashboardTank = {
     temperature: number;
     ammonia: number;
     nitrate: number;
+    is_paused: boolean;
+    pause_reason: PauseReason | null;
+    /** Readings that are harmfully low or high right now. */
+    warnings: DashboardWarning[];
+    /** Living species, animals first, then most numerous first. */
+    species: DashboardSpecies[];
+};
+
+export type DashboardWarning = {
+    parameter: string;
+    label: string;
+    side: 'low' | 'high';
+};
+
+export type DashboardSpecies = Pick<
+    Species,
+    'id' | 'slug' | 'name' | 'kind'
+> & {
+    count: number;
 };
 
 /** Allowed interior sizes for a new tank, in whole centimetres: [min, max]. */

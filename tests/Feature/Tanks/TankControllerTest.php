@@ -4,11 +4,13 @@ namespace Tests\Feature\Tanks;
 
 use App\Enums\CreatureIntent;
 use App\Enums\CreatureMood;
+use App\Enums\TankEventType;
 use App\Models\Creature;
 use App\Models\Decoration;
 use App\Models\Plant;
 use App\Models\Tank;
 use App\Models\User;
+use App\Notifications\TankAlert;
 use App\Simulation\DecorationCatalogue;
 use App\Simulation\SpeciesCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -218,5 +220,57 @@ class TankControllerTest extends TestCase
                     'guppy' => [false, false],
                     'springtail' => [false, true],
                 ]));
+    }
+
+    public function test_owner_can_rename_the_tank(): void
+    {
+        $tank = Tank::factory()->create(['name' => 'Old name']);
+
+        $this->actingAs($tank->user)
+            ->from(route('dashboard'))
+            ->patch(route('tanks.update', $tank), ['name' => '  Reef corner  '])
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertSame('Reef corner', $tank->fresh()->name);
+    }
+
+    public function test_a_tank_cannot_be_renamed_to_a_blank_name(): void
+    {
+        $tank = Tank::factory()->create(['name' => 'Old name']);
+
+        $this->actingAs($tank->user)
+            ->patch(route('tanks.update', $tank), ['name' => '   '])
+            ->assertSessionHasErrors('name');
+
+        $this->assertSame('Old name', $tank->fresh()->name);
+    }
+
+    public function test_other_users_cannot_rename_or_delete_the_tank(): void
+    {
+        $tank = Tank::factory()->create(['name' => 'Mine']);
+        $stranger = User::factory()->create();
+
+        $this->actingAs($stranger)->patch(route('tanks.update', $tank), ['name' => 'Theirs'])->assertForbidden();
+        $this->actingAs($stranger)->delete(route('tanks.destroy', $tank))->assertForbidden();
+
+        $this->assertSame('Mine', $tank->fresh()->name);
+    }
+
+    public function test_owner_can_delete_the_tank_with_its_inhabitants_and_alerts(): void
+    {
+        $tank = Tank::factory()->create();
+        $otherTank = Tank::factory()->for($tank->user)->create();
+        $creature = Creature::factory()->for($tank)->create();
+        $tank->user->notifyNow(new TankAlert($tank, TankEventType::Warning, 'Ammonia is too high.', 'ammonia'), ['database']);
+        $tank->user->notifyNow(new TankAlert($otherTank, TankEventType::Warning, 'Nitrate is too high.', 'nitrate'), ['database']);
+
+        $this->actingAs($tank->user)
+            ->delete(route('tanks.destroy', $tank))
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertModelMissing($tank);
+        $this->assertModelMissing($creature);
+        $this->assertModelExists($otherTank);
+        $this->assertSame([$otherTank->id], $tank->user->notifications()->get()->pluck('data.tank_id')->all());
     }
 }

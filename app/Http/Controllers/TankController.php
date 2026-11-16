@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Tank\CreateTank;
+use App\Actions\Tank\DeleteTank;
+use App\Actions\Tank\RenameTank;
 use App\Http\Requests\Tank\StoreTankRequest;
+use App\Http\Requests\Tank\UpdateTankRequest;
 use App\Http\Resources\DecorationDefinitionResource;
 use App\Http\Resources\LightDefinitionResource;
 use App\Http\Resources\SpeciesResource;
@@ -64,5 +67,25 @@ class TankController extends Controller
         );
 
         return to_route('tanks.show', $tank);
+    }
+
+    /**
+     * Rename the tank.
+     */
+    public function update(UpdateTankRequest $request, Tank $tank, RenameTank $renameTank): RedirectResponse
+    {
+        $renameTank->handle($tank, $request->string('name')->toString());
+
+        return back();
+    }
+
+    /**
+     * Delete the tank and everything in it.
+     */
+    public function destroy(Tank $tank, DeleteTank $deleteTank): RedirectResponse
+    {
+        $deleteTank->handle($tank);
+
+        return to_route('dashboard');
     }
 }
