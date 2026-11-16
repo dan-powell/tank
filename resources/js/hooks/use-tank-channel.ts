@@ -11,11 +11,16 @@ const OWN_ACTIONS: TankEventType[] = [
     'vacuum',
     'algae_scrub',
     'light_toggled',
+    'lighting',
     'lid',
     'water_level',
     'livestock_added',
     'aquascaping',
+    'pause',
 ];
+
+/** Sent to the owner as notifications instead (see useUserNotifications). */
+const NOTIFIED: TankEventType[] = ['warning', 'near_death'];
 
 /**
  * Listen for server-side updates to a tank. Each update triggers a partial
@@ -36,11 +41,14 @@ export function useTankChannel(tankId: number, onAutoFeed?: () => void): void {
                     continue;
                 }
 
-                if (OWN_ACTIONS.includes(event.type)) {
+                if (
+                    OWN_ACTIONS.includes(event.type) ||
+                    NOTIFIED.includes(event.type)
+                ) {
                     continue;
                 }
 
-                if (event.type === 'warning' || event.type === 'death') {
+                if (event.type === 'death') {
                     toast.warning(event.message);
                 } else {
                     toast(event.message);

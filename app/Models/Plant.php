@@ -29,6 +29,7 @@ use Illuminate\Support\Carbon;
  * @property float $size
  * @property int $segments
  * @property float $health
+ * @property float $light Daily light the plant receives (1 = a full day of medium light; see LightField).
  * @property int $age_seconds
  * @property Carbon|null $died_at
  * @property Carbon|null $created_at
@@ -102,6 +103,7 @@ class Plant extends Model
             'size' => 'float',
             'segments' => 'integer',
             'health' => 'float',
+            'light' => 'float',
             'age_seconds' => 'integer',
             'died_at' => 'datetime',
         ];

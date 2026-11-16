@@ -26,6 +26,11 @@ class DecorationResource extends JsonResource
             'position' => [$this->x, $this->y, $this->z],
             'rotation' => $this->rotation,
             'seed' => $this->seed,
+            'lights' => $this->definition()->hasLights() ? [
+                'on' => $this->lights_on,
+                'colour' => $this->light_colour ?? $this->definition()->lightColour,
+                'mode' => $this->light_mode,
+            ] : null,
         ];
     }
 }

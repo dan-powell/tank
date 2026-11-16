@@ -4,6 +4,7 @@ namespace App\Actions\Tank;
 
 use App\Models\Tank;
 use App\Models\User;
+use App\Simulation\Gantry;
 use App\Simulation\SpeciesCatalogue;
 use App\Simulation\TankGeometry;
 use Illuminate\Support\Facades\DB;
@@ -26,8 +27,8 @@ class CreateTank
 
     /**
      * Set up a cycled tank with the given interior size (in 0.2 cm grid
-     * cells), filled to `$waterLevel` (or the top), optionally planted and
-     * stocked in proportion to the water it holds.
+     * cells), filled to `$waterLevel` (or the top), lit by an LED tube, and
+     * optionally planted and stocked in proportion to the water it holds.
      */
     public function handle(
         User $user,
@@ -60,6 +61,7 @@ class CreateTank
             ]);
             $tank->volume_litres = TankGeometry::waterLitres($tank);
             $tank->save();
+            $tank->lightFixtures()->create(Gantry::of($tank)->defaultFixture());
 
             if ($stocked && ! TankGeometry::isDry($tank)) {
                 $this->stock($tank);

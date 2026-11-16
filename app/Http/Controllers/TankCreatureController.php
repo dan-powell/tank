@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Tank\MoveCreature;
 use App\Actions\Tank\RemoveCreature;
 use App\Http\Requests\Tank\MoveCreatureRequest;
-use App\Http\Requests\Tank\RenameInhabitantRequest;
+use App\Http\Requests\Tank\UpdateCreatureRequest;
 use App\Models\Creature;
 use App\Models\Tank;
 use Illuminate\Http\RedirectResponse;
@@ -13,13 +13,13 @@ use Illuminate\Http\RedirectResponse;
 class TankCreatureController extends Controller
 {
     /**
-     * Name (or un-name) a living animal.
+     * Name (or un-name) a living animal, or choose whether it pauses the tank when dying.
      */
-    public function update(RenameInhabitantRequest $request, Tank $tank, Creature $creature): RedirectResponse
+    public function update(UpdateCreatureRequest $request, Tank $tank, Creature $creature): RedirectResponse
     {
         abort_if($creature->died_at !== null, 404);
 
-        $creature->update(['nickname' => $request->nickname()]);
+        $creature->update($request->changes());
 
         return back();
     }

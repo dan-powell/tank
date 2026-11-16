@@ -8,13 +8,18 @@ import {
     Fish,
     History,
     LayoutDashboard,
+    Lightbulb,
     Mountain,
+    Navigation,
+    Play,
     Square,
     Wrench,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { NotificationBell } from '@/components/notification-bell';
+import { AlertsPanel } from '@/components/tank/alerts-panel';
 import { AutoFeederPanel } from '@/components/tank/auto-feeder-panel';
 import { BackgroundPanel } from '@/components/tank/background-panel';
 import { DecorCatalogue } from '@/components/tank/decor-catalogue';
@@ -23,16 +28,24 @@ import { SubstratePanel } from '@/components/tank/substrate-panel';
 import { EventLog } from '@/components/tank/event-log';
 import { InhabitantList } from '@/components/tank/inhabitant-list';
 import { InhabitantPanel } from '@/components/tank/inhabitant-panel';
+import { LightingPanel } from '@/components/tank/lighting-panel';
 import type { Inhabitant } from '@/components/tank/inhabitant-panel';
-import type { TankViewMode } from '@/components/tank/tank-camera-rig';
+import type {
+    TankViewMode,
+    TankViewRequest,
+} from '@/components/tank/tank-camera-rig';
 import { PopulationPanel } from '@/components/tank/population-panel';
 import { TankHeading } from '@/components/tank/tank-heading';
 import { TankScene } from '@/components/tank/tank-scene';
+import { TankViewCube } from '@/components/tank/tank-view-cube';
+import {
+    SimulationPanel,
+    setTankPaused,
+} from '@/components/tank/simulation-panel';
 import { ToolsPanel } from '@/components/tank/tools-panel';
 import { WaterLevelPanel } from '@/components/tank/water-level-panel';
 import { AirPanel, WaterPanel } from '@/components/tank/water-panel';
 import { LidPanel } from '@/components/tank/lid-panel';
-import { SealedGuard } from '@/components/tank/panel-section';
 import { Button } from '@/components/ui/button';
 import { Kbd } from '@/components/ui/kbd';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -42,6 +55,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { usePointerLocked } from '@/hooks/use-pointer-locked';
 import { useSubstrateSync } from '@/hooks/use-substrate-sync';
 import { useTankChannel } from '@/hooks/use-tank-channel';
 import {
@@ -54,9 +68,11 @@ import {
     zToLayer,
 } from '@/lib/tank/space';
 import { cn } from '@/lib/utils';
+import { useSimClock } from '@/lib/tank/lighting';
 import { TankWorld } from '@/lib/tank/world';
 import { dashboard } from '@/routes';
 import type { SculptBrush } from '@/lib/tank/substrate-sculpt';
+import type { TankView } from '@/lib/tank/views';
 import { feed } from '@/routes/tanks';
 import creatureRoutes from '@/routes/tanks/creatures';
 import plantRoutes from '@/routes/tanks/plants';
@@ -65,6 +81,7 @@ import decorationRoutes from '@/routes/tanks/decorations';
 import type {
     DecorationDefinition,
     GridCell,
+    LightDefinition,
     Species,
     TankBackground,
     TankEvent,
@@ -72,16 +89,23 @@ import type {
     TankSnapshot,
 } from '@/types';
 import { toast } from 'sonner';
-import { Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
 
 type Props = {
     tank: TankSnapshot;
     species: Species[];
     decorationCatalogue: DecorationDefinition[];
+    lightCatalogue: LightDefinition[];
     events: TankEvent[];
 };
 
 const PANEL_STORAGE_KEY = 'tank-panel-open';
+
+/** Remembers whether the tank was last seen in 2D or 3D. */
+const VIEW_MODE_STORAGE_KEY = 'tank-view-mode';
+
+/** Remembers which side panel tab was last open. */
+const TAB_STORAGE_KEY = 'tank-panel-tab';
 
 /** Keyboard shortcut that shows or hides the side panel. */
 const PANEL_SHORTCUT = 'p';
@@ -92,6 +116,7 @@ type PanelTab =
     | 'inhabitants'
     | 'management'
     | 'decor'
+    | 'lighting'
     | 'equipment';
 
 /** Which way new tab content slides in: from the side of the tab chosen. */
@@ -103,6 +128,7 @@ const PANEL_TABS: { value: PanelTab; label: string; icon: LucideIcon }[] = [
     { value: 'inhabitants', label: 'Inhabitants', icon: Fish },
     { value: 'management', label: 'Management', icon: Wrench },
     { value: 'decor', label: 'Aquascaping', icon: Mountain },
+    { value: 'lighting', label: 'Lighting', icon: Lightbulb },
     { value: 'equipment', label: 'Equipment', icon: Cog },
 ];
 
@@ -138,23 +164,61 @@ function initialPanelOpen(): boolean {
         return true;
     }
 
-    try {
-        const stored = window.localStorage.getItem(PANEL_STORAGE_KEY);
+    const stored = readStored(PANEL_STORAGE_KEY);
 
-        if (stored !== null) {
-            return stored === 'true';
-        }
-    } catch {
-        // Storage can be unavailable (private windows, blocked site data).
+    if (stored !== null) {
+        return stored === 'true';
     }
 
     return window.matchMedia('(min-width: 1024px)').matches;
+}
+
+/**
+ * The 2D or 3D view the viewer last used. Fly mode is remembered as 3D: it
+ * needs a click on the tank to capture the mouse again anyway.
+ */
+function initialViewMode(): TankViewMode {
+    return readStored(VIEW_MODE_STORAGE_KEY) === 'orbit' ? 'orbit' : 'flat';
+}
+
+/** The side panel tab the viewer last had open. */
+function initialTab(): PanelTab {
+    const stored = readStored(TAB_STORAGE_KEY);
+
+    return (
+        PANEL_TABS.find((candidate) => candidate.value === stored)?.value ??
+        'summary'
+    );
+}
+
+/** A remembered choice, or null when there is none (or storage is unavailable). */
+function readStored(key: string): string | null {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    try {
+        return window.localStorage.getItem(key);
+    } catch {
+        // Storage can be unavailable (private windows, blocked site data).
+        return null;
+    }
+}
+
+/** Remember a choice for next time; not remembering it is fine. */
+function writeStored(key: string, value: string): void {
+    try {
+        window.localStorage.setItem(key, value);
+    } catch {
+        // Storage can be unavailable (private windows, blocked site data).
+    }
 }
 
 export default function ShowTank({
     tank,
     species,
     decorationCatalogue,
+    lightCatalogue,
     events,
 }: Props) {
     const { width, height, depth } = tank.grid;
@@ -169,18 +233,74 @@ export default function ShowTank({
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [sizeKey],
     );
-    const [viewMode, setViewMode] = useState<TankViewMode>('flat');
+    const [viewMode, setViewMode] = useState<TankViewMode>(initialViewMode);
+    /** The side the 2D view looks from, picked on the view cube. */
+    const [flatView, setFlatView] = useState<TankView>('front');
+    const [viewRequest, setViewRequest] = useState<TankViewRequest | null>(
+        null,
+    );
+    /** The camera's orientation, shared from the scene to the view cube each frame. */
+    const [cameraOrientation] = useState(() => new Quaternion());
+    const isPointerLocked = usePointerLocked();
     const [isPanelOpen, setIsPanelOpen] = useState(initialPanelOpen);
     const [selection, setSelection] = useState<TankSelection | null>(null);
+    /** The entity the camera follows; only while it stays selected. */
+    const [followed, setFollowed] = useState<TankSelection | null>(null);
+    const activeFollow =
+        followed !== null &&
+        selection?.kind === followed.kind &&
+        selection.id === followed.id
+            ? followed
+            : null;
     const [selectedAnchor, setSelectedAnchor] = useState<number | null>(null);
     const [sculptBrush, setSculptBrush] = useState<SculptBrush | null>(null);
     /** The inhabitant being moved, while waiting for a click on its new spot. */
     const [moving, setMoving] = useState<TankSelection | null>(null);
     const gravel = useSubstrateSync(tank.id, tank.grid, tank.substrate);
-    const [tab, setTab] = useState<PanelTab>('summary');
+    const [tab, setTab] = useState<PanelTab>(initialTab);
     const [previewBackground, setPreviewBackground] =
         useState<TankBackground | null>(null);
     const [tabDirection, setTabDirection] = useState<TabDirection>('right');
+    const [selectedFixtureId, setSelectedFixtureId] = useState<number | null>(
+        null,
+    );
+    const simClock = useSimClock(
+        tank.sim_seconds,
+        tank.is_paused ? 0 : tank.time_scale,
+    );
+
+    /** Swing the camera round to `view`; in 2D it also becomes the side the flat view looks from. */
+    const selectView = (view: TankView) => {
+        setFollowed(null);
+
+        if (viewMode === 'flat') {
+            setFlatView(view);
+        } else if (viewMode === 'fly') {
+            setViewMode('orbit');
+        }
+
+        setViewRequest((previous) => ({
+            view,
+            id: (previous?.id ?? 0) + 1,
+        }));
+    };
+
+    const stopFollowing = () => setFollowed(null);
+
+    /** Follow the selected entity with the camera (in 3D when flying), or stop. */
+    const toggleFollow = () => {
+        if (activeFollow !== null || selection === null) {
+            setFollowed(null);
+
+            return;
+        }
+
+        if (viewMode === 'fly') {
+            setViewMode('orbit');
+        }
+
+        setFollowed(selection);
+    };
 
     const changeTab = (next: PanelTab) => {
         const index = (value: PanelTab) =>
@@ -192,6 +312,17 @@ export default function ShowTank({
     };
 
     const togglePanel = () => setIsPanelOpen((open) => !open);
+
+    /** Pick a light (clicked in the scene): open the Lighting tab on it. */
+    const selectFixture = (id: number) => {
+        setSelection(null);
+        setSelectedFixtureId(id);
+        setIsPanelOpen(true);
+
+        if (tab !== 'lighting') {
+            changeTab('lighting');
+        }
+    };
 
     const select = (next: TankSelection | null) => {
         setSelection(next);
@@ -263,10 +394,7 @@ export default function ShowTank({
             only: ['tank', 'errors'],
             onError: (errors: Record<string, string>) =>
                 toast.error(
-                    errors.x ??
-                        errors.layer ??
-                        errors.lid ??
-                        'It could not be moved there.',
+                    errors.x ?? errors.layer ?? 'It could not be moved there.',
                 ),
         };
 
@@ -355,12 +483,19 @@ export default function ShowTank({
     );
 
     useEffect(() => {
-        try {
-            window.localStorage.setItem(PANEL_STORAGE_KEY, String(isPanelOpen));
-        } catch {
-            // Not remembering the choice is fine.
-        }
+        writeStored(PANEL_STORAGE_KEY, String(isPanelOpen));
     }, [isPanelOpen]);
+
+    useEffect(() => {
+        writeStored(
+            VIEW_MODE_STORAGE_KEY,
+            viewMode === 'flat' ? 'flat' : 'orbit',
+        );
+    }, [viewMode]);
+
+    useEffect(() => {
+        writeStored(TAB_STORAGE_KEY, tab);
+    }, [tab]);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -395,32 +530,18 @@ export default function ShowTank({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    // Hands-in work refused through a sealed lid is reported as a toast.
-    useEffect(
-        () =>
-            router.on('error', (event) => {
-                const lid = (event as CustomEvent).detail?.errors?.lid;
-
-                if (typeof lid === 'string') {
-                    toast.error(lid);
-                }
-            }),
-        [],
-    );
-
-    // Sealing the lid ends any sculpting in progress.
-    useEffect(() => {
-        if (tank.is_sealed) {
-            setSculptBrush(null);
-        }
-    }, [tank.is_sealed]);
-
     useTankChannel(tank.id, () => {
         const drop = toWorld(AUTO_FEEDER_SPOT.x, 1, AUTO_FEEDER_SPOT.z);
         world.sprinkle(drop.x, drop.z, 10);
     });
 
     const feedAt = (worldX: number, worldZ: number) => {
+        if (tank.is_paused) {
+            toast.error('The tank is paused. Resume it before adding food.');
+
+            return;
+        }
+
         world.sprinkle(worldX, worldZ);
         const { x, z } = toNormalisedSurface(new Vector3(worldX, 0, worldZ));
         router.post(
@@ -448,6 +569,11 @@ export default function ShowTank({
                         species={species}
                         world={world}
                         viewMode={viewMode}
+                        flatView={flatView}
+                        viewRequest={viewRequest}
+                        cameraOrientation={cameraOrientation}
+                        followed={activeFollow}
+                        onStopFollowing={stopFollowing}
                         decorationCatalogue={decorationCatalogue}
                         selection={selection}
                         onSelect={select}
@@ -458,7 +584,19 @@ export default function ShowTank({
                         placement={placement}
                         onPlace={placeMoving}
                         previewBackground={previewBackground}
+                        simClock={simClock}
+                        selectedFixtureId={
+                            tab === 'lighting' ? selectedFixtureId : null
+                        }
+                        onSelectFixture={selectFixture}
                     />
+
+                    {tank.is_paused && movingInhabitant === null && (
+                        <PausedBanner
+                            message={pausedMessage(tank, events)}
+                            onResume={() => setTankPaused(tank.id, false)}
+                        />
+                    )}
 
                     {movingInhabitant !== null && (
                         <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center px-16">
@@ -516,19 +654,47 @@ export default function ShowTank({
                                 Dashboard
                             </TooltipContent>
                         </Tooltip>
+                        <NotificationBell
+                            className={cn(hudButton, 'pointer-events-auto')}
+                        />
                     </div>
 
-                    <div className="absolute bottom-3 left-3">
+                    {viewMode === 'fly' && (
+                        <FlyHud isMouseCaptured={isPointerLocked} />
+                    )}
+
+                    <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col items-start gap-2">
+                        <TankViewCube
+                            key={sizeKey}
+                            orientation={cameraOrientation}
+                            onSelectView={selectView}
+                            className="pointer-events-auto"
+                        />
                         <ToggleGroup
                             type="single"
                             size="sm"
                             spacing={0}
                             value={viewMode}
-                            onValueChange={(value) =>
-                                value && setViewMode(value as TankViewMode)
-                            }
+                            onValueChange={(value) => {
+                                if (!value) {
+                                    return;
+                                }
+
+                                // So Space (fly up) can't press the toggle again.
+                                if (value === 'fly') {
+                                    setFollowed(null);
+                                    (
+                                        document.activeElement as HTMLElement | null
+                                    )?.blur();
+                                }
+
+                                setViewMode(value as TankViewMode);
+                            }}
                             aria-label="Tank view"
-                            className={cn(hudSurface, 'h-9 p-0')}
+                            className={cn(
+                                hudSurface,
+                                'pointer-events-auto h-9 p-0',
+                            )}
                         >
                             <ToggleGroupItem
                                 value="orbit"
@@ -545,6 +711,14 @@ export default function ShowTank({
                             >
                                 <Square className="size-4" />
                                 2D
+                            </ToggleGroupItem>
+                            <ToggleGroupItem
+                                value="fly"
+                                aria-label="First-person fly view"
+                                className={viewToggleItem}
+                            >
+                                <Navigation className="size-4" />
+                                Fly
                             </ToggleGroupItem>
                         </ToggleGroup>
                     </div>
@@ -608,7 +782,7 @@ export default function ShowTank({
                                     'hidden',
                             )}
                         >
-                            <TabsList className="grid w-full shrink-0 grid-cols-6 gap-0 border-b border-sidebar-border bg-sidebar/60 p-0 group-data-horizontal/tabs:h-11">
+                            <TabsList className="grid w-full shrink-0 grid-cols-7 gap-0 border-b border-sidebar-border bg-sidebar/60 p-0 group-data-horizontal/tabs:h-11">
                                 {PANEL_TABS.map(
                                     ({ value, label, icon: Icon }) => (
                                         <Tooltip key={value}>
@@ -638,10 +812,14 @@ export default function ShowTank({
                                 className="flex flex-col"
                             >
                                 <TankHeading tank={tank} />
-                                <WaterPanel water={tank.water} />
+                                <WaterPanel
+                                    water={tank.water}
+                                    limits={tank.limits}
+                                />
                                 <AirPanel
                                     air={tank.air}
                                     isSealed={tank.is_sealed}
+                                    limits={tank.limits}
                                 />
                                 <PopulationPanel
                                     creatures={tank.creatures}
@@ -672,10 +850,10 @@ export default function ShowTank({
                                     creatures={tank.creatures}
                                     plants={tank.plants}
                                     species={species}
+                                    watchedSpecies={tank.alerts.watched_species}
                                     stockConditions={{
                                         hasWater: tank.has_water,
                                         hasLand: tank.land_area_cm2 > 0,
-                                        isSealed: tank.is_sealed,
                                     }}
                                     onSelect={select}
                                 />
@@ -685,46 +863,66 @@ export default function ShowTank({
                                 value="management"
                                 direction={tabDirection}
                             >
+                                <SimulationPanel
+                                    tankId={tank.id}
+                                    isPaused={tank.is_paused}
+                                />
                                 <ToolsPanel
                                     tankId={tank.id}
-                                    lightOn={tank.light_on}
                                     hasWater={tank.has_water}
-                                    isSealed={tank.is_sealed}
+                                    isPaused={tank.is_paused}
                                     onFeedRandomly={feedRandomly}
                                 />
-                                <SealedGuard isSealed={tank.is_sealed}>
-                                    <WaterLevelPanel
-                                        key={tank.grid.water_level}
-                                        tankId={tank.id}
-                                        grid={tank.grid}
-                                        litres={tank.volume_litres}
-                                        hasWater={tank.has_water}
-                                    />
-                                </SealedGuard>
+                                <WaterLevelPanel
+                                    key={tank.grid.water_level}
+                                    tankId={tank.id}
+                                    grid={tank.grid}
+                                    litres={tank.volume_litres}
+                                    hasWater={tank.has_water}
+                                />
+                                <AlertsPanel
+                                    tankId={tank.id}
+                                    alerts={tank.alerts}
+                                />
                             </PanelTabContent>
 
                             <PanelTabContent
                                 value="decor"
                                 direction={tabDirection}
                             >
-                                <SealedGuard isSealed={tank.is_sealed}>
-                                    <SubstratePanel
-                                        grid={tank.grid}
-                                        brush={sculptBrush}
-                                        onBrushChange={startSculpting}
-                                        onApply={gravel.reshape}
-                                        onUndo={gravel.undo}
-                                        canUndo={gravel.canUndo}
-                                    />
-                                    <DecorCatalogue
-                                        tankId={tank.id}
-                                        catalogue={decorationCatalogue}
-                                        placedCount={tank.decorations.length}
-                                        onPlaced={(id) =>
-                                            select({ kind: 'decoration', id })
-                                        }
-                                    />
-                                </SealedGuard>
+                                <SubstratePanel
+                                    grid={tank.grid}
+                                    brush={sculptBrush}
+                                    onBrushChange={startSculpting}
+                                    onApply={gravel.reshape}
+                                    onUndo={gravel.undo}
+                                    canUndo={gravel.canUndo}
+                                />
+                                <DecorCatalogue
+                                    tankId={tank.id}
+                                    catalogue={decorationCatalogue}
+                                    placedCount={tank.decorations.length}
+                                    onPlaced={(id) =>
+                                        select({ kind: 'decoration', id })
+                                    }
+                                />
+                            </PanelTabContent>
+
+                            <PanelTabContent
+                                value="lighting"
+                                direction={tabDirection}
+                            >
+                                <LightingPanel
+                                    tankId={tank.id}
+                                    lighting={tank.lighting}
+                                    lightMode={tank.light_mode}
+                                    clock={simClock}
+                                    catalogue={lightCatalogue}
+                                    decorations={tank.decorations}
+                                    decorationCatalogue={decorationCatalogue}
+                                    selectedFixtureId={selectedFixtureId}
+                                    onSelectFixture={setSelectedFixtureId}
+                                />
                             </PanelTabContent>
 
                             <PanelTabContent
@@ -740,12 +938,10 @@ export default function ShowTank({
                                     background={tank.background}
                                     onPreview={setPreviewBackground}
                                 />
-                                <SealedGuard isSealed={tank.is_sealed}>
-                                    <AutoFeederPanel
-                                        tankId={tank.id}
-                                        feeder={tank.auto_feeder}
-                                    />
-                                </SealedGuard>
+                                <AutoFeederPanel
+                                    tankId={tank.id}
+                                    feeder={tank.auto_feeder}
+                                />
                             </PanelTabContent>
                         </Tabs>
 
@@ -754,8 +950,8 @@ export default function ShowTank({
                                 <InhabitantPanel
                                     tankId={tank.id}
                                     inhabitant={inhabitant}
+                                    watchedSpecies={tank.alerts.watched_species}
                                     world={world}
-                                    isSealed={tank.is_sealed}
                                     onMove={() =>
                                         setMoving({
                                             kind: inhabitant.kind,
@@ -763,6 +959,8 @@ export default function ShowTank({
                                         })
                                     }
                                     onBack={() => setSelection(null)}
+                                    isFollowing={activeFollow !== null}
+                                    onToggleFollow={toggleFollow}
                                 />
                             </div>
                         )}
@@ -794,8 +992,9 @@ export default function ShowTank({
                                     onSelectPlant={(id) =>
                                         select({ kind: 'plant', id })
                                     }
-                                    isSealed={tank.is_sealed}
                                     onBack={() => select(null)}
+                                    isFollowing={activeFollow !== null}
+                                    onToggleFollow={toggleFollow}
                                 />
                             </div>
                         )}
@@ -803,6 +1002,45 @@ export default function ShowTank({
                 </div>
             </div>
         </>
+    );
+}
+
+/** Why the tank is paused: the dying animal that paused it, or the owner. */
+function pausedMessage(tank: TankSnapshot, events: TankEvent[]): string {
+    if (tank.pause_reason === 'near_death') {
+        const nearDeath = events.find((event) => event.type === 'near_death');
+
+        return nearDeath?.message ?? 'An animal is close to death.';
+    }
+
+    return 'The tank is paused.';
+}
+
+/** Says the simulation is stopped, and why, with a way to start it again. */
+function PausedBanner({
+    message,
+    onResume,
+}: {
+    message: string;
+    onResume: () => void;
+}) {
+    return (
+        <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center px-28">
+            <div
+                role="status"
+                className={cn(
+                    hudSurface,
+                    'pointer-events-auto flex max-w-xl items-center gap-3 rounded-md px-3 py-2 text-sm',
+                )}
+            >
+                <span>
+                    <strong>Paused.</strong> {message}
+                </span>
+                <Button size="sm" className="h-7" onClick={onResume}>
+                    <Play /> Resume
+                </Button>
+            </div>
+        </div>
     );
 }
 
@@ -864,4 +1102,49 @@ function findInhabitant(
     return entity && definition
         ? { kind: 'plant', entity, species: definition }
         : null;
+}
+
+/** Fly mode's crosshair (while the mouse is captured) and a hint of its controls. */
+function FlyHud({ isMouseCaptured }: { isMouseCaptured: boolean }) {
+    return (
+        <>
+            {isMouseCaptured && (
+                <div
+                    aria-hidden
+                    className="pointer-events-none absolute top-1/2 left-1/2 size-4 -translate-x-1/2 -translate-y-1/2 before:absolute before:inset-x-0 before:top-1/2 before:h-px before:-translate-y-1/2 before:bg-white/80 after:absolute after:inset-y-0 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-white/80"
+                />
+            )}
+            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-56">
+                <div
+                    className={cn(
+                        hudSurface,
+                        'flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-md px-3 py-1.5 text-xs',
+                    )}
+                >
+                    {isMouseCaptured ? (
+                        <>
+                            <span>
+                                <Kbd>W</Kbd> <Kbd>A</Kbd> <Kbd>S</Kbd>{' '}
+                                <Kbd>D</Kbd> or arrows move
+                            </span>
+                            <span>
+                                <Kbd>E</Kbd> / <Kbd>Q</Kbd> up / down
+                            </span>
+                            <span>
+                                <Kbd>Shift</Kbd> faster
+                            </span>
+                            <span>
+                                <Kbd>Esc</Kbd> releases mouse
+                            </span>
+                        </>
+                    ) : (
+                        <span>
+                            Click the tank to look around · <Kbd>W</Kbd>{' '}
+                            <Kbd>A</Kbd> <Kbd>S</Kbd> <Kbd>D</Kbd> to move
+                        </span>
+                    )}
+                </div>
+            </div>
+        </>
+    );
 }

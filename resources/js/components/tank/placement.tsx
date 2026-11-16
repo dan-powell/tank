@@ -39,7 +39,9 @@ export function PlacementController({ mode, onPlace }: Props) {
         };
 
         const onPointerUp = (event: PointerEvent) => {
+            // A click that captured the mouse for fly mode only looks around.
             if (
+                document.pointerLockElement !== null ||
                 pressedAt === null ||
                 Math.hypot(
                     event.clientX - pressedAt.x,

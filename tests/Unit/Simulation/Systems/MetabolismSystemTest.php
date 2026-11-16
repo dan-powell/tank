@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Simulation\Systems;
 
+use App\Enums\CreatureIntent;
 use App\Simulation\Systems\MetabolismSystem;
 use PHPUnit\Framework\TestCase;
 use Tests\Unit\Simulation\BuildsSimulationState;
@@ -45,5 +46,16 @@ class MetabolismSystemTest extends TestCase
         $this->assertSame(8.0, $state->oxygen);
         $this->assertSame(0.0, $state->ammonia);
         $this->assertGreaterThan(0.0, $state->detritus);
+    }
+
+    public function test_resting_animals_get_hungry_more_slowly_than_busy_ones(): void
+    {
+        $resting = $this->creature('guppy', ['hunger' => 0.2, 'intent' => CreatureIntent::Rest]);
+        $exploring = $this->creature('guppy', ['hunger' => 0.2, 'intent' => CreatureIntent::Explore]);
+        $state = $this->tankState(['creatures' => [$resting, $exploring]]);
+
+        (new MetabolismSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertLessThan($exploring->hunger, $resting->hunger);
     }
 }

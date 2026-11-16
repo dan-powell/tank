@@ -46,7 +46,7 @@ import type {
     Species,
     TankGrid,
 } from '@/types';
-import { PanelBackButton, PanelSection, SealedGuard } from './panel-section';
+import { PanelSection, SelectionPanelHeader } from './panel-section';
 
 type Props = {
     tankId: number;
@@ -62,9 +62,10 @@ type Props = {
     onSelectAnchor: (anchor: number | null) => void;
     onMove: (position: GridCell, rotation: number) => void;
     onSelectPlant: (plantId: number) => void;
-    /** Decorations can't be moved, planted on or removed through a sealed lid. */
-    isSealed: boolean;
     onBack: () => void;
+    /** Whether the camera is following it. */
+    isFollowing: boolean;
+    onToggleFollow: () => void;
 };
 
 /** Cells moved per press of a nudge button (1 cm). */
@@ -86,8 +87,9 @@ export function DecorationPanel({
     onSelectAnchor,
     onMove,
     onSelectPlant,
-    isSealed,
     onBack,
+    isFollowing,
+    onToggleFollow,
 }: Props) {
     const [x, y, z] = decoration.position;
     const [width, height, depth] = rotatedSize(
@@ -136,7 +138,11 @@ export function DecorationPanel({
 
     return (
         <section aria-labelledby="decoration-heading" className="space-y-4">
-            <PanelBackButton onClick={onBack} />
+            <SelectionPanelHeader
+                isFollowing={isFollowing}
+                onBack={onBack}
+                onToggleFollow={onToggleFollow}
+            />
 
             <div className="min-w-0">
                 <h2
@@ -150,158 +156,151 @@ export function DecorationPanel({
                 </p>
             </div>
 
-            <SealedGuard isSealed={isSealed}>
-                <PanelSection id="decoration-position-heading" title="Position">
-                    <p className="text-xs text-muted-foreground">
-                        Drag the arrows in the tank to slide it left, right, up
-                        or down{' '}
-                        <span className="whitespace-nowrap">
-                            (and in depth in the 3D view).
-                        </span>
-                    </p>
-                    <div className="grid grid-cols-2 gap-2 *:w-full *:justify-start">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => rotate(1)}
-                        >
-                            <RotateCcw /> Turn left
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => rotate(-1)}
-                        >
-                            <RotateCw /> Turn right
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={z <= 0}
-                            onClick={() => nudge(0, -NUDGE)}
-                        >
-                            <ChevronsUp /> Further back
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={z >= grid.depth - depth}
-                            onClick={() => nudge(0, NUDGE)}
-                        >
-                            <ChevronsDown /> Further forward
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={y >= grid.height - height}
-                            onClick={() => nudge(NUDGE, 0)}
-                        >
-                            <ArrowUp /> Raise
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={y <= 0}
-                            onClick={() => nudge(-NUDGE, 0)}
-                        >
-                            <ArrowDown /> Lower
-                        </Button>
-                    </div>
+            <PanelSection id="decoration-position-heading" title="Position">
+                <p className="text-xs text-muted-foreground">
+                    Drag the arrows in the tank to slide it left, right, up or
+                    down{' '}
+                    <span className="whitespace-nowrap">
+                        (and in depth in the 3D view).
+                    </span>
+                </p>
+                <div className="grid grid-cols-2 gap-2 *:w-full *:justify-start">
                     <Button
                         size="sm"
                         variant="outline"
-                        className="w-full justify-start"
-                        onClick={dropToSurface}
+                        onClick={() => rotate(1)}
                     >
-                        <ArrowDownToLine /> Drop onto what&rsquo;s below
+                        <RotateCcw /> Turn left
                     </Button>
-                    {isAboveWater && (
-                        <p className="text-xs text-muted-foreground">
-                            The top pokes out above the water.
-                        </p>
-                    )}
-                </PanelSection>
-
-                {definition.anchors.length > 0 && (
-                    <PanelSection id="decoration-plants-heading" title="Plants">
-                        <ul className="space-y-1.5">
-                            {definition.anchors.map((_, anchor) => {
-                                const plant = plants.find(
-                                    (candidate) =>
-                                        candidate.attachment?.anchor === anchor,
-                                );
-                                const plantSpecies = species.find(
-                                    (candidate) =>
-                                        candidate.id === plant?.species_id,
-                                );
-
-                                return (
-                                    <AnchorRow
-                                        key={anchor}
-                                        label={`Spot ${anchor + 1}`}
-                                        isSelected={selectedAnchor === anchor}
-                                    >
-                                        {plant !== undefined ? (
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-7 px-2"
-                                                onClick={() =>
-                                                    onSelectPlant(plant.id)
-                                                }
-                                            >
-                                                {plant.nickname ??
-                                                    plantSpecies?.name ??
-                                                    'Plant'}
-                                            </Button>
-                                        ) : selectedAnchor === anchor ? (
-                                            <PlantPicker
-                                                key={`${decoration.id}-${anchor}`}
-                                                tankId={tankId}
-                                                decorationId={decoration.id}
-                                                anchor={anchor}
-                                                species={species}
-                                                onDone={() =>
-                                                    onSelectAnchor(null)
-                                                }
-                                            />
-                                        ) : (
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-7 px-2"
-                                                onClick={() =>
-                                                    onSelectAnchor(anchor)
-                                                }
-                                            >
-                                                <Sprout /> Plant here
-                                            </Button>
-                                        )}
-                                    </AnchorRow>
-                                );
-                            })}
-                        </ul>
-                    </PanelSection>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => rotate(-1)}
+                    >
+                        <RotateCw /> Turn right
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={z <= 0}
+                        onClick={() => nudge(0, -NUDGE)}
+                    >
+                        <ChevronsUp /> Further back
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={z >= grid.depth - depth}
+                        onClick={() => nudge(0, NUDGE)}
+                    >
+                        <ChevronsDown /> Further forward
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={y >= grid.height - height}
+                        onClick={() => nudge(NUDGE, 0)}
+                    >
+                        <ArrowUp /> Raise
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={y <= 0}
+                        onClick={() => nudge(-NUDGE, 0)}
+                    >
+                        <ArrowDown /> Lower
+                    </Button>
+                </div>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={dropToSurface}
+                >
+                    <ArrowDownToLine /> Drop onto what&rsquo;s below
+                </Button>
+                {isAboveWater && (
+                    <p className="text-xs text-muted-foreground">
+                        The top pokes out above the water.
+                    </p>
                 )}
+            </PanelSection>
 
-                <RemoveDecorationButton
-                    name={definition.name}
-                    plantCount={plants.length}
-                    onConfirm={() =>
-                        router.delete(
-                            decorationRoutes.destroy.url([
-                                tankId,
-                                decoration.id,
-                            ]),
-                            {
-                                preserveScroll: true,
-                                only: ['tank', 'events'],
-                                onSuccess: onBack,
-                            },
-                        )
-                    }
-                />
-            </SealedGuard>
+            {definition.anchors.length > 0 && (
+                <PanelSection id="decoration-plants-heading" title="Plants">
+                    <ul className="space-y-1.5">
+                        {definition.anchors.map((_, anchor) => {
+                            const plant = plants.find(
+                                (candidate) =>
+                                    candidate.attachment?.anchor === anchor,
+                            );
+                            const plantSpecies = species.find(
+                                (candidate) =>
+                                    candidate.id === plant?.species_id,
+                            );
+
+                            return (
+                                <AnchorRow
+                                    key={anchor}
+                                    label={`Spot ${anchor + 1}`}
+                                    isSelected={selectedAnchor === anchor}
+                                >
+                                    {plant !== undefined ? (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 px-2"
+                                            onClick={() =>
+                                                onSelectPlant(plant.id)
+                                            }
+                                        >
+                                            {plant.nickname ??
+                                                plantSpecies?.name ??
+                                                'Plant'}
+                                        </Button>
+                                    ) : selectedAnchor === anchor ? (
+                                        <PlantPicker
+                                            key={`${decoration.id}-${anchor}`}
+                                            tankId={tankId}
+                                            decorationId={decoration.id}
+                                            anchor={anchor}
+                                            species={species}
+                                            onDone={() => onSelectAnchor(null)}
+                                        />
+                                    ) : (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-7 px-2"
+                                            onClick={() =>
+                                                onSelectAnchor(anchor)
+                                            }
+                                        >
+                                            <Sprout /> Plant here
+                                        </Button>
+                                    )}
+                                </AnchorRow>
+                            );
+                        })}
+                    </ul>
+                </PanelSection>
+            )}
+
+            <RemoveDecorationButton
+                name={definition.name}
+                plantCount={plants.length}
+                onConfirm={() =>
+                    router.delete(
+                        decorationRoutes.destroy.url([tankId, decoration.id]),
+                        {
+                            preserveScroll: true,
+                            only: ['tank', 'events'],
+                            onSuccess: onBack,
+                        },
+                    )
+                }
+            />
         </section>
     );
 }

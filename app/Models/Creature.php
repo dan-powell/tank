@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CreatureIntent;
 use App\Enums\Sex;
 use Database\Factories\CreatureFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -36,6 +37,10 @@ use Illuminate\Support\Carbon;
  * @property int $layer Home depth layer (0 = back glass).
  * @property float $zone_radius
  * @property int $generation
+ * @property CreatureIntent $intent What it is busy doing (see BehaviourSystem).
+ * @property int $intent_seconds Simulated seconds spent on its current intent.
+ * @property array<string, int>|null $moods Active moods => simulated seconds left (0 = held while a condition lasts).
+ * @property bool|null $pause_when_dying Whether the tank pauses when it is close to death (null = follow its species).
  * @property Carbon|null $died_at
  * @property string|null $death_cause
  * @property Carbon|null $created_at
@@ -44,7 +49,7 @@ use Illuminate\Support\Carbon;
 #[Fillable([
     'species_id', 'mother_id', 'father_id', 'nickname', 'sex', 'size', 'hunger', 'health',
     'age_seconds', 'gestation_seconds', 'zone_x', 'zone_y', 'layer', 'zone_radius', 'generation',
-    'died_at', 'death_cause',
+    'intent', 'intent_seconds', 'moods', 'pause_when_dying', 'died_at', 'death_cause',
 ])]
 class Creature extends Model
 {
@@ -113,6 +118,10 @@ class Creature extends Model
             'layer' => 'integer',
             'zone_radius' => 'float',
             'generation' => 'integer',
+            'intent' => CreatureIntent::class,
+            'intent_seconds' => 'integer',
+            'moods' => 'array',
+            'pause_when_dying' => 'boolean',
             'died_at' => 'datetime',
         ];
     }

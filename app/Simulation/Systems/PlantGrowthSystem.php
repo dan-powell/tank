@@ -6,13 +6,16 @@ use App\Enums\Habitat;
 use App\Enums\PlantAnchorage;
 use App\Enums\TankEventType;
 use App\Simulation\PlantState;
+use App\Simulation\SpeciesDefinition;
 use App\Simulation\StepContext;
 use App\Simulation\TankGeometry;
 use App\Simulation\TankState;
 
 /**
  * Plants grow under light by taking up ammonia and nitrate, lose health in
- * poor conditions, and established plants spread new offshoots nearby.
+ * poor conditions (including too little light over the day), and
+ * established plants spread new offshoots nearby. The light at a plant's
+ * crown sets how fast it can grow, up to the top of its species' range.
  * Plants rooted where their habitat doesn't suit them (aquatic plants out of
  * the water, land plants drowned or in dry air, edge plants away from the
  * waterline) stop growing and wilt. Land plants feed on detritus in the
@@ -22,6 +25,14 @@ final class PlantGrowthSystem implements SimulationSystem
 {
     /** Health lost per hour by a plant out of its habitat (dies in about two days). */
     private const float WILT_PER_HOUR = 0.02;
+
+    /** Health lost per hour by a plant in total darkness (dies in about four days). */
+    private const float DARKNESS_DAMAGE = 0.01;
+
+    /** Daily light, as a multiple of the top of a species' range, that starts to scorch it. */
+    private const float SCORCH_MULTIPLE = 2.5;
+
+    private const float SCORCH_DAMAGE = 0.004;
 
     /** Milligrams of nitrogen released by a gram of detritus (matches NitrogenCycleSystem). */
     private const float DETRITUS_NITROGEN_MG_PER_GRAM = 20.0;
@@ -62,7 +73,7 @@ final class PlantGrowthSystem implements SimulationSystem
         $maxSize = $species->number('max_size', 5);
 
         $growth = $species->number('growth_per_hour') * $nutrientFactor * $temperatureFactor * $co2Factor
-            * $plant->health * max(0.0, 1 - $plant->size / $maxSize) * $context->hours;
+            * $species->lightFactor($plant->light) * $plant->health * max(0.0, 1 - $plant->size / $maxSize) * $context->hours;
 
         $demandMg = $growth * $species->number('nitrate_per_size')
             + $plant->size * $species->number('upkeep_nitrate_per_hour') * $context->hours;
@@ -115,8 +126,25 @@ final class PlantGrowthSystem implements SimulationSystem
             $damage += 0.005;
         }
 
+        $damage += $this->lightDamage($species, $plant->dailyLight);
+
         $plant->health += $damage > 0 ? -$damage * $context->hours : 0.01 * $context->hours;
         $plant->health = min(1.0, max(0.0, $plant->health));
+    }
+
+    /**
+     * Hourly health lost to too little light over the day (in proportion to
+     * the shortfall below the species' minimum) or far too much (scorching).
+     */
+    private function lightDamage(SpeciesDefinition $species, float $dailyLight): float
+    {
+        [$minimum, $saturation] = $species->param('light', [0.0, INF]);
+
+        if ($dailyLight < $minimum) {
+            return (1 - $dailyLight / $minimum) * self::DARKNESS_DAMAGE;
+        }
+
+        return $dailyLight > $saturation * self::SCORCH_MULTIPLE ? self::SCORCH_DAMAGE : 0.0;
     }
 
     private function maybeSpread(PlantState $plant, TankState $state, StepContext $context): void

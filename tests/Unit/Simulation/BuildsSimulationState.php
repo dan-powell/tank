@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Simulation;
 
+use App\Enums\LightMode;
 use App\Enums\Sex;
 use App\Simulation\CreatureState;
 use App\Simulation\PlantState;
@@ -67,7 +68,7 @@ trait BuildsSimulationState
             'uneatenFood' => 0.0,
             'algae' => 2.0,
             'bacteria' => 0.3,
-            'lightOn' => true,
+            'lightMode' => LightMode::Timer,
             'simTick' => 0,
             'simSeconds' => 12 * 3600,
             'rngSeed' => 1234,

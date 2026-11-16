@@ -2,9 +2,14 @@
 
 namespace App\Http\Resources;
 
+use App\Models\LightFixture;
 use App\Models\Tank;
+use App\Simulation\AlertSettings;
+use App\Simulation\BalanceLimits;
+use App\Simulation\Gantry;
+use App\Simulation\LightField;
+use App\Simulation\LightFixtureState;
 use App\Simulation\SubstrateHeightmap;
-use App\Simulation\Systems\LightingSystem;
 use App\Simulation\TankGeometry;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -55,8 +60,9 @@ class TankResource extends JsonResource
                 'uneaten_food' => round($this->uneaten_food, 3),
                 'algae' => round($this->algae, 1),
             ],
-            'light_on' => $this->light_on,
-            'is_lit' => $this->light_on && LightingSystem::isDaytime($this->sim_seconds),
+            'light_mode' => $this->light_mode,
+            'is_lit' => $this->isLit(),
+            'lighting' => $this->lighting($request),
             'auto_feeder' => $this->auto_feeder_installed ? [
                 'feeds_per_day' => $this->auto_feeder_feeds_per_day,
                 'feed_hours' => config("simulation.auto_feeder.schedules.{$this->auto_feeder_feeds_per_day}", []),
@@ -64,12 +70,63 @@ class TankResource extends JsonResource
                 'portions' => $this->auto_feeder_portions,
                 'capacity' => config('simulation.auto_feeder.hopper_capacity'),
             ] : null,
+            'is_paused' => $this->is_paused,
+            'pause_reason' => $this->pause_reason,
+            'limits' => BalanceLimits::forTank($this->resource)->toArray(),
+            'alerts' => [
+                ...$this->alertSettings()->toArray(),
+                'parameters' => AlertSettings::parameters(),
+            ],
             'sim_tick' => $this->sim_tick,
             'sim_seconds' => $this->sim_seconds,
+            'time_scale' => (float) config('simulation.time_scale'),
             'last_simulated_at' => $this->last_simulated_at?->toIso8601String(),
             'plants' => $this->whenLoaded('plants', fn (): array => PlantResource::collection($this->plants)->resolve($request)),
             'creatures' => $this->whenLoaded('creatures', fn (): array => CreatureResource::collection($this->creatures)->resolve($request)),
             'decorations' => $this->whenLoaded('decorations', fn (): array => DecorationResource::collection($this->decorations)->resolve($request)),
         ];
+    }
+
+    /**
+     * Whether any light on the gantry is on right now.
+     */
+    private function isLit(): bool
+    {
+        return array_any($this->fixtureStates(), fn (LightFixtureState $fixture): bool => $fixture->levelAt($this->sim_seconds) > 0);
+    }
+
+    /**
+     * The gantry and the lights hanging from it.
+     *
+     * @return array<string, mixed>
+     */
+    private function lighting(Request $request): array
+    {
+        $gantry = Gantry::of($this->resource);
+
+        return [
+            'gantry' => [
+                'columns' => $gantry->columns,
+                'rows' => $gantry->rows,
+                'clearance' => Gantry::CLEARANCE,
+            ],
+            'fixtures' => LightFixtureResource::collection($this->lightFixtures)->resolve($request),
+            'max_fixtures' => config('simulation.lighting.max_fixtures'),
+            'photoperiod_hours' => (new LightField($this->fixtureStates(), 0, false))->photoperiodHours(),
+        ];
+    }
+
+    /**
+     * The lights as the master switch runs them.
+     *
+     * @return list<LightFixtureState>
+     */
+    private function fixtureStates(): array
+    {
+        $gantry = Gantry::of($this->resource);
+
+        return $this->light_mode->fixturesInEffect(
+            $this->lightFixtures->map(fn (LightFixture $fixture): LightFixtureState => LightFixtureState::fromModel($fixture, $gantry))->all(),
+        );
     }
 }

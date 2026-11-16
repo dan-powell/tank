@@ -50,6 +50,17 @@ final readonly class SpeciesDefinition
     }
 
     /**
+     * How fast a plant can grow and photosynthesise under a light (0-1): in
+     * proportion until it reaches the top of the species' `light` range.
+     */
+    public function lightFactor(float $light): float
+    {
+        [, $saturation] = $this->param('light', [0.0, 1.0]);
+
+        return $saturation <= 0 ? 1.0 : min(1.0, max(0.0, $light / $saturation));
+    }
+
+    /**
      * How far a value lies outside the species' tolerated range (0 when inside).
      */
     public function distanceOutside(string $rangeKey, float $value): float

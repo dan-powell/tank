@@ -1,74 +1,120 @@
+import { CircleHelp } from 'lucide-react';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import type { TankSnapshot, WaterParameters } from '@/types';
+import type {
+    BalanceLimit,
+    BalanceParameter,
+    BalanceRange,
+    TankSnapshot,
+} from '@/types';
 import { PanelSection } from './panel-section';
+
+type Status = 'good' | 'warn' | 'bad';
 
 type Reading = {
     label: string;
     value: string;
-    status: 'good' | 'warn' | 'bad';
+    unit: string;
+    status: Status;
+    /** Which way it is out of balance, if it is. */
+    side: 'low' | 'high' | null;
+    limit: BalanceLimit;
 };
 
-function readings(water: WaterParameters): Reading[] {
-    const grade = (
-        value: number,
-        warn: number,
-        bad: number,
-    ): Reading['status'] =>
-        value >= bad ? 'bad' : value >= warn ? 'warn' : 'good';
-    const outside = (
-        value: number,
-        min: number,
-        max: number,
-        slack: number,
-    ): Reading['status'] =>
-        value < min - slack || value > max + slack
-            ? 'bad'
-            : value < min || value > max
-              ? 'warn'
-              : 'good';
+type Limits = TankSnapshot['limits'];
 
+/** Which side of a range a value falls on, or null when inside it. */
+function sideOf(range: BalanceRange, value: number): 'low' | 'high' | null {
+    const [min, max] = range;
+
+    if (min !== null && value < min) {
+        return 'low';
+    }
+
+    if (max !== null && value > max) {
+        return 'high';
+    }
+
+    return null;
+}
+
+function reading(
+    limits: Limits,
+    parameter: BalanceParameter,
+    value: number,
+    shown: string,
+    unit: string,
+    label?: string,
+): Reading {
+    const limit = limits[parameter];
+    const side = sideOf(limit.ideal, value);
+    const status: Status =
+        side === null
+            ? 'good'
+            : sideOf(limit.safe, value) === null
+              ? 'warn'
+              : 'bad';
+
+    return {
+        label: label ?? limit.label,
+        value: unit === '' ? shown : `${shown} ${unit}`.replace(' %', '%'),
+        unit,
+        status,
+        side,
+        limit,
+    };
+}
+
+function readings(water: TankSnapshot['water'], limits: Limits): Reading[] {
     return [
-        {
-            label: 'Temperature',
-            value: `${water.temperature.toFixed(1)} °C`,
-            status: outside(water.temperature, 22, 28, 2),
-        },
-        {
-            label: 'pH',
-            value: water.ph.toFixed(2),
-            status: outside(water.ph, 6.8, 7.9, 0.4),
-        },
-        {
-            label: 'Ammonia',
-            value: `${water.ammonia.toFixed(2)} ppm`,
-            status: grade(water.ammonia, 0.25, 0.5),
-        },
-        {
-            label: 'Nitrite',
-            value: `${water.nitrite.toFixed(2)} ppm`,
-            status: grade(water.nitrite, 0.25, 0.5),
-        },
-        {
-            label: 'Nitrate',
-            value: `${water.nitrate.toFixed(0)} ppm`,
-            status: grade(water.nitrate, 25, 40),
-        },
-        {
-            label: 'Oxygen',
-            value: `${water.oxygen.toFixed(1)} mg/L`,
-            status:
-                water.oxygen < 4 ? 'bad' : water.oxygen < 5.5 ? 'warn' : 'good',
-        },
-        {
-            label: 'Algae',
-            value: `${water.algae.toFixed(0)}%`,
-            status: grade(water.algae, 25, 50),
-        },
-        {
-            label: 'Detritus',
-            value: `${water.detritus.toFixed(1)} g`,
-            status: grade(water.detritus, 2, 4),
-        },
+        reading(
+            limits,
+            'temperature',
+            water.temperature,
+            water.temperature.toFixed(1),
+            '°C',
+        ),
+        reading(limits, 'ph', water.ph, water.ph.toFixed(2), ''),
+        reading(
+            limits,
+            'ammonia',
+            water.ammonia,
+            water.ammonia.toFixed(2),
+            'ppm',
+        ),
+        reading(
+            limits,
+            'nitrite',
+            water.nitrite,
+            water.nitrite.toFixed(2),
+            'ppm',
+        ),
+        reading(
+            limits,
+            'nitrate',
+            water.nitrate,
+            water.nitrate.toFixed(0),
+            'ppm',
+        ),
+        reading(
+            limits,
+            'oxygen',
+            water.oxygen,
+            water.oxygen.toFixed(1),
+            'mg/L',
+        ),
+        reading(limits, 'algae', water.algae, water.algae.toFixed(0), '%'),
+        reading(
+            limits,
+            'detritus',
+            water.detritus,
+            water.detritus.toFixed(1),
+            'g',
+        ),
     ];
 }
 
@@ -78,32 +124,32 @@ const dot = {
     bad: 'bg-red-500',
 };
 
-export function WaterPanel({ water }: { water: WaterParameters }) {
+export function WaterPanel({
+    water,
+    limits,
+}: {
+    water: TankSnapshot['water'];
+    limits: Limits;
+}) {
     return (
         <PanelSection id="water-heading" title="Water">
-            <ReadingList readings={readings(water)} />
+            <ReadingList readings={readings(water, limits)} />
         </PanelSection>
     );
 }
 
-function airReadings(air: TankSnapshot['air']): Reading[] {
+function airReadings(air: TankSnapshot['air'], limits: Limits): Reading[] {
     return [
-        {
-            label: 'Humidity',
-            value: `${air.humidity.toFixed(0)}%`,
-            status:
-                air.humidity < 40 ? 'bad' : air.humidity < 60 ? 'warn' : 'good',
-        },
-        {
-            label: 'Oxygen',
-            value: `${air.oxygen.toFixed(1)}%`,
-            status: air.oxygen < 16 ? 'bad' : air.oxygen < 18 ? 'warn' : 'good',
-        },
-        {
-            label: 'CO₂',
-            value: `${air.co2.toFixed(0)} ppm`,
-            status: air.co2 > 5000 ? 'bad' : air.co2 > 2000 ? 'warn' : 'good',
-        },
+        reading(limits, 'humidity', air.humidity, air.humidity.toFixed(0), '%'),
+        reading(
+            limits,
+            'air_oxygen',
+            air.oxygen,
+            air.oxygen.toFixed(1),
+            '%',
+            'Oxygen',
+        ),
+        reading(limits, 'air_co2', air.co2, air.co2.toFixed(0), 'ppm', 'CO₂'),
     ];
 }
 
@@ -111,9 +157,11 @@ function airReadings(air: TankSnapshot['air']): Reading[] {
 export function AirPanel({
     air,
     isSealed,
+    limits,
 }: {
     air: TankSnapshot['air'];
     isSealed: boolean;
+    limits: Limits;
 }) {
     return (
         <PanelSection
@@ -125,9 +173,25 @@ export function AirPanel({
                 </span>
             }
         >
-            <ReadingList readings={airReadings(air)} />
+            <ReadingList readings={airReadings(air, limits)} />
         </PanelSection>
     );
+}
+
+/** The ideal range in words, e.g. "22–28 °C" or "below 25 ppm". */
+function describeRange([min, max]: BalanceRange, unit: string): string {
+    const withUnit = (value: number) =>
+        unit === '' ? `${value}` : `${value}${unit === '%' ? '' : ' '}${unit}`;
+
+    if (min !== null && max !== null) {
+        return `${min}–${withUnit(max)}`;
+    }
+
+    if (min !== null) {
+        return `above ${withUnit(min)}`;
+    }
+
+    return max === null ? 'any' : `below ${withUnit(max)}`;
 }
 
 function ReadingList({ readings }: { readings: Reading[] }) {
@@ -147,6 +211,9 @@ function ReadingList({ readings }: { readings: Reading[] }) {
                             )}
                         />
                         {reading.label}
+                        {reading.side !== null && (
+                            <BalanceHint reading={reading} />
+                        )}
                     </dt>
                     <dd className="font-medium tabular-nums">
                         {reading.value}
@@ -155,5 +222,32 @@ function ReadingList({ readings }: { readings: Reading[] }) {
                 </div>
             ))}
         </dl>
+    );
+}
+
+/** A help icon explaining how to bring an out-of-balance reading back. */
+function BalanceHint({ reading }: { reading: Reading }) {
+    const side = reading.side ?? 'high';
+    const hint = reading.limit.hints[side];
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <button
+                    type="button"
+                    className="text-muted-foreground hover:text-foreground focus-visible:text-foreground"
+                    aria-label={`How to fix ${reading.label.toLowerCase()}`}
+                >
+                    <CircleHelp className="size-3.5" />
+                </button>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="flex-col items-start">
+                <p className="font-medium">
+                    {reading.label} is {side === 'low' ? 'low' : 'high'}. Ideal:{' '}
+                    {describeRange(reading.limit.ideal, reading.unit)}.
+                </p>
+                {hint && <p>{hint}</p>}
+            </TooltipContent>
+        </Tooltip>
     );
 }

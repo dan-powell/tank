@@ -1,6 +1,6 @@
 import { router } from '@inertiajs/react';
 import { Move, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import InputError from '@/components/input-error';
 import {
@@ -14,17 +14,26 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { MOSS_SPACING } from '@/lib/tank/plant-assembly';
 import { CELLS_PER_CM, CM, PLANT_HEIGHT_UNIT } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
 import creatureRoutes from '@/routes/tanks/creatures';
 import plantRoutes from '@/routes/tanks/plants';
-import type { CreatureSnapshot, PlantSnapshot, Species } from '@/types';
-import { PanelBackButton } from './panel-section';
+import type {
+    CreatureIntent,
+    CreatureMood,
+    CreatureSnapshot,
+    PlantSnapshot,
+    Species,
+    TankSnapshot,
+} from '@/types';
+import { SelectionPanelHeader } from './panel-section';
 
 export type Inhabitant =
     | { kind: 'creature'; entity: CreatureSnapshot; species: Species }
@@ -33,13 +42,16 @@ export type Inhabitant =
 type Props = {
     tankId: number;
     inhabitant: Inhabitant;
+    /** Species whose animals pause the tank when close to death. */
+    watchedSpecies: number[];
     world: TankWorld;
-    /** Nothing can be moved or taken out through a sealed lid. */
-    isSealed: boolean;
     /** Start choosing a new spot for it in the tank. */
     onMove: () => void;
     /** Deselect and return to the tank overview. */
     onBack: () => void;
+    /** Whether the camera is following it. */
+    isFollowing: boolean;
+    onToggleFollow: () => void;
 };
 
 const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
@@ -51,10 +63,12 @@ const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
 export function InhabitantPanel({
     tankId,
     inhabitant,
+    watchedSpecies,
     world,
-    isSealed,
     onMove,
     onBack,
+    isFollowing,
+    onToggleFollow,
 }: Props) {
     const { kind, entity, species } = inhabitant;
     const url =
@@ -71,7 +85,11 @@ export function InhabitantPanel({
 
     return (
         <section aria-labelledby="inhabitant-heading" className="space-y-4">
-            <PanelBackButton onClick={onBack} />
+            <SelectionPanelHeader
+                isFollowing={isFollowing}
+                onBack={onBack}
+                onToggleFollow={onToggleFollow}
+            />
 
             <div className="min-w-0">
                 <h2
@@ -99,11 +117,21 @@ export function InhabitantPanel({
                     <CreatureStats
                         creature={inhabitant.entity}
                         species={species}
+                        world={world}
                     />
                 ) : (
                     <PlantStats plant={inhabitant.entity} species={species} />
                 )}
             </dl>
+
+            {inhabitant.kind === 'creature' && (
+                <PauseWhenDying
+                    url={url.update}
+                    creature={inhabitant.entity}
+                    speciesName={species.name}
+                    isSpeciesWatched={watchedSpecies.includes(species.id)}
+                />
+            )}
 
             <NameForm
                 key={`${kind}-${entity.id}`}
@@ -113,19 +141,12 @@ export function InhabitantPanel({
             />
 
             <div className="flex flex-wrap gap-2">
-                <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={isSealed}
-                    title={isSealed ? 'Lift the lid first' : undefined}
-                    onClick={onMove}
-                >
+                <Button size="sm" variant="outline" onClick={onMove}>
                     <Move /> Move
                 </Button>
                 <RemoveButton
                     key={`remove-${kind}-${entity.id}`}
                     name={title}
-                    disabled={isSealed}
                     onConfirm={() =>
                         router.delete(url.destroy, {
                             ...visitOptions,
@@ -142,12 +163,95 @@ export function InhabitantPanel({
     );
 }
 
+type PauseChoice = 'species' | 'on' | 'off';
+
+/** Whether this animal pauses the tank when close to death: as its species does, always, or never. */
+function PauseWhenDying({
+    url,
+    creature,
+    speciesName,
+    isSpeciesWatched,
+}: {
+    url: string;
+    creature: CreatureSnapshot;
+    speciesName: string;
+    isSpeciesWatched: boolean;
+}) {
+    const choice: PauseChoice =
+        creature.pause_when_dying === null
+            ? 'species'
+            : creature.pause_when_dying
+              ? 'on'
+              : 'off';
+
+    const choose = (value: string) => {
+        if (value === '' || value === choice) {
+            return;
+        }
+
+        const pauseWhenDying = value === 'species' ? null : value === 'on';
+
+        router.patch(
+            url,
+            { pause_when_dying: pauseWhenDying },
+            {
+                ...visitOptions,
+                optimistic: (props) => {
+                    const tank = props.tank as TankSnapshot;
+
+                    return {
+                        tank: {
+                            ...tank,
+                            creatures: tank.creatures.map((other) =>
+                                other.id === creature.id
+                                    ? {
+                                          ...other,
+                                          pause_when_dying: pauseWhenDying,
+                                      }
+                                    : other,
+                            ),
+                        },
+                    };
+                },
+            },
+        );
+    };
+
+    return (
+        <div className="space-y-1.5">
+            <Label id="pause-when-dying-label" className="text-xs">
+                Pause the tank if close to death
+            </Label>
+            <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={choice}
+                onValueChange={choose}
+                aria-labelledby="pause-when-dying-label"
+                className="w-full *:flex-1"
+            >
+                <ToggleGroupItem
+                    value="species"
+                    title={`Follow the ${speciesName} setting on the Inhabitants tab`}
+                >
+                    As species ({isSpeciesWatched ? 'on' : 'off'})
+                </ToggleGroupItem>
+                <ToggleGroupItem value="on">On</ToggleGroupItem>
+                <ToggleGroupItem value="off">Off</ToggleGroupItem>
+            </ToggleGroup>
+        </div>
+    );
+}
+
 function CreatureStats({
     creature,
     species,
+    world,
 }: {
     creature: CreatureSnapshot;
     species: Species;
+    world: TankWorld;
 }) {
     const isFry = creature.size < (species.adult_size ?? 1) * 0.35;
 
@@ -179,7 +283,83 @@ function CreatureStats({
                     className="bg-amber-500"
                 />
             </Stat>
+            <Stat label="Behaviour">
+                <LiveBehaviour creature={creature} world={world} />
+            </Stat>
         </>
+    );
+}
+
+const intentLabels: Record<CreatureIntent, string> = {
+    wander: 'Wandering',
+    explore: 'Exploring',
+    hunt: 'Hunting',
+    rest: 'Resting',
+    hide: 'Hiding',
+    shoal: 'Shoaling',
+    patrol: 'Patrolling',
+};
+
+const moodLabels: Record<CreatureMood, string> = {
+    zoomies: 'Zoomies',
+    skittish: 'Skittish',
+    sluggish: 'Sluggish',
+};
+
+/** How often (ms) the behaviour badges catch up with the scene. */
+const BEHAVIOUR_REFRESH_MS = 250;
+
+function readBehaviour(
+    creature: CreatureSnapshot,
+    world: TankWorld,
+): { intent: CreatureIntent; moods: CreatureMood[] } {
+    const body = world.creatures.get(creature.id);
+
+    return {
+        intent: body?.intent ?? creature.intent,
+        moods: body?.moods ?? creature.moods,
+    };
+}
+
+/**
+ * What the creature is doing right now, as the scene has it (e.g. hunting
+ * the moment it spots food), rather than as of the last snapshot.
+ */
+function LiveBehaviour({
+    creature,
+    world,
+}: {
+    creature: CreatureSnapshot;
+    world: TankWorld;
+}) {
+    const [behaviour, setBehaviour] = useState(() =>
+        readBehaviour(creature, world),
+    );
+
+    useEffect(() => {
+        const timer = window.setInterval(() => {
+            const next = readBehaviour(creature, world);
+
+            setBehaviour((current) =>
+                current.intent === next.intent &&
+                current.moods.join() === next.moods.join()
+                    ? current
+                    : next,
+            );
+        }, BEHAVIOUR_REFRESH_MS);
+
+        return () => window.clearInterval(timer);
+    }, [creature, world]);
+
+    return (
+        <span className="inline-flex flex-wrap justify-end gap-1">
+            <Badge variant="secondary">{intentLabels[behaviour.intent]}</Badge>
+            {behaviour.moods.map((mood) => (
+                <Badge key={mood} variant="outline">
+                    {moodLabels[mood]}
+                </Badge>
+            ))}
+        </span>
     );
 }
 
@@ -213,7 +393,45 @@ function PlantStats({
                     className="bg-emerald-500"
                 />
             </Stat>
+            {species.light !== null && (
+                <Stat label="Light">
+                    <LightVerdict light={plant.light} needs={species.light} />
+                </Stat>
+            )}
         </>
+    );
+}
+
+/** Daily light, as a multiple of the top of a species' range, that scorches it (matches PlantGrowthSystem). */
+const SCORCH_MULTIPLE = 2.5;
+
+/**
+ * How a plant's daily light compares with what its species needs: too
+ * little starves it, up to the top of its range speeds its growth.
+ */
+function LightVerdict({
+    light,
+    needs: [minimum, saturation],
+}: {
+    light: number;
+    needs: [number, number];
+}) {
+    const [verdict, tone] =
+        light < minimum
+            ? ['Too dark', 'text-amber-600 dark:text-amber-400']
+            : light > saturation * SCORCH_MULTIPLE
+              ? ['Scorching', 'text-amber-600 dark:text-amber-400']
+              : light >= saturation
+                ? ['Bright', 'text-emerald-600 dark:text-emerald-400']
+                : ['Enough', ''];
+
+    return (
+        <span
+            className={tone}
+            title={`${light.toFixed(2)} a day; needs ${minimum}, thrives from ${saturation}`}
+        >
+            {verdict}
+        </span>
     );
 }
 
@@ -321,22 +539,15 @@ function NameForm({
 
 function RemoveButton({
     name,
-    disabled,
     onConfirm,
 }: {
     name: string;
-    disabled: boolean;
     onConfirm: () => void;
 }) {
     return (
         <AlertDialog>
             <AlertDialogTrigger asChild>
-                <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={disabled}
-                    title={disabled ? 'Lift the lid first' : undefined}
-                >
+                <Button size="sm" variant="outline">
                     <Trash2 /> Remove from tank
                 </Button>
             </AlertDialogTrigger>

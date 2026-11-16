@@ -11,7 +11,7 @@ type Props = {
 
 /**
  * The lid. Sealed, the tank is cut off from the room and runs as its own
- * ecosystem: no feeding, cleaning, stocking or aquascaping until it is lifted.
+ * ecosystem, though it can still be tended through the lid.
  */
 export function LidPanel({ tankId, isSealed }: Props) {
     return (
@@ -26,8 +26,8 @@ export function LidPanel({ tankId, isSealed }: Props) {
         >
             <p className="text-sm text-muted-foreground">
                 {isSealed
-                    ? 'The tank is running on its own: plants and animals share the air and nothing comes in from outside. Lift the lid to tend it.'
-                    : 'Seal the tank to make it a closed ecosystem. Its plants must make the oxygen its animals breathe, and nothing can be added or fed until you open it again.'}
+                    ? 'The tank is running on its own: plants and animals share the air and nothing comes in from the room. You can still tend it as usual.'
+                    : 'Seal the tank to make it a closed ecosystem. Its plants must make the oxygen its animals breathe.'}
             </p>
             <Button
                 size="sm"

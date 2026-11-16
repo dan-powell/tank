@@ -23,6 +23,8 @@ class CreateStarterTankTest extends TestCase
         $this->assertSame(47, $tank->volume_litres);
         $this->assertSame(5, $tank->layer_count);
         $this->assertSame(7, $tank->plants()->count());
+        $this->assertSame([['led-tube', 0, 1, 12]], $tank->lightFixtures()->get()
+            ->map(fn ($fixture): array => [$fixture->type, $fixture->column, $fixture->row, $fixture->length])->all());
         $this->assertSame(
             ['corydoras' => 4, 'guppy' => 6, 'nerite-snail' => 1],
             $tank->creatures()->join('species', 'species.id', '=', 'creatures.species_id')

@@ -1,6 +1,8 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
+    BackSide,
+    FrontSide,
     Color,
     DepthTexture,
     FloatType,
@@ -12,7 +14,9 @@ import {
     Vector4,
     WebGLRenderTarget,
 } from 'three';
-import type { Mesh, PerspectiveCamera } from 'three';
+import type { Mesh, Object3D, PerspectiveCamera } from 'three';
+import { easeOutCubic, introProgress, introStarted } from '@/lib/tank/intro';
+import { liveLighting, MAX_LIGHTS } from '@/lib/tank/lighting';
 import { TANK } from '@/lib/tank/space';
 import { MAX_RIPPLES, RIPPLE_LIFETIME } from '@/lib/tank/world';
 import type { TankWorld } from '@/lib/tank/world';
@@ -20,7 +24,6 @@ import type { WaterParameters } from '@/types';
 import { airStone } from './bubbles';
 import { CAUSTIC_GLSL, causticUniforms } from './caustics';
 import { sceneClock } from './scene-clock';
-import { hoodHeight, spotPositions } from './tank-lighting';
 
 type Props = {
     water: WaterParameters;
@@ -53,11 +56,71 @@ const NIGHT = {
     causticTint: new Color('#dfe6ff'),
 };
 
+/**
+ * Copy this frame's lights (see liveLighting) into the shader: their
+ * positions and strengths for the shafts and glints, their mixed colour,
+ * and shafts that fade as the lights dim.
+ */
+function followLights(
+    uniforms: ShaderMaterial['uniforms'],
+    preset: typeof DAY,
+    shaftBase: number,
+): void {
+    let total = 0;
+    mixedColour.setRGB(0, 0, 0);
+
+    for (let index = 0; index < MAX_LIGHTS; index++) {
+        const light = liveLighting.lights[index];
+        const isActive = index < liveLighting.count;
+        const intensity = isActive ? light.intensity : 0;
+
+        uniforms.uLights.value[index].set(
+            light.centre.x,
+            light.centre.y,
+            light.centre.z,
+            intensity,
+        );
+        uniforms.uLightShapes.value[index].set(
+            light.halfLength,
+            light.cosOuter,
+        );
+        mixedColour.r += light.colour.r * intensity;
+        mixedColour.g += light.colour.g * intensity;
+        mixedColour.b += light.colour.b * intensity;
+        total += intensity;
+    }
+
+    uniforms.uLightCount.value = liveLighting.count;
+
+    if (total > 0.01) {
+        uniforms.uLightColour.value.copy(mixedColour.multiplyScalar(1 / total));
+    } else {
+        uniforms.uLightColour.value.copy(preset.light);
+    }
+
+    uniforms.uShaftStrength.value = shaftBase * Math.min(1, 0.25 + total);
+}
+
+const mixedColour = new Color();
+
+/**
+ * Objects left out of the water's view of the scene: glass-top things it
+ * never shows that would cost a pass of their own to draw (condensation's
+ * refraction).
+ */
+export const hiddenFromWater = new Set<Object3D>();
+
 /** Height of the water box's floor, just clear of the glass. */
 const WATER_FLOOR = 0.002;
 
 /** Surface subdivisions per world unit; the top face is displaced by the ripple field. */
 const SURFACE_SEGMENTS_PER_UNIT = 66;
+
+/** From outside, the water is drawn first so whatever is in front of it covers it. */
+const OUTSIDE_RENDER_ORDER = -1;
+
+/** From inside, it is drawn after everything else, over the whole view. */
+const INSIDE_RENDER_ORDER = 999;
 
 /**
  * The water's box in the current tank, from just above the glass floor to the
@@ -120,12 +183,49 @@ void main() {
  * the air stone, and rings spreading from where food landed.
  */
 const WAVE_GLSL = /* glsl */ `
+float waveHash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+
+/** Smooth value noise, 0 to 1. */
+float waveNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+
+    return mix(
+        mix(waveHash(i), waveHash(i + vec2(1.0, 0.0)), u.x),
+        mix(waveHash(i + vec2(0.0, 1.0)), waveHash(i + vec2(1.0, 1.0)), u.x),
+        u.y
+    );
+}
+
+/**
+ * Fine capillary ripples: two octaves of noise drifting different ways
+ * through a slowly warping domain, so the pattern never visibly repeats.
+ */
+float capillary(vec2 p, float t) {
+    vec2 warp = vec2(
+        waveNoise(p * 2.5 + vec2(t * 0.11, -t * 0.07)),
+        waveNoise(p * 2.5 + vec2(5.2, 1.3) - vec2(t * 0.09, t * 0.13))
+    );
+    vec2 q = p * 16.0 + warp * 3.0;
+    float h = waveNoise(q + vec2(t * 0.9, t * 0.35)) * 0.6;
+    h += waveNoise(mat2(0.8, -0.6, 0.6, 0.8) * q * 2.1 - vec2(t * 0.4, -t * 1.1)) * 0.4;
+
+    return h;
+}
+
 float waveHeight(vec2 p) {
     float t = uTime;
     float h = 0.0;
-    h += sin(dot(p, vec2(0.9, 0.4)) * 9.0 + t * 1.6) * 0.0022;
-    h += sin(dot(p, vec2(-0.5, 0.85)) * 13.0 + t * 2.1) * 0.0015;
-    h += sin(dot(p, vec2(0.2, -1.0)) * 21.0 + t * 2.9) * 0.0008;
+    h += sin(dot(p, vec2(0.9, 0.4)) * 9.0 + t * 1.6) * 0.0019;
+    h += sin(dot(p, vec2(-0.5, 0.85)) * 12.3 + t * 2.1) * 0.0013;
+    h += sin(dot(p, vec2(0.96, -0.28)) * 15.7 + t * 2.4) * 0.0009;
+    h += sin(dot(p, vec2(0.2, -1.0)) * 20.9 + t * 2.9) * 0.0007;
+    h += sin(dot(p, vec2(-0.83, -0.56)) * 27.1 + t * 3.3) * 0.0005;
+    // Gusts: the swells grow and fade from place to place.
+    h *= 0.45 + 1.1 * waveNoise(p * 1.4 + vec2(t * 0.06, -t * 0.04));
 
     float boil = distance(p, uBubbleSource);
     h += sin(boil * 70.0 - t * 10.0) * 0.003 * exp(-boil * 9.0);
@@ -161,6 +261,8 @@ uniform vec2 uBubbleSource;
 uniform vec4 uRipples[MAX_RIPPLES];
 uniform vec3 uBoxMin;
 uniform vec3 uBoxMax;
+/** 1 while the camera is under the water: the box's inside faces are drawn, and the path starts at the camera. */
+uniform float uInside;
 
 uniform vec3 uWaterColour;
 uniform vec3 uExtinction;
@@ -169,7 +271,12 @@ uniform vec3 uLightColour;
 uniform vec3 uRoomColour;
 uniform vec3 uSkyColour;
 uniform float uShaftStrength;
-uniform vec3 uSpots[3];
+#define MAX_LIGHTS ${MAX_LIGHTS}
+/** Each light's centre (xyz) and current intensity (w). */
+uniform vec4 uLights[MAX_LIGHTS];
+/** Each light's half length along x (tubes; 0 for point lights) and the cosine of its beam's edge (-1 for tubes). */
+uniform vec2 uLightShapes[MAX_LIGHTS];
+uniform int uLightCount;
 
 varying vec3 vWorld;
 varying float vTop;
@@ -182,11 +289,16 @@ vec3 surfaceNormal(vec2 p) {
     float dx = waveHeight(p + vec2(e, 0.0)) - waveHeight(p - vec2(e, 0.0));
     float dz = waveHeight(p + vec2(0.0, e)) - waveHeight(p - vec2(0.0, e));
     // Fine capillary ripples that are too small for the mesh.
-    float t = uTime;
-    dx += cos(p.x * 55.0 + p.y * 20.0 + t * 4.0) * 0.0009;
-    dz += cos(p.y * 60.0 - p.x * 25.0 + t * 3.6) * 0.0009;
+    float c = 0.0015;
+    float cdx = capillary(p + vec2(c, 0.0), uTime) - capillary(p - vec2(c, 0.0), uTime);
+    float cdz = capillary(p + vec2(0.0, c), uTime) - capillary(p - vec2(0.0, c), uTime);
+    float ripple = 0.0035;
 
-    return normalize(vec3(-dx / (2.0 * e), 1.0, -dz / (2.0 * e)));
+    return normalize(vec3(
+        -dx / (2.0 * e) - cdx * ripple / (2.0 * c),
+        1.0,
+        -dz / (2.0 * e) - cdz * ripple / (2.0 * c)
+    ));
 }
 
 float sceneViewZ(vec2 uv) {
@@ -212,16 +324,31 @@ float shaftPattern(vec2 p, float t) {
     return pow(max(0.0, (a + b + c) / 3.0 + 0.25), 3.0);
 }
 
-/** How much of the lamps' cones reaches a point. */
-float spotCover(vec3 p) {
-    float cover = 0.25;
+/** The nearest point of a light (along a tube, or the light itself) to p. */
+vec3 nearestLightPoint(int i, vec3 p) {
+    vec3 centre = uLights[i].xyz;
 
-    for (int i = 0; i < 3; i++) {
-        vec3 toPoint = normalize(p - uSpots[i]);
-        cover += smoothstep(0.73, 0.93, -toPoint.y);
+    return vec3(clamp(p.x, centre.x - uLightShapes[i].x, centre.x + uLightShapes[i].x), centre.yz);
+}
+
+/** How much of the lights' beams reaches a point. */
+float spotCover(vec3 p) {
+    float cover = 0.15;
+
+    for (int i = 0; i < MAX_LIGHTS; i++) {
+        if (i >= uLightCount) {
+            break;
+        }
+
+        vec3 toPoint = normalize(p - nearestLightPoint(i, p));
+        float cosOuter = uLightShapes[i].y;
+        float beam = cosOuter < -0.5
+            ? smoothstep(0.45, 0.85, -toPoint.y)
+            : smoothstep(cosOuter, min(cosOuter + 0.15, 1.0), -toPoint.y);
+        cover += beam * min(uLights[i].w, 1.0);
     }
 
-    return min(cover, 1.4);
+    return min(cover, 1.6);
 }
 
 float interleavedNoise(vec2 pixel) {
@@ -231,7 +358,8 @@ float interleavedNoise(vec2 pixel) {
 void main() {
     vec2 uv = gl_FragCoord.xy / uResolution;
     vec3 rayDir = normalize(vWorld - cameraPosition);
-    float entryDist = distance(vWorld, cameraPosition);
+    float fragDist = distance(vWorld, cameraPosition);
+    float entryDist = uInside > 0.5 ? 0.0 : fragDist;
     float fragViewZ = (viewMatrix * vec4(vWorld, 1.0)).z;
 
     // Where the ray leaves the water box, and where it hits the scene.
@@ -240,7 +368,7 @@ void main() {
     vec3 t1 = (uBoxMax - cameraPosition) / safeDir;
     vec3 tFar = max(t0, t1);
     float exitDist = min(min(tFar.x, tFar.y), tFar.z);
-    float sceneDist = entryDist * sceneViewZ(uv) / fragViewZ;
+    float sceneDist = fragDist * sceneViewZ(uv) / fragViewZ;
     float pathLength = max(min(sceneDist, exitDist) - entryDist, 0.0);
 
     // Refraction. The flat faces' own bend is left out (in screen space it
@@ -278,7 +406,7 @@ void main() {
     vec3 behind = texture2D(uScene, refractedUv).rgb;
 
     // Fog by the depth of what is actually seen through the refraction.
-    pathLength = max(min(entryDist * seenViewZ / fragViewZ, exitDist) - entryDist, 0.0);
+    pathLength = max(min(fragDist * seenViewZ / fragViewZ, exitDist) - entryDist, 0.0);
 
     // Underside of the surface seen through the glass: total internal reflection.
     bool exitsThroughSurface = tFar.y <= min(tFar.x, tFar.z) && rayDir.y > 0.0;
@@ -326,10 +454,14 @@ void main() {
         vec3 environment = mix(uRoomColour, uSkyColour, smoothstep(-0.1, 0.7, reflected.y));
         float glints = 0.0;
 
-        for (int i = 0; i < 3; i++) {
-            vec3 toLight = normalize(uSpots[i] - vWorld);
+        for (int i = 0; i < MAX_LIGHTS; i++) {
+            if (i >= uLightCount) {
+                break;
+            }
+
+            vec3 toLight = normalize(nearestLightPoint(i, vWorld) - vWorld);
             vec3 halfway = normalize(toLight + viewDir);
-            glints += pow(max(dot(normal, halfway), 0.0), 3000.0) * 4.0;
+            glints += pow(max(dot(normal, halfway), 0.0), 3000.0) * 4.0 * min(uLights[i].w, 1.0);
         }
 
         // Break each lamp's reflection into sparkles on the wavelets.
@@ -352,6 +484,11 @@ void main() {
  * surface, and reflect the room (from above) or the tank itself (total
  * internal reflection from below).
  *
+ * With the camera under the water (in any view mode) the box's inside faces
+ * are drawn instead, last and over everything, so the water surrounds the
+ * camera: everything seen is fogged from the camera outwards, and the
+ * surface is seen from below.
+ *
  * Mount this after the camera controls so its pass uses this frame's camera.
  */
 export function WaterVolume({ water, isLit, world }: Props) {
@@ -359,6 +496,7 @@ export function WaterVolume({ water, isLit, world }: Props) {
     const target = useSceneTarget();
     const preset = isLit ? DAY : NIGHT;
     const [box] = useState(waterBox);
+    const shaftBase = useRef(0);
 
     const algae = Math.min(1, water.algae / 100);
     const murk = Math.min(1, water.detritus / 4);
@@ -387,7 +525,9 @@ export function WaterVolume({ water, isLit, world }: Props) {
                         ),
                     },
                     uBoxMin: { value: box.min },
-                    uBoxMax: { value: box.max },
+                    // Its own copy: the top follows the water as it fills.
+                    uBoxMax: { value: box.max.clone() },
+                    uInside: { value: 0 },
                     uWaterColour: { value: new Color() },
                     uExtinction: { value: new Vector3() },
                     uAmbient: { value: 0 },
@@ -395,11 +535,19 @@ export function WaterVolume({ water, isLit, world }: Props) {
                     uRoomColour: { value: new Color() },
                     uSkyColour: { value: new Color() },
                     uShaftStrength: { value: 0 },
-                    uSpots: {
-                        value: spotPositions().map(
-                            (x) => new Vector3(x, hoodHeight(), 0),
+                    uLights: {
+                        value: Array.from(
+                            { length: MAX_LIGHTS },
+                            () => new Vector4(),
                         ),
                     },
+                    uLightShapes: {
+                        value: Array.from(
+                            { length: MAX_LIGHTS },
+                            () => new Vector2(0, -1),
+                        ),
+                    },
+                    uLightCount: { value: 0 },
                 },
             }),
         [box],
@@ -422,10 +570,10 @@ export function WaterVolume({ water, isLit, world }: Props) {
             (1 - colour.b * 0.75) * 0.45 + haze,
         );
         uniforms.uAmbient.value = preset.ambient * (1 + murk * 0.6);
-        uniforms.uLightColour.value.copy(preset.light);
         uniforms.uRoomColour.value.copy(preset.room);
         uniforms.uSkyColour.value.copy(preset.sky);
         uniforms.uShaftStrength.value = preset.shafts * (1 - murk * 0.5);
+        shaftBase.current = uniforms.uShaftStrength.value;
 
         causticUniforms.uCausticColour.value.copy(preset.causticTint);
         causticUniforms.uCausticStrength.value =
@@ -434,6 +582,8 @@ export function WaterVolume({ water, isLit, world }: Props) {
 
     useFrame(({ gl, scene, camera }) => {
         const uniforms = material.uniforms;
+
+        followLights(uniforms, preset, shaftBase.current);
 
         world.ripples.forEach((ripple, index) => {
             uniforms.uRipples.value[index].set(
@@ -452,11 +602,40 @@ export function WaterVolume({ water, isLit, world }: Props) {
             return;
         }
 
+        // The tank fills during the intro: the box grows up from the floor.
+        const fill = easeOutCubic(introProgress('water'));
+        const level = WATER_FLOOR + box.height * fill;
+        mesh.current.scale.y = Math.max(fill, 1e-3);
+        mesh.current.position.y = WATER_FLOOR + (box.height * fill) / 2;
+        uniforms.uSurfaceY.value = level;
+        uniforms.uBoxMax.value.y = level;
+        causticUniforms.uCausticWaterLine.value = level;
+
+        setInside(
+            mesh.current,
+            material,
+            camera.position.x > box.min.x &&
+                camera.position.x < box.max.x &&
+                camera.position.z > box.min.z &&
+                camera.position.z < box.max.z &&
+                camera.position.y > box.min.y &&
+                camera.position.y < level,
+        );
+
+        // Drawn before the intro begins too, so its shader is compiled in advance.
+        const isShown = !introStarted() || fill > 0;
         mesh.current.visible = false;
+        const hidden = [...hiddenFromWater].filter((object) => object.visible);
+        hidden.forEach((object) => (object.visible = false));
         gl.setRenderTarget(target);
+        // The composer turns autoClear off, and only a solid-colour backdrop
+        // forces a clear, so clear explicitly or a texture backdrop leaves
+        // last frame's depth behind and the scene fails its depth test.
+        gl.clear();
         gl.render(scene, camera);
         gl.setRenderTarget(null);
-        mesh.current.visible = true;
+        hidden.forEach((object) => (object.visible = true));
+        mesh.current.visible = isShown;
 
         const perspective = camera as PerspectiveCamera;
         uniforms.uScene.value = target.texture;
@@ -475,7 +654,7 @@ export function WaterVolume({ water, isLit, world }: Props) {
             ref={mesh}
             material={material}
             position={[0, WATER_FLOOR + box.height / 2, 0]}
-            renderOrder={-1}
+            renderOrder={OUTSIDE_RENDER_ORDER}
             raycast={() => null}
         >
             <boxGeometry
@@ -490,6 +669,25 @@ export function WaterVolume({ water, isLit, world }: Props) {
             />
         </mesh>
     );
+}
+
+/**
+ * Switch between drawing the water from outside (its outer faces, early in
+ * the opaque pass, hidden behind anything in front of it) and from inside
+ * (its inner faces, which surround the camera, drawn last over everything;
+ * everything is in the scene pass it composites, so all of it is fogged).
+ */
+function setInside(mesh: Mesh, material: ShaderMaterial, isInside: boolean) {
+    if ((material.uniforms.uInside.value === 1) === isInside) {
+        return;
+    }
+
+    material.uniforms.uInside.value = isInside ? 1 : 0;
+    material.side = isInside ? BackSide : FrontSide;
+    material.transparent = isInside;
+    material.depthTest = !isInside;
+    material.depthWrite = !isInside;
+    mesh.renderOrder = isInside ? INSIDE_RENDER_ORDER : OUTSIDE_RENDER_ORDER;
 }
 
 /**

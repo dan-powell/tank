@@ -1,6 +1,8 @@
 import { Color, MeshStandardMaterial } from 'three';
 import type { WebGLProgramParametersWithUniforms } from 'three';
 import { TANK, VOXEL } from '@/lib/tank/space';
+import { applyReveal } from './intro-material';
+import type { RevealUniform } from './intro-material';
 import { sceneClock } from './scene-clock';
 
 /**
@@ -125,12 +127,21 @@ function applyVoxelGrain(shader: WebGLProgramParametersWithUniforms): void {
 
 /**
  * A plain standard material that receives caustics (e.g. the substrate),
- * optionally shaded voxel by voxel.
+ * optionally shaded voxel by voxel, and optionally dissolving in with
+ * `reveal` (in cells of `revealCell`, in the geometry's units).
  */
 export function createCausticMaterial(
     color: Color,
     roughness = 1,
-    { voxelGrain = false }: { voxelGrain?: boolean } = {},
+    {
+        voxelGrain = false,
+        reveal,
+        revealCell = 1,
+    }: {
+        voxelGrain?: boolean;
+        reveal?: RevealUniform;
+        revealCell?: number;
+    } = {},
 ): MeshStandardMaterial {
     const material = new MeshStandardMaterial({ color, roughness });
 
@@ -140,9 +151,13 @@ export function createCausticMaterial(
         if (voxelGrain) {
             applyVoxelGrain(shader);
         }
+
+        if (reveal !== undefined) {
+            applyReveal(shader, reveal, revealCell);
+        }
     };
     material.customProgramCacheKey = () =>
-        voxelGrain ? 'caustic-standard-grain' : 'caustic-standard';
+        `caustic-standard${voxelGrain ? '-grain' : ''}${reveal === undefined ? '' : `-reveal-${revealCell}`}`;
 
     return material;
 }

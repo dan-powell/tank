@@ -5,11 +5,13 @@ namespace App\Simulation;
 use App\Simulation\Systems\AirSystem;
 use App\Simulation\Systems\AlgaeSystem;
 use App\Simulation\Systems\AutoFeederSystem;
+use App\Simulation\Systems\BehaviourSystem;
 use App\Simulation\Systems\FeedingSystem;
 use App\Simulation\Systems\HealthSystem;
 use App\Simulation\Systems\LightingSystem;
 use App\Simulation\Systems\MetabolismSystem;
 use App\Simulation\Systems\MortalitySystem;
+use App\Simulation\Systems\NearDeathSystem;
 use App\Simulation\Systems\NitrogenCycleSystem;
 use App\Simulation\Systems\PhotosynthesisSystem;
 use App\Simulation\Systems\PlantGrowthSystem;
@@ -53,10 +55,12 @@ final class TankSimulator
             new PhotosynthesisSystem,
             new PlantGrowthSystem,
             new AlgaeSystem,
+            new BehaviourSystem,
             new MetabolismSystem,
             new AutoFeederSystem,
             new FeedingSystem,
             new HealthSystem,
+            new NearDeathSystem,
             new ReproductionSystem,
             new MortalitySystem,
             new WarningSystem,
@@ -64,7 +68,8 @@ final class TankSimulator
     }
 
     /**
-     * Simulate the given number of seconds, split into bounded steps.
+     * Simulate the given number of seconds, split into bounded steps. Stops
+     * early after a step that asks for the tank to be paused.
      */
     public function advance(TankState $state, int $simSeconds): SimulationResult
     {
@@ -78,11 +83,11 @@ final class TankSimulator
         $dtSeconds = intdiv(min($simSeconds, $steps * $this->maxStepSeconds), $steps);
         $events = [];
 
-        for ($i = 0; $i < $steps; $i++) {
+        for ($run = 0; $run < $steps && ! $working->pauseRequested; $run++) {
             array_push($events, ...$this->step($working, $dtSeconds));
         }
 
-        return new SimulationResult($working, $events, $steps, $steps * $dtSeconds);
+        return new SimulationResult($working, $events, $run, $run * $dtSeconds);
     }
 
     /**

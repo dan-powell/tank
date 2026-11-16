@@ -69,6 +69,27 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Lighting
+    |--------------------------------------------------------------------------
+    |
+    | Light fixtures hang from a gantry above the tank. Each runs its own
+    | timer (minutes of the simulated day), ramping up and down over
+    | `ramp_minutes`. New tanks get one LED tube on the default schedule.
+    |
+    */
+
+    'lighting' => [
+        'max_fixtures' => 8,
+        'default_schedule' => [
+            'on_minute' => 8 * 60,
+            'off_minute' => 20 * 60,
+            'ramp_minutes' => 30,
+        ],
+        'default_brightness' => 80,
+    ],
+
     'max_creatures_per_tank' => 150,
 
     'max_plants_per_tank' => 60,

@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Actions\Tank\CreateTank;
 use App\Http\Requests\Tank\StoreTankRequest;
 use App\Http\Resources\DecorationDefinitionResource;
+use App\Http\Resources\LightDefinitionResource;
 use App\Http\Resources\SpeciesResource;
 use App\Http\Resources\TankEventResource;
 use App\Http\Resources\TankResource;
 use App\Models\Species;
 use App\Models\Tank;
 use App\Simulation\DecorationCatalogue;
+use App\Simulation\LightCatalogue;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -26,6 +28,7 @@ class TankController extends Controller
             'plants' => fn ($query) => $query->alive()->orderBy('id'),
             'creatures' => fn ($query) => $query->alive()->orderBy('id'),
             'decorations' => fn ($query) => $query->orderBy('id'),
+            'lightFixtures' => fn ($query) => $query->orderBy('id'),
         ]);
 
         return Inertia::render('tanks/show', [
@@ -35,6 +38,9 @@ class TankController extends Controller
             )->resolve(),
             'decorationCatalogue' => fn () => DecorationDefinitionResource::collection(
                 array_values(DecorationCatalogue::definitions()),
+            )->resolve(),
+            'lightCatalogue' => fn () => LightDefinitionResource::collection(
+                array_values(LightCatalogue::definitions()),
             )->resolve(),
             'events' => TankEventResource::collection(
                 $tank->events()->orderByDesc('id')->limit(30)->get(),

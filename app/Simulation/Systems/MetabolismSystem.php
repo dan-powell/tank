@@ -9,7 +9,8 @@ use App\Simulation\TankState;
  * Creatures age, get hungry, breathe and excrete; well-fed juveniles grow.
  * Water breathers use dissolved oxygen and excrete ammonia into the water;
  * air breathers use the air above it, and land animals' waste becomes
- * detritus in the soil.
+ * detritus in the soil. Resting animals burn less; hunting, exploring and
+ * zoomies burn more.
  */
 final class MetabolismSystem implements SimulationSystem
 {
@@ -28,10 +29,11 @@ final class MetabolismSystem implements SimulationSystem
 
         foreach ($state->livingCreatures() as $creature) {
             $species = $state->speciesOf($creature);
-            $metabolism = $creature->metabolicFactor($species) * $activity * $context->hours;
+            $busyness = $activity * $creature->activityFactor();
+            $metabolism = $creature->metabolicFactor($species) * $busyness * $context->hours;
 
             $creature->ageSeconds += $context->dtSeconds;
-            $creature->hunger = min(1.0, $creature->hunger + $species->number('hunger_per_hour') * $activity * $context->hours);
+            $creature->hunger = min(1.0, $creature->hunger + $species->number('hunger_per_hour') * $busyness * $context->hours);
 
             $habitat = $species->habitat();
             $oxygenMg = $species->number('oxygen_use') * $metabolism;

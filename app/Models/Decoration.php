@@ -27,10 +27,13 @@ use Illuminate\Support\Carbon;
  * @property int $z
  * @property int $rotation
  * @property int $seed Varies generated models (rocks) between placements.
+ * @property bool $lights_on Whether its decorative LEDs (if the model has any) are switched on.
+ * @property string|null $light_colour LED colour as #rrggbb (null = the catalogue's colour).
+ * @property string $light_mode `timer` (follows the tank's lights) or `always`.
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['type', 'x', 'y', 'z', 'rotation', 'seed'])]
+#[Fillable(['type', 'x', 'y', 'z', 'rotation', 'seed', 'lights_on', 'light_colour', 'light_mode'])]
 class Decoration extends Model
 {
     /** @use HasFactory<DecorationFactory> */
@@ -70,6 +73,7 @@ class Decoration extends Model
             'z' => 'integer',
             'rotation' => 'integer',
             'seed' => 'integer',
+            'lights_on' => 'boolean',
         ];
     }
 }

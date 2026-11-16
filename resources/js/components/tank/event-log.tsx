@@ -11,6 +11,8 @@ const accent: Partial<Record<TankEvent['type'], string>> = {
     death: 'border-red-500',
     plant_died: 'border-red-400',
     warning: 'border-amber-500',
+    near_death: 'border-red-500',
+    pause: 'border-sky-500',
     plant_spread: 'border-lime-500',
 };
 

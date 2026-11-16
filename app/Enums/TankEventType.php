@@ -16,9 +16,12 @@ enum TankEventType: string
     case Vacuum = 'vacuum';
     case AlgaeScrub = 'algae_scrub';
     case LightToggled = 'light_toggled';
+    case Lighting = 'lighting';
     case Lid = 'lid';
     case LivestockAdded = 'livestock_added';
     case Removed = 'removed';
     case Aquascaping = 'aquascaping';
     case Warning = 'warning';
+    case NearDeath = 'near_death';
+    case Pause = 'pause';
 }

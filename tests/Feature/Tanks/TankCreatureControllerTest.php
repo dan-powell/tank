@@ -56,6 +56,29 @@ class TankCreatureControllerTest extends TestCase
         $this->assertNull($creature->fresh()->nickname);
     }
 
+    public function test_choosing_whether_an_animal_pauses_the_tank_keeps_its_name(): void
+    {
+        $creature = Creature::factory()->create(['nickname' => 'Bubbles']);
+
+        $this->actingAs($creature->tank->user)
+            ->patch(route('tanks.creatures.update', [$creature->tank, $creature]), ['pause_when_dying' => true])
+            ->assertRedirect();
+
+        $this->assertTrue($creature->fresh()->pause_when_dying);
+        $this->assertSame('Bubbles', $creature->fresh()->nickname);
+    }
+
+    public function test_a_null_pause_setting_follows_the_species_again(): void
+    {
+        $creature = Creature::factory()->create(['pause_when_dying' => false]);
+
+        $this->actingAs($creature->tank->user)
+            ->patch(route('tanks.creatures.update', [$creature->tank, $creature]), ['pause_when_dying' => null])
+            ->assertRedirect();
+
+        $this->assertNull($creature->fresh()->pause_when_dying);
+    }
+
     public function test_removing_an_animal_takes_it_out_of_the_tank_and_logs_it(): void
     {
         $species = Species::factory()->create(['name' => 'Guppy']);
@@ -160,16 +183,16 @@ class TankCreatureControllerTest extends TestCase
             ->assertSessionHasErrors(['layer' => 'The layer field must be between 0 and 4.']);
     }
 
-    public function test_cannot_move_an_animal_through_a_sealed_lid(): void
+    public function test_can_move_an_animal_in_a_sealed_tank(): void
     {
         $tank = Tank::factory()->sealed()->create();
         $creature = Creature::factory()->for($tank)->create(['zone_x' => 0.5]);
 
         $this->actingAs($tank->user)
             ->patch(route('tanks.creatures.move', [$tank, $creature]), ['x' => 0.7, 'y' => 0.4, 'layer' => 3])
-            ->assertSessionHasErrors(['lid' => 'Lift the lid first.']);
+            ->assertSessionHasNoErrors();
 
-        $this->assertSame(0.5, $creature->fresh()->zone_x);
+        $this->assertSame(0.7, $creature->fresh()->zone_x);
     }
 
     public function test_cannot_move_an_animal_that_has_died(): void

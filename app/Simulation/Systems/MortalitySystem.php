@@ -2,6 +2,7 @@
 
 namespace App\Simulation\Systems;
 
+use App\Enums\CreatureIntent;
 use App\Enums\TankEventType;
 use App\Simulation\CreatureState;
 use App\Simulation\StepContext;
@@ -9,20 +10,16 @@ use App\Simulation\TankState;
 
 /**
  * Deaths from failing health, old age, and fry being eaten (less likely in
- * densely planted tanks). Corpses and dead plants become detritus.
+ * densely planted tanks, especially for fry that are hiding). Corpses and dead plants become detritus.
  */
 final class MortalitySystem implements SimulationSystem
 {
-    /** Fry are vulnerable until they reach this fraction of adult size. */
-    private const float FRY_SIZE_FRACTION = 0.35;
+    /** Hiding fry count this much more of the plants as cover. */
+    private const float HIDING_COVER = 2.0;
 
     public function apply(TankState $state, StepContext $context): void
     {
-        $predators = count(array_filter(
-            $state->livingCreatures(),
-            fn (CreatureState $creature): bool => $state->speciesOf($creature)->param('eats_fry', false)
-                && ! $this->isFry($creature, $state),
-        ));
+        $predators = $state->fryPredatorCount();
         $cover = $state->competitivePlantBiomass() * 100 / max($state->volumeLitres, 1);
 
         foreach ($state->livingCreatures() as $creature) {
@@ -34,8 +31,8 @@ final class MortalitySystem implements SimulationSystem
             } elseif ($creature->ageSeconds > $lifespanSeconds
                 && $context->chancePerDay(0.25 * (1 + 4 * ($creature->ageSeconds - $lifespanSeconds) / $lifespanSeconds))) {
                 $creature->die('old age');
-            } elseif ($predators > 0 && $this->isFry($creature, $state)
-                && $context->chancePerDay(0.4 * $predators / ($predators + 3) / (1 + $cover / 10))) {
+            } elseif ($predators > 0 && $state->isFry($creature)
+                && $context->chancePerDay(0.4 * $predators / ($predators + 3) / (1 + $this->coverFor($creature, $cover) / 10))) {
                 $creature->die('eaten');
             }
 
@@ -54,9 +51,12 @@ final class MortalitySystem implements SimulationSystem
         }
     }
 
-    private function isFry(CreatureState $creature, TankState $state): bool
+    /**
+     * The plant cover a fry makes use of: more when it is hiding in it.
+     */
+    private function coverFor(CreatureState $creature, float $cover): float
     {
-        return $creature->size < $state->speciesOf($creature)->number('adult_size', 1) * self::FRY_SIZE_FRACTION;
+        return $creature->intent === CreatureIntent::Hide ? $cover * self::HIDING_COVER : $cover;
     }
 
     private function recordCreatureDeath(CreatureState $creature, TankState $state, StepContext $context): void
@@ -67,7 +67,7 @@ final class MortalitySystem implements SimulationSystem
             $state->detritus += 0.5 * $creature->metabolicFactor($species);
         }
 
-        $name = $creature->nickname ?? ($this->isFry($creature, $state) ? "A {$species->name} fry" : "A {$species->name}");
+        $name = $creature->nickname ?? ($state->isFry($creature) ? "A {$species->name} fry" : "A {$species->name}");
         $message = $creature->deathCause === 'eaten'
             ? "{$name} was eaten."
             : "{$name} died of {$creature->deathCause}.";

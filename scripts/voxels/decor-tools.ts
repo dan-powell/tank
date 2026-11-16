@@ -815,3 +815,36 @@ export function polyps(
         }
     }
 }
+
+// ---------------------------------------------------------------- rock masses
+
+/**
+ * Fill a rock mass leaning on the back glass: up to `top(x)` at each x, and
+ * forward to `front(x, y, rise)` at each height (rise is 0 at the foot, 1 at
+ * the top).
+ */
+export function rockMass(
+    volume: Volume,
+    top: (x: number) => number,
+    front: (x: number, y: number, rise: number) => number,
+    value = 1,
+): void {
+    for (let x = 0; x < volume.width; x++) {
+        const height = top(x);
+
+        for (let y = 0; y < volume.height && y < height; y++) {
+            const reach = front(x, y, y / height);
+
+            for (let z = 0; z < volume.depth && z <= reach; z++) {
+                volume.put(x, y, z, value);
+            }
+        }
+    }
+}
+
+/** Make sure each anchor has rock just beneath it. */
+export function support(volume: Volume, anchors: Cell[], value = 1): void {
+    for (const [ax, ay, az] of anchors) {
+        volume.put(ax, ay - 1, az, value);
+    }
+}

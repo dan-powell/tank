@@ -1,4 +1,4 @@
-import { ArrowLeft, Lock } from 'lucide-react';
+import { ArrowLeft, LocateFixed } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -59,25 +59,34 @@ export function PanelBackButton({ onClick }: { onClick: () => void }) {
 }
 
 /**
- * Disables every control inside while the lid is sealed, with a short note
- * saying why. Display-neutral, so it can wrap whole panel sections.
+ * The top row of a selected entity's panel: back to the tank, and a toggle
+ * that has the camera follow the entity around the tank.
  */
-export function SealedGuard({
-    isSealed,
-    children,
+export function SelectionPanelHeader({
+    isFollowing,
+    onBack,
+    onToggleFollow,
 }: {
-    isSealed: boolean;
-    children: ReactNode;
+    isFollowing: boolean;
+    onBack: () => void;
+    onToggleFollow: () => void;
 }) {
     return (
-        <fieldset disabled={isSealed} className="contents">
-            {isSealed && (
-                <p className="flex items-center gap-1.5 pb-3 text-xs text-muted-foreground">
-                    <Lock className="size-3.5" /> The lid is sealed. Lift it in
-                    Equipment to make changes.
-                </p>
-            )}
-            {children}
-        </fieldset>
+        <div className="flex items-center justify-between gap-2">
+            <PanelBackButton onClick={onBack} />
+            <Button
+                size="sm"
+                variant={isFollowing ? 'secondary' : 'outline'}
+                aria-pressed={isFollowing}
+                title={
+                    isFollowing
+                        ? 'Stop following (or pan the view)'
+                        : 'Zoom in and follow it around the tank'
+                }
+                onClick={onToggleFollow}
+            >
+                <LocateFixed /> {isFollowing ? 'Following' : 'Follow'}
+            </Button>
+        </div>
     );
 }

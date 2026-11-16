@@ -150,4 +150,29 @@ class PlantGrowthSystemTest extends TestCase
         $this->assertSame(1.0, $atEdge->health);
         $this->assertEqualsWithDelta(0.98, $deep->health, 0.0001);
     }
+
+    public function test_dimly_lit_plants_grow_more_slowly(): void
+    {
+        $bright = $this->plant(overrides: ['size' => 2.0]);
+        $bright->light = 1.5;
+        $dim = $this->plant(overrides: ['size' => 2.0]);
+        $dim->light = 0.3;
+        $state = $this->tankState(['nitrate' => 20.0, 'plants' => [$bright, $dim]]);
+
+        (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertGreaterThan($dim->size - 2.0, ($bright->size - 2.0) / 4);
+        $this->assertGreaterThan(2.0, $dim->size);
+    }
+
+    public function test_plants_short_of_daily_light_lose_health(): void
+    {
+        $starved = $this->plant(overrides: ['health' => 0.8]);
+        $starved->dailyLight = 0.1;
+        $state = $this->tankState(['nitrate' => 20.0, 'plants' => [$starved]]);
+
+        (new PlantGrowthSystem)->apply($state, $this->context($state, dtSeconds: 3600));
+
+        $this->assertLessThan(0.8, $starved->health);
+    }
 }

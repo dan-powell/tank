@@ -33,7 +33,10 @@ class SpeciesResource extends JsonResource
             'adult_size' => $this->params['adult_size'] ?? null,
             'max_size' => $this->params['max_size'] ?? null,
             'habitat' => Habitat::fromParams($this->params),
+            'light' => $this->kind === SpeciesKind::Plant ? ($this->params['light'] ?? null) : null,
             'anchorage' => $this->kind === SpeciesKind::Plant ? PlantAnchorage::fromParams($this->params) : null,
+            'is_prey' => (bool) ($this->params['prey'] ?? false),
+            'hunts_prey' => isset($this->params['diet']['prey']),
             'render' => SpeciesCatalogue::render($this->slug) ?? $this->params['render'] ?? [],
         ];
     }

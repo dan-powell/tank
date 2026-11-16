@@ -4,6 +4,7 @@ namespace App\Simulation;
 
 use App\Models\Creature;
 use App\Models\Decoration;
+use App\Models\LightFixture;
 use App\Models\Plant;
 use App\Models\Species;
 use App\Models\Tank;
@@ -21,45 +22,17 @@ final class TankStateRepository
         ])->all();
 
         $decorations = $tank->decorations()->get()->keyBy('id');
+        $gantry = Gantry::of($tank);
 
         $plants = Plant::query()->whereBelongsTo($tank)->alive()->orderBy('id')->get()
-            ->map(fn (Plant $plant): PlantState => new PlantState(
-                id: $plant->id,
-                speciesId: $plant->species_id,
-                parentId: $plant->parent_id,
-                rootX: $plant->root_x,
-                rootY: $plant->root_y,
-                layer: $plant->layer,
-                size: $plant->size,
-                segments: $plant->segments,
-                health: $plant->health,
-                ageSeconds: $plant->age_seconds,
-                decorationId: $plant->decoration_id,
-                anchorIndex: $plant->anchor_index,
-                rootHeight: $this->rootHeight($tank, $plant, $decorations->get($plant->decoration_id)),
-            ))->all();
+            ->map(fn (Plant $plant): PlantState => $this->plantState($tank, $plant, $decorations->get($plant->decoration_id)))->all();
+
+        $alerts = $tank->alertSettings();
 
         $creatures = Creature::query()->whereBelongsTo($tank)->alive()->orderBy('id')->get()
-            ->map(fn (Creature $creature): CreatureState => new CreatureState(
-                id: $creature->id,
-                speciesId: $creature->species_id,
-                motherId: $creature->mother_id,
-                fatherId: $creature->father_id,
-                nickname: $creature->nickname,
-                sex: $creature->sex,
-                size: $creature->size,
-                hunger: $creature->hunger,
-                health: $creature->health,
-                ageSeconds: $creature->age_seconds,
-                gestationSeconds: $creature->gestation_seconds,
-                zoneX: $creature->zone_x,
-                zoneY: $creature->zone_y,
-                layer: $creature->layer,
-                zoneRadius: $creature->zone_radius,
-                generation: $creature->generation,
-            ))->all();
+            ->map(fn (Creature $creature): CreatureState => $this->creatureState($creature, $alerts))->all();
 
-        return new TankState(
+        $state = new TankState(
             volumeLitres: $tank->volume_litres,
             layerCount: $tank->layer_count,
             temperature: $tank->temperature,
@@ -74,7 +47,7 @@ final class TankStateRepository
             uneatenFood: $tank->uneaten_food,
             algae: $tank->algae,
             bacteria: $tank->bacteria,
-            lightOn: $tank->light_on,
+            lightMode: $tank->light_mode,
             simTick: $tank->sim_tick,
             simSeconds: $tank->sim_seconds,
             rngSeed: $tank->rng_seed,
@@ -103,7 +76,71 @@ final class TankStateRepository
             waterSurfaceShare: TankGeometry::waterSurfaceShare($tank),
             isSealed: $tank->is_sealed,
             substrate: $tank->substrate_heights === null ? null : SubstrateHeightmap::of($tank),
+            gridHeight: $tank->grid_height,
+            lightFixtures: $tank->lightFixtures()->orderBy('id')->get()
+                ->map(fn (LightFixture $fixture): LightFixtureState => LightFixtureState::fromModel($fixture, $gantry))
+                ->all(),
+            decorationBoxes: $decorations->map(fn (Decoration $decoration): GridBox => TankGeometry::footprint($decoration))->all(),
         );
+        $state->nearDeathHealth = $alerts->nearDeathHealth;
+
+        return $state;
+    }
+
+    /**
+     * An animal's working state, watched if it (or failing that, its species) pauses the tank when dying.
+     */
+    private function creatureState(Creature $creature, AlertSettings $alerts): CreatureState
+    {
+        $state = new CreatureState(
+            id: $creature->id,
+            speciesId: $creature->species_id,
+            motherId: $creature->mother_id,
+            fatherId: $creature->father_id,
+            nickname: $creature->nickname,
+            sex: $creature->sex,
+            size: $creature->size,
+            hunger: $creature->hunger,
+            health: $creature->health,
+            ageSeconds: $creature->age_seconds,
+            gestationSeconds: $creature->gestation_seconds,
+            zoneX: $creature->zone_x,
+            zoneY: $creature->zone_y,
+            layer: $creature->layer,
+            zoneRadius: $creature->zone_radius,
+            generation: $creature->generation,
+            intent: $creature->intent,
+            intentSeconds: $creature->intent_seconds,
+            moods: $creature->moods ?? [],
+        );
+        $state->watched = $creature->pause_when_dying ?? $alerts->watchesSpecies($creature->species_id);
+
+        return $state;
+    }
+
+    /**
+     * A plant's working state, starting from the daily light it last had.
+     */
+    private function plantState(Tank $tank, Plant $plant, ?Decoration $decoration): PlantState
+    {
+        $state = new PlantState(
+            id: $plant->id,
+            speciesId: $plant->species_id,
+            parentId: $plant->parent_id,
+            rootX: $plant->root_x,
+            rootY: $plant->root_y,
+            layer: $plant->layer,
+            size: $plant->size,
+            segments: $plant->segments,
+            health: $plant->health,
+            ageSeconds: $plant->age_seconds,
+            decorationId: $plant->decoration_id,
+            anchorIndex: $plant->anchor_index,
+            rootHeight: $this->rootHeight($tank, $plant, $decoration),
+        );
+        $state->dailyLight = $plant->light;
+
+        return $state;
     }
 
     /**
@@ -193,11 +230,12 @@ final class TankStateRepository
             'size' => $plant->size,
             'segments' => $plant->segments,
             'health' => $plant->health,
+            'light' => $plant->dailyLight,
             'age_seconds' => $plant->ageSeconds,
             'died_at' => $plant->isDead ? $now : null,
         ], $plants);
 
-        $this->persist(Plant::class, $rows, ['size', 'segments', 'health', 'age_seconds', 'died_at']);
+        $this->persist(Plant::class, $rows, ['size', 'segments', 'health', 'light', 'age_seconds', 'died_at']);
     }
 
     /**
@@ -223,12 +261,16 @@ final class TankStateRepository
             'layer' => $creature->layer,
             'zone_radius' => $creature->zoneRadius,
             'generation' => $creature->generation,
+            'intent' => $creature->intent->value,
+            'intent_seconds' => $creature->intentSeconds,
+            'moods' => json_encode((object) $creature->moods),
             'died_at' => $creature->isDead ? $now : null,
             'death_cause' => $creature->deathCause,
         ], $creatures);
 
         $this->persist(Creature::class, $rows, [
-            'size', 'hunger', 'health', 'age_seconds', 'gestation_seconds', 'died_at', 'death_cause',
+            'size', 'hunger', 'health', 'age_seconds', 'gestation_seconds', 'intent', 'intent_seconds', 'moods',
+            'died_at', 'death_cause',
         ]);
     }
 

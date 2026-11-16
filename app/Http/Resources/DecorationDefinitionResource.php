@@ -28,6 +28,8 @@ class DecorationDefinitionResource extends JsonResource
             'size' => $this->size,
             'anchors' => $this->anchors,
             'params' => (object) $this->params,
+            'light_points' => $this->lightPoints,
+            'light_colour' => $this->lightColour,
         ];
     }
 }

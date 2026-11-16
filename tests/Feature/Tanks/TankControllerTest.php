@@ -2,11 +2,14 @@
 
 namespace Tests\Feature\Tanks;
 
+use App\Enums\CreatureIntent;
+use App\Enums\CreatureMood;
 use App\Models\Creature;
 use App\Models\Decoration;
 use App\Models\Plant;
 use App\Models\Tank;
 use App\Models\User;
+use App\Simulation\DecorationCatalogue;
 use App\Simulation\SpeciesCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia;
@@ -63,6 +66,7 @@ class TankControllerTest extends TestCase
                     'position' => [10, 4, 2],
                     'rotation' => 3,
                     'seed' => 99,
+                    'lights' => ['on' => false, 'colour' => '#cfe6ff', 'mode' => 'timer'],
                 ])
                 ->where('tank.plants.0.attachment', ['decoration_id' => $decoration->id, 'anchor' => 1])
                 ->where('tank.grid', ['width' => 300, 'height' => 163, 'depth' => 138, 'water_level' => 153, 'max_water_level' => 153])
@@ -72,7 +76,7 @@ class TankControllerTest extends TestCase
                 ->where('tank.land_area_cm2', 0)
                 ->where('species', fn ($species): bool => collect($species)->every(fn (array $entry): bool => isset($entry['habitat'])))
                 ->where('tank.substrate', [10, 300 * 138])
-                ->has('decorationCatalogue', 10)
+                ->has('decorationCatalogue', count(DecorationCatalogue::definitions()))
                 ->where('decorationCatalogue.1.slug', 'boulder')
                 ->where('decorationCatalogue.1.anchors.0', [33, 43, 28]));
     }
@@ -192,5 +196,27 @@ class TankControllerTest extends TestCase
             ->assertSessionHasErrors(['name' => 'You cannot keep any more tanks.']);
 
         $this->assertSame(1, $tank->user->tanks()->count());
+    }
+
+    public function test_creatures_show_what_they_are_busy_doing(): void
+    {
+        $tank = Tank::factory()->create();
+        Creature::factory()->for($tank)->for(SpeciesCatalogue::resolve('guppy'))
+            ->create(['intent' => CreatureIntent::Hide, 'moods' => [CreatureMood::Zoomies->value => 600]]);
+        SpeciesCatalogue::resolve('fire-bellied-toad');
+        SpeciesCatalogue::resolve('springtail');
+
+        $this->actingAs($tank->user)
+            ->get(route('tanks.show', $tank))
+            ->assertInertia(fn (AssertableInertia $page) => $page
+                ->where('tank.creatures.0.intent', 'hide')
+                ->where('tank.creatures.0.moods', ['zoomies'])
+                ->where('species', fn ($species): bool => collect($species)->keyBy('slug')->map(
+                    fn (array $entry): array => [$entry['hunts_prey'], $entry['is_prey']],
+                )->only(['guppy', 'fire-bellied-toad', 'springtail'])->sortKeys()->all() === [
+                    'fire-bellied-toad' => [true, false],
+                    'guppy' => [false, false],
+                    'springtail' => [false, true],
+                ]));
     }
 }

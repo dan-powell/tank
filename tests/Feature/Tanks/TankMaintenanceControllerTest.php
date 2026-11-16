@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Tanks;
 
+use App\Enums\LightMode;
+use App\Enums\PauseReason;
 use App\Enums\TankEventType;
 use App\Events\TankUpdated;
 use App\Models\Creature;
@@ -10,6 +12,7 @@ use App\Models\Tank;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class TankMaintenanceControllerTest extends TestCase
@@ -93,14 +96,35 @@ class TankMaintenanceControllerTest extends TestCase
         $this->assertEqualsWithDelta(14, $tank->fresh()->algae, 0.0001);
     }
 
-    public function test_light_switch_toggles_the_lamp(): void
+    public function test_master_switch_turns_all_the_lights_off(): void
     {
-        $tank = Tank::factory()->create(['light_on' => true]);
+        $tank = Tank::factory()->create(['light_mode' => LightMode::Timer]);
 
-        $this->actingAs($tank->user)->post(route('tanks.light', $tank))->assertRedirect();
+        $this->actingAs($tank->user)->put(route('tanks.light', $tank), ['mode' => 'off'])->assertRedirect();
 
-        $this->assertFalse($tank->fresh()->light_on);
-        $this->assertSame('You switched the lamp off.', $tank->events()->sole()->message);
+        $this->assertSame(LightMode::Off, $tank->fresh()->light_mode);
+        $this->assertSame('You switched all the lights off.', $tank->events()->sole()->message);
+    }
+
+    public function test_master_switch_turns_all_the_lights_on_regardless_of_their_timers(): void
+    {
+        $tank = Tank::factory()->lit()->create(['light_mode' => LightMode::Off, 'sim_seconds' => 2 * 3600]);
+
+        $this->actingAs($tank->user)->put(route('tanks.light', $tank), ['mode' => 'on'])->assertRedirect();
+
+        $this->assertSame(LightMode::On, $tank->fresh()->light_mode);
+        $this->assertSame('You switched all the lights on.', $tank->events()->sole()->message);
+        $this->actingAs($tank->user)->get(route('tanks.show', $tank))
+            ->assertInertia(fn (AssertableInertia $page) => $page->where('tank.is_lit', true)->where('tank.light_mode', 'on'));
+    }
+
+    public function test_master_switch_rejects_an_unknown_mode(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs($tank->user)->put(route('tanks.light', $tank), ['mode' => 'dim'])->assertSessionHasErrors('mode');
+
+        $this->assertSame(LightMode::Timer, $tank->fresh()->light_mode);
     }
 
     public function test_other_users_cannot_maintain_the_tank(): void
@@ -343,5 +367,144 @@ class TankMaintenanceControllerTest extends TestCase
         $this->actingAs(User::factory()->create())
             ->put(route('tanks.background', $tank), ['colour' => '#ffffff'])
             ->assertForbidden();
+    }
+
+    public function test_pausing_stops_the_tank_and_logs_it(): void
+    {
+        $this->freezeSecond();
+        $tank = Tank::factory()->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.pause', $tank), ['paused' => true])
+            ->assertRedirect();
+
+        $tank->refresh();
+        $this->assertTrue($tank->is_paused);
+        $this->assertSame(PauseReason::Manual, $tank->pause_reason);
+        $this->assertTrue($tank->paused_at->equalTo(now()));
+        $this->assertSame(TankEventType::Pause, $tank->events()->sole()->type);
+        Event::assertDispatched(TankUpdated::class);
+    }
+
+    public function test_resuming_restarts_the_clock_so_the_paused_time_is_not_caught_up(): void
+    {
+        $this->freezeSecond();
+        $tank = Tank::factory()->paused()->create(['last_simulated_at' => now()->subHours(3)]);
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.pause', $tank), ['paused' => false])
+            ->assertRedirect();
+
+        $tank->refresh();
+        $this->assertFalse($tank->is_paused);
+        $this->assertNull($tank->pause_reason);
+        $this->assertNull($tank->paused_at);
+        $this->assertTrue($tank->last_simulated_at->equalTo(now()));
+    }
+
+    public function test_a_paused_tank_cannot_be_fed(): void
+    {
+        $tank = Tank::factory()->paused()->create(['uneaten_food' => 0]);
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.feed', $tank), ['x' => 0.5, 'z' => 0.5])
+            ->assertSessionHasErrors(['food' => 'The tank is paused. Resume it before adding food.']);
+
+        $this->assertSame(0.0, $tank->fresh()->uneaten_food);
+        $this->assertSame(0, $tank->events()->count());
+    }
+
+    public function test_the_water_can_still_be_changed_while_paused(): void
+    {
+        $tank = Tank::factory()->paused()->create(['nitrate' => 40]);
+
+        $this->actingAs($tank->user)
+            ->post(route('tanks.water-change', $tank), ['percent' => 50])
+            ->assertRedirect();
+
+        $this->assertSame(20.0, $tank->fresh()->nitrate);
+    }
+
+    public function test_saving_alert_settings_keeps_the_watched_species(): void
+    {
+        $tank = Tank::factory()->create(['alert_settings' => ['watched_species' => [3]]]);
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.alerts', $tank), [
+                'near_death_health' => 0.4,
+                'disabled_parameters' => ['nitrate', 'light'],
+                'mail' => true,
+                'browser' => false,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame([
+            'near_death_health' => 0.4,
+            'disabled_parameters' => ['nitrate', 'light'],
+            'watched_species' => [3],
+            'mail' => true,
+            'browser' => false,
+        ], $tank->fresh()->alert_settings);
+        $this->assertSame(0, $tank->events()->count());
+    }
+
+    public function test_alert_settings_reject_an_unknown_parameter_and_a_threshold_out_of_range(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.alerts', $tank), [
+                'near_death_health' => 0.9,
+                'disabled_parameters' => ['salinity'],
+                'mail' => false,
+                'browser' => false,
+            ])
+            ->assertSessionHasErrors([
+                'near_death_health' => 'The near death health field must be between 0.1 and 0.5.',
+                'disabled_parameters.0' => 'The selected disabled_parameters.0 is invalid.',
+            ]);
+
+        $this->assertNull($tank->fresh()->alert_settings);
+    }
+
+    public function test_watching_a_species_adds_it_to_the_list_and_unwatching_removes_it(): void
+    {
+        $tank = Tank::factory()->create();
+        $species = Species::factory()->catalogue('guppy')->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.watched-species', [$tank, $species]), ['watched' => true])
+            ->assertRedirect();
+
+        $this->assertSame([$species->id], $tank->fresh()->alertSettings()->watchedSpecies);
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.watched-species', [$tank, $species]), ['watched' => false])
+            ->assertRedirect();
+
+        $this->assertSame([], $tank->fresh()->alertSettings()->watchedSpecies);
+    }
+
+    public function test_a_plant_species_cannot_be_watched(): void
+    {
+        $tank = Tank::factory()->create();
+        $species = Species::factory()->plant()->create();
+
+        $this->actingAs($tank->user)
+            ->put(route('tanks.watched-species', [$tank, $species]), ['watched' => true])
+            ->assertNotFound();
+
+        $this->assertNull($tank->fresh()->alert_settings);
+    }
+
+    public function test_only_the_owner_can_pause_the_tank(): void
+    {
+        $tank = Tank::factory()->create();
+
+        $this->actingAs(User::factory()->create())
+            ->put(route('tanks.pause', $tank), ['paused' => true])
+            ->assertForbidden();
+
+        $this->assertFalse($tank->fresh()->is_paused);
     }
 }

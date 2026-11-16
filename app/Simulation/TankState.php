@@ -3,6 +3,7 @@
 namespace App\Simulation;
 
 use App\Enums\Habitat;
+use App\Enums\LightMode;
 
 /**
  * Mutable working copy of a tank's full simulated state.
@@ -12,8 +13,26 @@ use App\Enums\Habitat;
  */
 final class TankState
 {
-    /** Whether the tank is lit during the current step (derived each step). */
+    /** Fry are vulnerable until they reach this fraction of adult size. */
+    public const float FRY_SIZE_FRACTION = 0.35;
+
+    /** Whether any light is reaching the tank during the current step (derived each step). */
     public bool $isLit = false;
+
+    /** Average light across the substrate this step, in LightField units (derived each step). */
+    public float $lightLevel = LightField::REFERENCE_FLOOR_LIGHT;
+
+    /** Hours per day the lighting runs at a useful level (derived each step). */
+    public float $photoperiodHours = 12.0;
+
+    /** The tank's light field, built once per simulation run by the lighting system. */
+    public ?LightField $lightField = null;
+
+    /** Health (0..1) below which a watched animal is close to death. */
+    public float $nearDeathHealth = AlertSettings::DEFAULT_NEAR_DEATH_HEALTH;
+
+    /** Set when something happened that should stop the simulation until the owner steps in. */
+    public bool $pauseRequested = false;
 
     /**
      * @param  array<int, SpeciesDefinition>  $species  Keyed by species id.
@@ -33,6 +52,9 @@ final class TankState
      * @param  float  $waterSurfaceShare  Share of the floor plan that is open water (0..1).
      * @param  bool  $isSealed  Whether the lid is sealed (no air exchange with the room).
      * @param  SubstrateHeightmap|null  $substrate  The substrate heightmap (null when flat).
+     * @param  int  $gridHeight  Interior height (glass floor to rim) in grid cells.
+     * @param  list<LightFixtureState>  $lightFixtures
+     * @param  array<int, GridBox>  $decorationBoxes  Every decoration's box, keyed by decoration id.
      */
     public function __construct(
         public int $volumeLitres,
@@ -49,7 +71,7 @@ final class TankState
         public float $uneatenFood,
         public float $algae,
         public float $bacteria,
-        public bool $lightOn,
+        public LightMode $lightMode,
         public int $simTick,
         public int $simSeconds,
         public int $rngSeed,
@@ -71,6 +93,9 @@ final class TankState
         public float $waterSurfaceShare = 1.0,
         public bool $isSealed = false,
         public ?SubstrateHeightmap $substrate = null,
+        public int $gridHeight = TankGeometry::DEFAULT_HEIGHT,
+        public array $lightFixtures = [],
+        public array $decorationBoxes = [],
     ) {}
 
     /**
@@ -105,6 +130,26 @@ final class TankState
     public function livingCreatures(): array
     {
         return array_values(array_filter($this->creatures, fn (CreatureState $creature): bool => ! $creature->isDead));
+    }
+
+    /**
+     * Whether a creature is still small enough to be eaten by fry-eating adults.
+     */
+    public function isFry(CreatureState $creature): bool
+    {
+        return $creature->size < $this->speciesOf($creature)->number('adult_size', 1) * self::FRY_SIZE_FRACTION;
+    }
+
+    /**
+     * How many grown fry-eaters (e.g. adult guppies) live in the tank.
+     */
+    public function fryPredatorCount(): int
+    {
+        return count(array_filter(
+            $this->livingCreatures(),
+            fn (CreatureState $creature): bool => $this->speciesOf($creature)->param('eats_fry', false)
+                && ! $this->isFry($creature),
+        ));
     }
 
     /**

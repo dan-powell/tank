@@ -1,8 +1,9 @@
 import { Vector3 } from 'three';
-import type { Habitat, SpeciesBehaviour } from '@/types';
+import type { CreatureIntent, Habitat, SpeciesBehaviour } from '@/types';
+import type { ResolvedBehaviour } from './behaviours';
 import { bounds, layerDepth, layerToZ, TANK, VOXEL } from './space';
 import type { TerrainField } from './terrain-field';
-import type { CreatureBody, TankWorld } from './world';
+import type { CreatureBody, FoodParticle, TankWorld } from './world';
 
 export type SteeringProfile = {
     id: number;
@@ -18,10 +19,11 @@ export type SteeringProfile = {
     /** Centre of its home zone: x and y in world space (z comes from its home layer). */
     zoneCenter: Vector3;
     zoneRadius: number;
-    hunger: number;
     health: number;
     isLit: boolean;
     lowOxygen: boolean;
+    /** Species it stalks when hunting (empty for animals that don't catch prey). */
+    preySpeciesIds: ReadonlySet<number>;
 };
 
 export type WanderState = {
@@ -33,6 +35,10 @@ export type WanderState = {
     retargetIn: number;
     /** Seconds left idling where it arrived. */
     lingerFor: number;
+    /** The intent its target was chosen for: a new intent means a new target. */
+    intent: CreatureIntent;
+    /** Which end of its beat a patrolling creature is heading for (+1 right, -1 left). */
+    patrolSign: number;
 };
 
 export function createWanderState(): WanderState {
@@ -41,8 +47,23 @@ export function createWanderState(): WanderState {
         hasTarget: false,
         retargetIn: 0,
         lingerFor: 0,
+        intent: 'wander',
+        patrolSign: Math.random() < 0.5 ? 1 : -1,
     };
 }
+
+/** Everything one creature's steering needs for this frame. */
+type Frame = {
+    body: CreatureBody;
+    wander: WanderState;
+    profile: SteeringProfile;
+    behaviour: ResolvedBehaviour;
+    world: TankWorld;
+    terrain: TerrainField | null;
+    isBottom: boolean;
+    maxSpeed: number;
+    dt: number;
+};
 
 const acceleration = new Vector3();
 const scratch = new Vector3();
@@ -51,10 +72,10 @@ const side = new Vector3();
 const previous = new Vector3();
 const probe = new Vector3();
 const candidate = new Vector3();
+const best = new Vector3();
 const neighbourCentre = new Vector3();
 const neighbourHeading = new Vector3();
 
-const FOOD_SENSE_RANGE = 1.2;
 const EAT_DISTANCE = 0.05;
 const NEIGHBOUR_RANGE = 0.3;
 const PERSONAL_SPACE = 0.08;
@@ -82,50 +103,102 @@ const BOTTOM_STEP = 0.05;
 const CRAWLER_CLIMB = 2;
 /** Height a bottom dweller's body centre floats above the ground. */
 const BOTTOM_LIFT = 0.035;
+/** How far (world units) a hiding creature looks for cover. */
+const COVER_SEARCH = 0.3;
+/** How far (world units) a hunter can see prey. */
+const PREY_SENSE_RANGE = 0.6;
+/** Within this distance (world units) a stalking hunter lunges. */
+const LUNGE_DISTANCE = 0.1;
+/** How far (world units) patrollers keep from the end glass. */
+const PATROL_MARGIN = 0.12;
+
+/**
+ * How each intent picks where to go, how long to idle on arrival (seconds,
+ * with the chance of idling), and the share of top speed it moves at.
+ */
+const intentStyle: Record<
+    CreatureIntent,
+    { linger: [number, number]; lingerChance: number; cruise: number }
+> = {
+    wander: { linger: [1, 3.5], lingerChance: LINGER_CHANCE, cruise: CRUISE },
+    explore: { linger: [0, 0], lingerChance: 0, cruise: CRUISE },
+    hunt: { linger: [0.5, 1.5], lingerChance: 0.2, cruise: 0.9 },
+    rest: { linger: [5, 15], lingerChance: 1, cruise: 0.5 },
+    hide: { linger: [3, 8], lingerChance: 0.8, cruise: CRUISE },
+    shoal: { linger: [0.5, 1.5], lingerChance: 0.2, cruise: CRUISE },
+    patrol: { linger: [0.5, 1.5], lingerChance: 1, cruise: 0.8 },
+};
 
 /**
  * Advance one creature by a frame, moving freely in 3D around its home.
  *
- * The server only knows each creature's home (a zone and a depth layer), so
- * everything here is the browser's own: the creature picks places to go
- * within a home volume (its zone in x/y and a band of depth around its home
- * layer that widens with `layerRoam`), curves towards them, idles now and
- * then, schools, chases food, gasps at the surface when oxygen is low, and
- * steers over, round or away from anything in its way. Ground dwellers do
- * the same across the ground (front to back too), following its surface.
+ * The server only knows each creature's home (a zone and a depth layer) and
+ * what it is busy doing; everything else is the browser's own. Its intent
+ * picks where it goes: about its zone (wander), anywhere in the tank
+ * (explore), to cover (hide), low down and still (rest), alongside its kind
+ * (shoal), back and forth along the bottom (patrol), or after food and prey
+ * (hunt). Whatever it is doing, it schools, gasps at the surface when
+ * oxygen is low, darts away when startled, and steers over, round or away
+ * from anything in its way. Ground dwellers do the same across the ground
+ * (front to back too), following its surface.
  */
 export function steer(
     body: CreatureBody,
     wander: WanderState,
     profile: SteeringProfile,
+    behaviour: ResolvedBehaviour,
     world: TankWorld,
     delta: number,
 ): void {
     const { position, velocity } = body;
-    const dt = Math.min(delta, 0.05);
     const isBottom = walksOnGround(profile.behaviour);
-    const terrain = world.terrain;
-    const maxSpeed =
-        profile.speed *
-        (0.35 + 0.65 * profile.health) *
-        (profile.isLit ? 1 : 0.45);
+    const frame: Frame = {
+        body,
+        wander,
+        profile,
+        behaviour,
+        world,
+        terrain: world.terrain,
+        isBottom,
+        maxSpeed:
+            profile.speed *
+            behaviour.speed *
+            (0.35 + 0.65 * profile.health) *
+            (profile.isLit ? 1 : 0.45),
+        dt: Math.min(delta, 0.05),
+    };
+    const { terrain, maxSpeed, dt } = frame;
 
     acceleration.set(0, 0, 0);
 
-    if (!wander.hasTarget) {
-        pickTarget(body, wander, profile, terrain, isBottom);
+    if (behaviour.intent !== wander.intent || behaviour.dashStarted) {
+        wander.intent = behaviour.intent;
+        wander.hasTarget = false;
+        wander.lingerFor = 0;
     }
 
-    wanderTowardsTarget(body, wander, profile, terrain, dt, isBottom, maxSpeed);
-    applySchooling(body, profile, world, isBottom, maxSpeed);
-    seekFood(body, wander, profile, world, maxSpeed);
+    if (!wander.hasTarget) {
+        pickTarget(frame);
+    }
+
+    if (behaviour.fleeFrom !== null) {
+        flee(frame, behaviour.fleeFrom);
+    } else if (behaviour.food !== null) {
+        seekFood(frame, behaviour.food);
+    } else if (behaviour.intent === 'hunt' && profile.preySpeciesIds.size > 0) {
+        stalkPrey(frame);
+    } else {
+        moveTowardsTarget(frame);
+    }
+
+    applySchooling(frame);
 
     if (profile.lowOxygen && !isBottom) {
         acceleration.y += (bounds.maxY - position.y) * 4 * maxSpeed;
     }
 
     if (terrain !== null && !isBottom) {
-        avoidTerrain(body, wander, profile, terrain, maxSpeed);
+        avoidTerrain(frame, terrain);
     }
 
     avoidWalls(position, isBottom, maxSpeed);
@@ -149,7 +222,7 @@ export function steer(
     position.z = Math.min(bounds.maxZ, Math.max(bounds.minZ, position.z));
 
     if (isBottom) {
-        walkOnTerrain(body, wander, profile, terrain, maxSpeed, dt, isBottom);
+        walkOnTerrain(frame);
     } else {
         position.y = Math.min(bounds.maxY, Math.max(bounds.minY, position.y));
 
@@ -163,17 +236,46 @@ export function steer(
     }
 }
 
+/** Choose somewhere new to go, in the way its intent calls for. */
+function pickTarget(frame: Frame): void {
+    const { wander, behaviour } = frame;
+
+    const found =
+        behaviour.dashStarted || behaviour.intent === 'explore'
+            ? pickFarTarget(frame)
+            : behaviour.intent === 'hide'
+              ? pickCover(frame)
+              : behaviour.intent === 'rest'
+                ? pickRestingSpot(frame)
+                : behaviour.intent === 'shoal'
+                  ? pickSchoolmates(frame)
+                  : behaviour.intent === 'patrol'
+                    ? pickPatrolEnd(frame)
+                    : false;
+
+    if (!found) {
+        pickHomeTarget(frame);
+    }
+
+    wander.hasTarget = true;
+    wander.retargetIn =
+        behaviour.intent === 'explore' || behaviour.intent === 'patrol'
+            ? 6 + Math.random() * 6
+            : 3 + Math.random() * 6;
+}
+
 /**
- * Choose somewhere new to go within the creature's home volume, avoiding
- * spots inside decorations when it can.
+ * Somewhere within its home volume (its zone in x/y and a band of depth
+ * around its home layer that widens with `layerRoam`), avoiding spots inside
+ * decorations when it can.
  */
-function pickTarget(
-    body: CreatureBody,
-    wander: WanderState,
-    profile: SteeringProfile,
-    terrain: TerrainField | null,
-    isBottom: boolean,
-): void {
+function pickHomeTarget({
+    body,
+    wander,
+    profile,
+    terrain,
+    isBottom,
+}: Frame): void {
     const depthReach =
         layerDepth(profile.layerCount) * (0.5 + 1.5 * profile.layerRoam);
     const homeZ = layerToZ(body.homeLayer, profile.layerCount);
@@ -187,11 +289,7 @@ function pickTarget(
                 : profile.zoneCenter.y + spread() * profile.zoneRadius * 0.5,
             homeZ + spread() * depthReach,
         );
-        candidate.set(
-            Math.min(bounds.maxX, Math.max(bounds.minX, candidate.x)),
-            Math.min(bounds.maxY, Math.max(bounds.minY, candidate.y)),
-            Math.min(bounds.maxZ, Math.max(bounds.minZ, candidate.z)),
-        );
+        clampToTank(candidate);
 
         if (isBottom || terrain === null || terrain.isFree(candidate)) {
             break;
@@ -199,31 +297,199 @@ function pickTarget(
     }
 
     wander.target.copy(candidate);
-    wander.hasTarget = true;
-    wander.retargetIn = 3 + Math.random() * 6;
+}
+
+/**
+ * Somewhere well away from where it is, anywhere in the tank (swimmers keep
+ * roughly to their usual height): for exploring and zoomies dashes.
+ */
+function pickFarTarget({
+    body,
+    wander,
+    profile,
+    terrain,
+    isBottom,
+}: Frame): boolean {
+    let bestDistance = -1;
+
+    for (let attempt = 0; attempt < 4; attempt++) {
+        candidate.set(
+            bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
+            isBottom
+                ? body.position.y
+                : profile.zoneCenter.y +
+                      (Math.random() * 2 - 1) * profile.zoneRadius,
+            bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ),
+        );
+        clampToTank(candidate);
+
+        if (!isBottom && terrain !== null && !terrain.isFree(candidate)) {
+            continue;
+        }
+
+        const distance = candidate.distanceToSquared(body.position);
+
+        if (distance > bestDistance) {
+            bestDistance = distance;
+            best.copy(candidate);
+        }
+    }
+
+    if (bestDistance < 0) {
+        return false;
+    }
+
+    wander.target.copy(best);
+
+    return true;
+}
+
+/** A sheltered spot by a decoration or, failing that, among the nearest plant's stems. */
+function pickCover({ body, wander, world, terrain, isBottom }: Frame): boolean {
+    const medium = isBottom ? 'air' : 'water';
+
+    if (
+        terrain !== null &&
+        terrain.coverNear(body.position, COVER_SEARCH, candidate, medium)
+    ) {
+        wander.target.copy(candidate);
+
+        return true;
+    }
+
+    let nearest = Infinity;
+
+    for (const cover of world.plantCover.values()) {
+        const distance = cover.root.distanceToSquared(body.position);
+        // Only plants in the creature's own element (water or air) will do.
+        const isReachable =
+            terrain === null ||
+            terrain.isFree(
+                probe.copy(cover.root).setY(cover.root.y + 0.02),
+                medium,
+            );
+
+        if (distance < nearest && isReachable) {
+            nearest = distance;
+            best.set(
+                cover.root.x + (Math.random() - 0.5) * 0.04,
+                isBottom
+                    ? body.position.y
+                    : cover.root.y + Math.random() * cover.height * 0.6,
+                cover.root.z + (Math.random() - 0.5) * 0.04,
+            );
+        }
+    }
+
+    if (nearest === Infinity) {
+        return false;
+    }
+
+    wander.target.copy(best);
+
+    return true;
+}
+
+/**
+ * Low in its zone, tucked by a decoration if one is near. Ground dwellers
+ * stay where they are.
+ */
+function pickRestingSpot(frame: Frame): boolean {
+    const { body, wander, profile, terrain, isBottom } = frame;
+
+    if (isBottom) {
+        wander.target.copy(body.position);
+
+        return true;
+    }
+
+    candidate.set(
+        body.position.x,
+        Math.max(bounds.minY, profile.zoneCenter.y - profile.zoneRadius * 0.5),
+        body.position.z,
+    );
+
+    if (
+        terrain !== null &&
+        terrain.coverNear(candidate, COVER_SEARCH * 0.5, best)
+    ) {
+        wander.target.copy(best);
+
+        return true;
+    }
+
+    if (terrain === null || terrain.isFree(candidate)) {
+        wander.target.copy(candidate);
+
+        return true;
+    }
+
+    return false;
+}
+
+/** Into the middle of the nearest group of its own kind. */
+function pickSchoolmates({ body, wander, profile, world }: Frame): boolean {
+    neighbourCentre.set(0, 0, 0);
+    let count = 0;
+
+    for (const [id, other] of world.creatures) {
+        if (
+            id !== profile.id &&
+            other.speciesId === body.speciesId &&
+            other.position.distanceTo(body.position) < NEIGHBOUR_RANGE * 2
+        ) {
+            neighbourCentre.add(other.position);
+            count++;
+        }
+    }
+
+    if (count === 0) {
+        return false;
+    }
+
+    wander.target
+        .copy(neighbourCentre.divideScalar(count))
+        .add(
+            scratch.set(
+                (Math.random() - 0.5) * 0.06,
+                (Math.random() - 0.5) * 0.03,
+                (Math.random() - 0.5) * 0.06,
+            ),
+        );
+    clampToTank(wander.target);
+
+    return true;
+}
+
+/** The far end of a straight beat along the tank, turning round at each end. */
+function pickPatrolEnd({ body, wander }: Frame): boolean {
+    wander.patrolSign = -wander.patrolSign;
+    wander.target.set(
+        wander.patrolSign > 0
+            ? bounds.maxX - PATROL_MARGIN
+            : bounds.minX + PATROL_MARGIN,
+        body.position.y,
+        body.position.z,
+    );
+
+    return true;
 }
 
 /**
  * Curve towards the current target, easing off as it arrives; on arrival
- * sometimes idle a while, then pick somewhere new.
+ * sometimes idle a while (as its intent likes), then pick somewhere new.
  */
-function wanderTowardsTarget(
-    body: CreatureBody,
-    wander: WanderState,
-    profile: SteeringProfile,
-    terrain: TerrainField | null,
-    dt: number,
-    isBottom: boolean,
-    maxSpeed: number,
-): void {
+function moveTowardsTarget(frame: Frame): void {
+    const { body, wander, behaviour, isBottom, maxSpeed, dt } = frame;
     const { position, velocity } = body;
+    const style = intentStyle[behaviour.intent];
 
     if (wander.lingerFor > 0) {
         wander.lingerFor -= dt;
         acceleration.addScaledVector(velocity, -STEER_RESPONSE);
 
         if (wander.lingerFor <= 0) {
-            pickTarget(body, wander, profile, terrain, isBottom);
+            pickTarget(frame);
         }
 
         return;
@@ -239,28 +505,87 @@ function wanderTowardsTarget(
     wander.retargetIn -= dt;
 
     if (distance < ARRIVE_DISTANCE || wander.retargetIn <= 0) {
-        if (distance < ARRIVE_DISTANCE && Math.random() < LINGER_CHANCE) {
-            wander.lingerFor = 1 + Math.random() * 2.5;
+        if (distance < ARRIVE_DISTANCE && Math.random() < style.lingerChance) {
+            const [shortest, longest] = style.linger;
+            wander.lingerFor = shortest + Math.random() * (longest - shortest);
         }
 
-        pickTarget(body, wander, profile, terrain, isBottom);
+        pickTarget(frame);
 
         return;
     }
 
     const desiredSpeed =
-        maxSpeed * CRUISE * Math.min(1, distance / SLOW_DISTANCE);
+        maxSpeed * style.cruise * Math.min(1, distance / SLOW_DISTANCE);
     toTarget.multiplyScalar(desiredSpeed / distance).sub(velocity);
     acceleration.addScaledVector(toTarget, STEER_RESPONSE);
 }
 
-function applySchooling(
-    body: CreatureBody,
-    profile: SteeringProfile,
-    world: TankWorld,
-    isBottom: boolean,
-    maxSpeed: number,
-): void {
+/** Dart away flat out, then carry on where it was going. */
+function flee({ wander, isBottom, maxSpeed }: Frame, away: Vector3): void {
+    acceleration.addScaledVector(away, 8 * maxSpeed);
+
+    if (!isBottom) {
+        acceleration.y += (Math.random() - 0.3) * maxSpeed;
+    }
+
+    wander.lingerFor = 0;
+}
+
+/**
+ * Creep up on the nearest prey animal in sight, then lunge. The simulation
+ * decides what is caught; this is only the chase.
+ */
+function stalkPrey(frame: Frame): void {
+    const { body, profile, world, isBottom, maxSpeed } = frame;
+    let nearest = PREY_SENSE_RANGE * PREY_SENSE_RANGE;
+    let prey: CreatureBody | null = null;
+
+    for (const other of world.creatures.values()) {
+        if (!profile.preySpeciesIds.has(other.speciesId)) {
+            continue;
+        }
+
+        const distance = other.position.distanceToSquared(body.position);
+
+        if (distance < nearest) {
+            nearest = distance;
+            prey = other;
+        }
+    }
+
+    if (prey === null) {
+        moveTowardsTarget(frame);
+
+        return;
+    }
+
+    const toPrey = scratch.subVectors(prey.position, body.position);
+
+    if (isBottom) {
+        toPrey.y = 0;
+    }
+
+    const distance = toPrey.length();
+
+    if (distance < 1e-4) {
+        return;
+    }
+
+    const share = distance < LUNGE_DISTANCE ? 1 : 0.35;
+    toPrey.multiplyScalar((maxSpeed * share) / distance).sub(body.velocity);
+    acceleration.addScaledVector(toPrey, STEER_RESPONSE * 2);
+}
+
+function applySchooling({
+    body,
+    profile,
+    behaviour,
+    world,
+    isBottom,
+    maxSpeed,
+}: Frame): void {
+    const schooling = Math.min(1, profile.schooling * behaviour.schooling);
     neighbourCentre.set(0, 0, 0);
     neighbourHeading.set(0, 0, 0);
     let schoolmates = 0;
@@ -291,7 +616,7 @@ function applySchooling(
             }
         }
 
-        if (profile.schooling > 0 && other.speciesId === body.speciesId) {
+        if (schooling > 0 && other.speciesId === body.speciesId) {
             neighbourCentre.add(other.position);
             neighbourHeading.add(other.velocity);
             schoolmates++;
@@ -307,40 +632,16 @@ function applySchooling(
             neighbourHeading.y = 0;
         }
 
-        acceleration.addScaledVector(
-            neighbourCentre,
-            profile.schooling * 2 * maxSpeed,
-        );
-        acceleration.addScaledVector(neighbourHeading, profile.schooling);
+        acceleration.addScaledVector(neighbourCentre, schooling * 2 * maxSpeed);
+        acceleration.addScaledVector(neighbourHeading, schooling);
     }
 }
 
-/** Chase the nearest food in reach, straight to it in 3D, and eat it on arrival. */
+/** Head straight for food it has spotted, in 3D, and eat it on arrival. */
 function seekFood(
-    body: CreatureBody,
-    wander: WanderState,
-    profile: SteeringProfile,
-    world: TankWorld,
-    maxSpeed: number,
+    { body, wander, world, isBottom, maxSpeed }: Frame,
+    food: FoodParticle,
 ): void {
-    if (
-        profile.hunger < 0.15 ||
-        (profile.behaviour !== 'swimmer' &&
-            profile.behaviour !== 'bottom_dweller')
-    ) {
-        return;
-    }
-
-    const food = world.nearestFood(
-        body.position,
-        FOOD_SENSE_RANGE,
-        profile.behaviour === 'bottom_dweller',
-    );
-
-    if (food === null) {
-        return;
-    }
-
     const toFood = scratch.subVectors(food.position, body.position);
 
     if (toFood.length() < EAT_DISTANCE) {
@@ -351,10 +652,11 @@ function seekFood(
 
     // Afterwards, potter about where the food was.
     wander.target.copy(food.position);
+    wander.hasTarget = true;
     wander.retargetIn = Math.max(wander.retargetIn, 2);
     wander.lingerFor = 0;
 
-    if (walksOnGround(profile.behaviour)) {
+    if (isBottom) {
         toFood.y = 0;
     }
 
@@ -367,13 +669,8 @@ function seekFood(
  * side its target is on), or turn away and head somewhere else. Keeps a
  * little clearance above and below so fish don't scrape along rocks.
  */
-function avoidTerrain(
-    body: CreatureBody,
-    wander: WanderState,
-    profile: SteeringProfile,
-    terrain: TerrainField,
-    maxSpeed: number,
-): void {
+function avoidTerrain(frame: Frame, terrain: TerrainField): void {
+    const { body, wander, maxSpeed } = frame;
     const { position, velocity } = body;
 
     heading.set(velocity.x, 0, velocity.z);
@@ -387,7 +684,7 @@ function avoidTerrain(
         probe.copy(position).addScaledVector(heading, LOOK_AHEAD);
 
         if (!terrain.isFree(probe)) {
-            steerRound(body, wander, profile, terrain, maxSpeed);
+            steerRound(frame, terrain);
         }
     }
 
@@ -405,13 +702,8 @@ function avoidTerrain(
 }
 
 /** Something is in the way along `heading`: go over, round, or back. */
-function steerRound(
-    body: CreatureBody,
-    wander: WanderState,
-    profile: SteeringProfile,
-    terrain: TerrainField,
-    maxSpeed: number,
-): void {
+function steerRound(frame: Frame, terrain: TerrainField): void {
+    const { body, wander, maxSpeed } = frame;
     const { position, velocity } = body;
     const startY = probe.y;
 
@@ -447,7 +739,7 @@ function steerRound(
     }
 
     velocity.multiplyScalar(-0.3);
-    pickTarget(body, wander, profile, terrain, false);
+    pickTarget(frame);
 }
 
 /**
@@ -499,6 +791,19 @@ export function standsOnBase(behaviour: SpeciesBehaviour): boolean {
     );
 }
 
+/** Behaviours that go for dropped food. */
+export function eatsDroppedFood(behaviour: SpeciesBehaviour): boolean {
+    return behaviour === 'swimmer' || behaviour === 'bottom_dweller';
+}
+
+function clampToTank(point: Vector3): void {
+    point.set(
+        Math.min(bounds.maxX, Math.max(bounds.minX, point.x)),
+        Math.min(bounds.maxY, Math.max(bounds.minY, point.y)),
+        Math.min(bounds.maxZ, Math.max(bounds.minZ, point.z)),
+    );
+}
+
 /**
  * Keep a bottom dweller on whatever is beneath it: the substrate or the top
  * of a decoration. Crawlers and walkers climb anything, clinging to the face
@@ -507,15 +812,8 @@ export function standsOnBase(behaviour: SpeciesBehaviour): boolean {
  * above it (hauling out if they find themselves under water), and
  * amphibians go where they please.
  */
-function walkOnTerrain(
-    body: CreatureBody,
-    wander: WanderState,
-    profile: SteeringProfile,
-    terrain: TerrainField | null,
-    maxSpeed: number,
-    dt: number,
-    isBottom: boolean,
-): void {
+function walkOnTerrain(frame: Frame): void {
+    const { body, profile, terrain, maxSpeed, dt } = frame;
     const { position, velocity } = body;
     const isCrawler = profile.behaviour !== 'bottom_dweller';
     const lift = standsOnBase(profile.behaviour) ? 0 : BOTTOM_LIFT;
@@ -559,7 +857,7 @@ function walkOnTerrain(
         position.x = previous.x;
         position.z = previous.z;
         velocity.multiplyScalar(-0.3);
-        pickTarget(body, wander, profile, terrain, isBottom);
+        pickTarget(frame);
         surface = ground(position.x, position.z) ?? foot;
     }
 

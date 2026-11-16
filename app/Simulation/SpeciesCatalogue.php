@@ -19,6 +19,8 @@ use App\Models\Species;
  * species lives in the water (the default), at its edge, on land or both;
  * land species use `humidity` (%) ranges and `max_per_100cm2` of dry land.
  * Diets may include `prey`: the number of `prey` animals that make a full meal.
+ * Animals' `behaviours` weight how readily they take up each intent and mood
+ * (see BehaviourSystem): missing or 0 means never; wandering is always open.
  *
  * `render` is presentation only and is read from here rather than the stored
  * copy (see SpeciesResource). Animals list growth `stages` (name => smallest
@@ -42,6 +44,7 @@ final class SpeciesCatalogue
                 'description' => 'Tall, grass-like ribbons that spread by runners. A strong nitrate consumer.',
                 'params' => [
                     'temperature' => [18, 30],
+                    'light' => [0.3, 1.5],
                     'growth_per_hour' => 0.02,
                     'max_size' => 6,
                     'segments_per_size' => 2,
@@ -63,6 +66,7 @@ final class SpeciesCatalogue
                 'description' => 'Fast-growing bushy stems that soak up nutrients and starve out algae.',
                 'params' => [
                     'temperature' => [15, 30],
+                    'light' => [0.25, 1.0],
                     'growth_per_hour' => 0.035,
                     'max_size' => 8,
                     'segments_per_size' => 2,
@@ -105,6 +109,7 @@ final class SpeciesCatalogue
                         'gestation_days' => 21,
                         'brood' => [3, 8],
                     ],
+                    'behaviours' => ['hunt' => 1.0, 'rest' => 1.0, 'explore' => 1.2, 'zoomies' => 1.5, 'shoal' => 0.6, 'hide' => 0.8],
                     'zone' => ['y' => [0.45, 0.9], 'radius' => 0.25],
                     'render' => [
                         'body' => '#b8c2cc', 'colorful_tail' => true, 'schooling' => 0.3, 'speed' => 0.35, 'layer_roam' => 0.25,
@@ -140,6 +145,7 @@ final class SpeciesCatalogue
                         'chance_per_day' => 0.05,
                         'brood' => [2, 6],
                     ],
+                    'behaviours' => ['hunt' => 0.8, 'patrol' => 1.2, 'shoal' => 1.2, 'rest' => 1.0, 'zoomies' => 0.6],
                     'zone' => ['y' => [0.02, 0.08], 'radius' => 0.35],
                     'render' => [
                         'body' => '#c9b28f', 'schooling' => 0.6, 'speed' => 0.2, 'layer_roam' => 0.1,
@@ -171,6 +177,7 @@ final class SpeciesCatalogue
                     'lifespan_days' => 900,
                     'max_per_100l' => 10,
                     'breeding' => ['mode' => BreedingMode::None->value],
+                    'behaviours' => ['rest' => 1.2, 'explore' => 0.4],
                     'zone' => ['y' => [0.0, 0.03], 'radius' => 0.5],
                     'render' => [
                         'shell' => '#6b4f2a', 'stripe' => '#e0b84a', 'speed' => 0.03, 'layer_roam' => 0.05,
@@ -190,6 +197,7 @@ final class SpeciesCatalogue
                     'anchorage' => 'any',
                     'temperature' => [12, 28],
                     'humidity' => [70, 100],
+                    'light' => [0.3, 3.0],
                     'growth_per_hour' => 0.012,
                     'max_size' => 3,
                     'segments_per_size' => 8,
@@ -213,6 +221,7 @@ final class SpeciesCatalogue
                     'anchorage' => 'substrate',
                     'temperature' => [15, 27],
                     'humidity' => [65, 100],
+                    'light' => [0.8, 4.0],
                     'growth_per_hour' => 0.015,
                     'max_size' => 5,
                     'segments_per_size' => 2,
@@ -235,6 +244,7 @@ final class SpeciesCatalogue
                     'habitat' => 'emergent',
                     'anchorage' => 'any',
                     'temperature' => [16, 30],
+                    'light' => [0.5, 4.0],
                     'growth_per_hour' => 0.03,
                     'max_size' => 8,
                     'segments_per_size' => 2,
@@ -257,6 +267,7 @@ final class SpeciesCatalogue
                     'habitat' => 'emergent',
                     'anchorage' => 'substrate',
                     'temperature' => [15, 28],
+                    'light' => [1.0, 6.0],
                     'growth_per_hour' => 0.02,
                     'max_size' => 5,
                     'segments_per_size' => 2,
@@ -294,6 +305,7 @@ final class SpeciesCatalogue
                     'max_per_100cm2' => 8,
                     'prey' => true,
                     'breeding' => ['mode' => BreedingMode::EggLayer->value, 'chance_per_day' => 0.3, 'brood' => [3, 8]],
+                    'behaviours' => ['hide' => 1.5, 'explore' => 0.8, 'rest' => 0.8],
                     'zone' => ['y' => [0.0, 0.0], 'radius' => 0.3],
                     'render' => [
                         'body' => '#e8e4d8', 'speed' => 0.06, 'layer_roam' => 0.4,
@@ -327,6 +339,7 @@ final class SpeciesCatalogue
                     'max_per_100cm2' => 4,
                     'prey' => true,
                     'breeding' => ['mode' => BreedingMode::Livebearer->value, 'chance_per_day' => 0.2, 'gestation_days' => 20, 'brood' => [3, 6]],
+                    'behaviours' => ['hide' => 1.5, 'explore' => 0.8, 'rest' => 0.8],
                     'zone' => ['y' => [0.0, 0.0], 'radius' => 0.3],
                     'render' => [
                         'body' => '#f0ece0', 'speed' => 0.03, 'layer_roam' => 0.3,
@@ -359,6 +372,7 @@ final class SpeciesCatalogue
                     'lifespan_days' => 700,
                     'max_per_100cm2' => 1,
                     'breeding' => ['mode' => BreedingMode::EggLayer->value, 'chance_per_day' => 0.05, 'brood' => [2, 4]],
+                    'behaviours' => ['rest' => 1.2, 'hide' => 0.8],
                     'zone' => ['y' => [0.0, 0.0], 'radius' => 0.4],
                     'render' => [
                         'shell' => '#b8a17a', 'stripe' => '#d9c79d', 'speed' => 0.015, 'layer_roam' => 0.1,
@@ -392,6 +406,7 @@ final class SpeciesCatalogue
                     'lifespan_days' => 3650,
                     'max_per_100cm2' => 0.15,
                     'breeding' => ['mode' => BreedingMode::EggLayer->value, 'chance_per_day' => 0.01, 'brood' => [2, 5]],
+                    'behaviours' => ['hunt' => 1.5, 'rest' => 1.2, 'hide' => 0.6, 'explore' => 0.5],
                     'zone' => ['y' => [0.0, 0.2], 'radius' => 0.4],
                     'render' => [
                         'body' => '#4a7a3a', 'stripe' => '#e0562b', 'speed' => 0.12, 'layer_roam' => 0.3,

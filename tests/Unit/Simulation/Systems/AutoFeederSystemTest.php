@@ -107,14 +107,14 @@ class AutoFeederSystemTest extends TestCase
         return $hour * 3600 + $minute * 60;
     }
 
-    public function test_does_not_feed_while_the_lid_is_sealed(): void
+    public function test_still_feeds_while_the_lid_is_sealed(): void
     {
         $state = $this->tankWithFeeder(simSeconds: $this->at(8, 58), portions: 10);
         $state->isSealed = true;
 
         $this->applyStep($state);
 
-        $this->assertSame(0.0, $state->uneatenFood);
-        $this->assertSame(10, $state->autoFeeder->portions);
+        $this->assertEqualsWithDelta(0.08, $state->uneatenFood, 1e-9);
+        $this->assertSame(9, $state->autoFeeder->portions);
     }
 }

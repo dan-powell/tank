@@ -6,7 +6,9 @@ import {
     Vector2,
 } from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import { applyGrow } from './intro-material';
 import { applySway } from './sway-material';
+import type { PlantGrowth } from './sway-material';
 
 /**
  * The canvas size in CSS pixels, shared by every halo material so the halo
@@ -53,6 +55,8 @@ type HaloOptions = {
     pixels?: number;
     /** Match a plant's sway so the halo moves with it. */
     sway?: { amplitude: number; unitHeight: number };
+    /** Match how far a plant has grown, so the halo grows with it. */
+    growth?: PlantGrowth;
 };
 
 /**
@@ -65,6 +69,7 @@ export function createHaloMaterial({
     color = new Color('#fff1b8'),
     pixels = 2.5,
     sway,
+    growth,
 }: HaloOptions = {}): MeshBasicMaterial {
     const material = new MeshBasicMaterial({
         color,
@@ -77,6 +82,10 @@ export function createHaloMaterial({
 
         if (sway !== undefined) {
             applySway(shader, sway.amplitude, sway.unitHeight);
+        }
+
+        if (growth !== undefined) {
+            applyGrow(shader, growth.grow, growth.shape, growth.extent);
         }
 
         shader.vertexShader =
@@ -93,9 +102,11 @@ export function createHaloMaterial({
             );
     };
     material.customProgramCacheKey = () =>
-        sway === undefined
-            ? `halo-${pixels}`
-            : `halo-${pixels}-sway-${sway.amplitude.toFixed(3)}`;
+        [
+            `halo-${pixels}`,
+            sway === undefined ? '' : `-sway-${sway.amplitude.toFixed(3)}`,
+            growth === undefined ? '' : `-grow-${growth.shape}`,
+        ].join('');
 
     return material;
 }

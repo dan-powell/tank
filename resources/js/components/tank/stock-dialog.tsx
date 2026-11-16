@@ -23,7 +23,6 @@ import type { Habitat, Species } from '@/types';
 export type StockConditions = {
     hasWater: boolean;
     hasLand: boolean;
-    isSealed: boolean;
 };
 
 const GROUPS: { title: string; habitats: Habitat[] }[] = [
@@ -99,16 +98,7 @@ export function StockDialog({
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={conditions.isSealed}
-                    title={
-                        conditions.isSealed
-                            ? 'Lift the lid to add plants or animals'
-                            : undefined
-                    }
-                >
+                <Button variant="outline" size="sm">
                     <Plus /> Add stock
                 </Button>
             </DialogTrigger>

@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Simulation\Systems;
 
+use App\Enums\CreatureIntent;
 use App\Enums\TankEventType;
 use App\Simulation\Systems\MortalitySystem;
 use PHPUnit\Framework\TestCase;
@@ -58,5 +59,26 @@ class MortalitySystemTest extends TestCase
 
         $this->assertTrue($plant->isDead);
         $this->assertSame(1.0, $state->detritus);
+    }
+
+    public function test_fry_hiding_among_plants_are_eaten_less_often(): void
+    {
+        $hiddenEaten = 0;
+        $openEaten = 0;
+
+        foreach (range(1, 100) as $seed) {
+            $adults = array_map(fn (): mixed => $this->creature('guppy'), range(1, 6));
+            $hiding = $this->creature('guppy', ['size' => 0.6, 'ageSeconds' => 0, 'intent' => CreatureIntent::Hide]);
+            $inTheOpen = $this->creature('guppy', ['size' => 0.6, 'ageSeconds' => 0]);
+            $plants = array_map(fn (): mixed => $this->plant('vallisneria', ['size' => 20.0]), range(1, 4));
+            $state = $this->tankState(['creatures' => [...$adults, $hiding, $inTheOpen], 'plants' => $plants]);
+
+            (new MortalitySystem)->apply($state, $this->context($state, dtSeconds: 86400, seed: $seed));
+
+            $hiddenEaten += (int) $hiding->isDead;
+            $openEaten += (int) $inTheOpen->isDead;
+        }
+
+        $this->assertGreaterThan($hiddenEaten, $openEaten);
     }
 }

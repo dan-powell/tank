@@ -9,7 +9,9 @@ use App\Enums\DecorationSource;
  *
  * Sizes and anchors are in decoration grid cells, in the model's unrotated
  * orientation (x right, y up, z towards the viewer). An anchor is the empty
- * cell directly above a solid voxel, where a plant's roots sit.
+ * cell directly above a solid voxel, where a plant's roots sit. Light points
+ * are cells where decorative LEDs glow, in `lightColour` unless the user
+ * picks another.
  */
 final readonly class DecorationDefinition
 {
@@ -17,6 +19,7 @@ final readonly class DecorationDefinition
      * @param  array{0: int, 1: int, 2: int}  $size
      * @param  list<array{0: int, 1: int, 2: int}>  $anchors
      * @param  array<string, mixed>  $params
+     * @param  list<array{0: int, 1: int, 2: int}>  $lightPoints
      */
     public function __construct(
         public string $slug,
@@ -26,7 +29,14 @@ final readonly class DecorationDefinition
         public array $size,
         public array $anchors = [],
         public array $params = [],
+        public array $lightPoints = [],
+        public ?string $lightColour = null,
     ) {}
+
+    public function hasLights(): bool
+    {
+        return $this->lightPoints !== [];
+    }
 
     /**
      * Size after turning the model a number of quarter turns about the vertical axis.

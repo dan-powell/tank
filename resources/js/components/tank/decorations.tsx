@@ -1,17 +1,21 @@
 import { TransformControls } from '@react-three/drei';
-import { useEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Color, Vector3 } from 'three';
-import type { Group, Object3D } from 'three';
+import { BoxGeometry, Color, MeshStandardMaterial, Vector3 } from 'three';
+import type { Group, Object3D, PointLight } from 'three';
 import { useDecorModels } from '@/hooks/use-decor-model';
 import type { DecorModel } from '@/hooks/use-decor-model';
+import { fadeTowards, liveLighting } from '@/lib/tank/lighting';
 import { cellToWorld, VOXEL, worldToCell } from '@/lib/tank/space';
 import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { TerrainField } from '@/lib/tank/terrain-field';
 import { rotateCell } from '@/lib/tank/voxel-volume';
+import type { TankAxis } from '@/lib/tank/views';
 import type { TankWorld } from '@/lib/tank/world';
 import type {
     DecorationDefinition,
+    DecorationLights,
     DecorationSnapshot,
     GridCell,
     PlantSnapshot,
@@ -25,9 +29,9 @@ import {
     SELECTED_RENDER_ORDER,
 } from './halo-material';
 import { Plant } from './plants';
-import { useSelectable } from './selection';
+import { useSelectable, useShowsSelectionHalo } from './selection';
 import { HIGHLIGHT_BRIGHTNESS } from './sway-material';
-import type { TankViewMode } from './tank-camera-rig';
+import { introUniforms } from './intro-material';
 import { createVoxelMaterial } from './voxel-material';
 
 type Props = {
@@ -39,9 +43,8 @@ type Props = {
     world: TankWorld;
     grid: TankGrid;
     substrate: Heightmap;
-    viewMode: TankViewMode;
-    /** Whether decorations may be moved (not through a sealed lid). */
-    canArrange: boolean;
+    /** The move arrow to leave off: the one pointing at the viewer in a square-on 2D view. */
+    hiddenAxis: TankAxis | null;
     selectedDecorationId: number | null;
     selectedPlantId: number | null;
     onSelectDecoration: (decorationId: number) => void;
@@ -66,8 +69,7 @@ export function Decorations({
     world,
     grid,
     substrate,
-    viewMode,
-    canArrange,
+    hiddenAxis,
     selectedDecorationId,
     selectedPlantId,
     onSelectDecoration,
@@ -76,6 +78,7 @@ export function Decorations({
     onMove,
     onDragChange,
 }: Props) {
+    const showsHalo = useShowsSelectionHalo();
     const models = useDecorModels(decorations, catalogue);
     const placementKey = decorations
         .map(
@@ -127,7 +130,10 @@ export function Decorations({
     );
 
     const material = useMemo(
-        () => createVoxelMaterial(new Color('#ffffff')),
+        () =>
+            createVoxelMaterial(new Color('#ffffff'), undefined, {
+                reveal: introUniforms.landscape,
+            }),
         [],
     );
     const highlighted = useMemo(
@@ -135,6 +141,7 @@ export function Decorations({
             createVoxelMaterial(
                 new Color('#ffffff'),
                 new Color('#ffffff').multiplyScalar(HIGHLIGHT_BRIGHTNESS),
+                { reveal: introUniforms.landscape },
             ),
         [],
     );
@@ -148,6 +155,8 @@ export function Decorations({
         },
         [material, highlighted, halo],
     );
+
+    const glowingIds = decorationsCastingLight(decorations, catalogue);
 
     return (
         <group>
@@ -172,23 +181,25 @@ export function Decorations({
                         )}
                         species={species}
                         material={isSelected ? highlighted : material}
-                        halo={isSelected ? halo : null}
+                        isSelected={isSelected}
+                        halo={isSelected && showsHalo ? halo : null}
                         selectedPlantId={selectedPlantId}
                         onSelect={() => onSelectDecoration(decoration.id)}
                         onSelectPlant={onSelectPlant}
                         onSelectAnchor={(anchor) =>
                             onSelectAnchor(decoration.id, anchor)
                         }
+                        castsLight={glowingIds.includes(decoration.id)}
                     />
                 );
 
-                return isSelected && canArrange ? (
+                return isSelected ? (
                     <DecorationGizmo
                         key={decoration.id}
                         decoration={decoration}
                         model={model}
                         grid={grid}
-                        showDepth={viewMode === 'orbit'}
+                        hiddenAxis={hiddenAxis}
                         onMove={(position) => onMove(decoration.id, position)}
                         onDragChange={onDragChange}
                     >
@@ -217,11 +228,14 @@ type ContentProps = {
     plants: PlantSnapshot[];
     species: Map<number, Species>;
     material: ReturnType<typeof createVoxelMaterial>;
+    isSelected: boolean;
     halo: ReturnType<typeof createHaloMaterial> | null;
     selectedPlantId: number | null;
     onSelect: () => void;
     onSelectPlant: (plantId: number) => void;
     onSelectAnchor: (anchor: number) => void;
+    /** Whether its LEDs light their surroundings, not just glow. */
+    castsLight: boolean;
 };
 
 /**
@@ -235,13 +249,18 @@ function DecorationContent({
     plants,
     species,
     material,
+    isSelected,
     halo,
     selectedPlantId,
     onSelect,
     onSelectPlant,
     onSelectAnchor,
+    castsLight,
 }: ContentProps) {
-    const selectable = useSelectable(onSelect);
+    const selectable = useSelectable(onSelect, {
+        kind: 'decoration',
+        id: decoration.id,
+    });
     const anchors = useMemo(
         () =>
             definition.anchors.map((anchor) => {
@@ -267,19 +286,21 @@ function DecorationContent({
                 geometry={model.geometry}
                 material={material}
                 scale={VOXEL}
-                renderOrder={halo !== null ? SELECTED_RENDER_ORDER : 0}
+                renderOrder={isSelected ? SELECTED_RENDER_ORDER : 0}
                 userData={PLACEABLE}
                 {...selectable}
             />
             {halo !== null && (
+                <mesh
+                    geometry={haloGeometry(model.geometry)}
+                    material={halo}
+                    scale={VOXEL}
+                    renderOrder={HALO_RENDER_ORDER}
+                    raycast={() => null}
+                />
+            )}
+            {isSelected && (
                 <>
-                    <mesh
-                        geometry={haloGeometry(model.geometry)}
-                        material={halo}
-                        scale={VOXEL}
-                        renderOrder={HALO_RENDER_ORDER}
-                        raycast={() => null}
-                    />
                     {anchors.map((position, index) =>
                         occupied.has(index) ? null : (
                             <AnchorMarker
@@ -310,7 +331,184 @@ function DecorationContent({
                     />
                 );
             })}
+            {decoration.lights !== null && (
+                <DecorationLeds
+                    lights={decoration.lights}
+                    points={definition.light_points.map((point) =>
+                        rotateCell(point, definition.size, decoration.rotation),
+                    )}
+                    castsLight={castsLight}
+                />
+            )}
         </>
+    );
+}
+
+/** Most LED voxels in a tank that cast real light (each point light costs every lit pixel). */
+const MAX_LED_LIGHTS = 16;
+
+/** How far an LED voxel's light reaches (25 cm), and its brightness at full glow. */
+const LED_LIGHT_DISTANCE = 0.25;
+const LED_LIGHT_INTENSITY = 0.12;
+
+/**
+ * The lit decorations whose LED voxels each cast light on their
+ * surroundings, in order, while they fit within MAX_LED_LIGHTS; the rest
+ * just glow.
+ */
+function decorationsCastingLight(
+    decorations: DecorationSnapshot[],
+    catalogue: Map<string, DecorationDefinition>,
+): number[] {
+    const ids: number[] = [];
+    let lightsLeft = MAX_LED_LIGHTS;
+
+    for (const decoration of decorations) {
+        const pointCount =
+            catalogue.get(decoration.type)?.light_points.length ?? 0;
+
+        if (decoration.lights?.on && pointCount <= lightsLeft) {
+            ids.push(decoration.id);
+            lightsLeft -= pointCount;
+        }
+    }
+
+    return ids;
+}
+
+/**
+ * One lit voxel: a glowing cube over the model's own voxel at the light
+ * point, a hair larger so it covers it without flickering.
+ */
+const LED_VOXEL = new BoxGeometry(VOXEL * 1.02, VOXEL * 1.02, VOXEL * 1.02);
+
+/** How brightly an LED voxel glows (above 1 so the bloom picks it up). */
+const LED_GLOW = 4;
+
+/**
+ * A decoration's LEDs: each light point's voxel glows and, when `castsLight`,
+ * shines its own small light on what's nearby. On a timer they follow the
+ * tank's lights, fading out as those come on (they look best in the dark).
+ * Switching them, or their mode, fades rather than snaps; they stay mounted
+ * while off so they can fade out.
+ */
+function DecorationLeds({
+    lights,
+    points,
+    castsLight,
+}: {
+    lights: DecorationLights;
+    points: GridCell[];
+    castsLight: boolean;
+}) {
+    const material = useMemo(
+        () =>
+            new MeshStandardMaterial({
+                color: lights.colour,
+                emissive: lights.colour,
+                toneMapped: false,
+                transparent: true,
+                opacity: 0,
+            }),
+        [lights.colour],
+    );
+    const glows = useRef<Group>(null);
+    const litVoxels = useRef<Group>(null);
+    /** How far switched on the LEDs are (0..1), faded as they are switched. */
+    const power = useRef(0);
+    /** Their glow (0..1), faded as the mode or the tank's lights change. */
+    const glowLevel = useRef(0);
+    /** Lights kept while fading out after the decoration stops casting light. */
+    const [keepsLights, setKeepsLights] = useState(castsLight);
+
+    if (castsLight && !keepsLights) {
+        setKeepsLights(true);
+    }
+
+    const positions = useMemo(
+        () =>
+            points.map(
+                ([x, y, z]) =>
+                    new Vector3(
+                        (x + 0.5) * VOXEL,
+                        (y + 0.5) * VOXEL,
+                        (z + 0.5) * VOXEL,
+                    ),
+            ),
+        [points],
+    );
+    useEffect(() => () => material.dispose(), [material]);
+
+    useFrame((_, deltaSeconds) => {
+        // Not lit until the decoration itself has appeared.
+        const isShown = introUniforms.landscape.value >= 1;
+
+        let tankLight = 0;
+
+        for (let index = 0; index < liveLighting.count; index++) {
+            tankLight += liveLighting.lights[index].intensity;
+        }
+
+        const level =
+            lights.mode === 'always' ? 1 : Math.max(0, 1 - tankLight * 1.5);
+
+        power.current = fadeTowards(
+            power.current,
+            lights.on && isShown ? 1 : 0,
+            deltaSeconds,
+        );
+        glowLevel.current = fadeTowards(
+            glowLevel.current,
+            lights.on && isShown ? level : 0,
+            deltaSeconds,
+        );
+
+        // The lit voxel blends from the model's own colour into the LED's.
+        material.opacity = power.current;
+        material.emissiveIntensity = 0.3 + glowLevel.current * LED_GLOW;
+
+        if (litVoxels.current !== null) {
+            litVoxels.current.visible = power.current > 0;
+        }
+
+        for (const light of glows.current?.children ?? []) {
+            (light as PointLight).intensity =
+                glowLevel.current * LED_LIGHT_INTENSITY;
+        }
+
+        if (!castsLight && keepsLights && glowLevel.current === 0) {
+            setKeepsLights(false);
+        }
+    });
+
+    return (
+        <group>
+            <group ref={litVoxels}>
+                {positions.map((position, index) => (
+                    <mesh
+                        key={index}
+                        position={position}
+                        geometry={LED_VOXEL}
+                        material={material}
+                        raycast={() => null}
+                    />
+                ))}
+            </group>
+            {(castsLight || keepsLights) && (
+                <group ref={glows}>
+                    {positions.map((position, index) => (
+                        <pointLight
+                            key={index}
+                            position={position}
+                            color={lights.colour}
+                            intensity={0}
+                            distance={LED_LIGHT_DISTANCE}
+                            decay={2}
+                        />
+                    ))}
+                </group>
+            )}
+        </group>
     );
 }
 
@@ -351,8 +549,8 @@ type GizmoProps = {
     decoration: DecorationSnapshot;
     model: DecorModel;
     grid: TankGrid;
-    /** Offer the depth (z) handle; hidden in the flat front view where it points at the viewer. */
-    showDepth: boolean;
+    /** The handle to leave off, as it would point straight at the viewer. */
+    hiddenAxis: TankAxis | null;
     onMove: (position: GridCell) => void;
     onDragChange: (isDragging: boolean) => void;
     children: ReactNode;
@@ -366,7 +564,7 @@ function DecorationGizmo({
     decoration,
     model,
     grid,
-    showDepth,
+    hiddenAxis,
     onMove,
     onDragChange,
     children,
@@ -389,7 +587,9 @@ function DecorationGizmo({
     return (
         <TransformControls
             mode="translate"
-            showZ={showDepth}
+            showX={hiddenAxis !== 'x'}
+            showY={hiddenAxis !== 'y'}
+            showZ={hiddenAxis !== 'z'}
             size={0.7}
             position={cellToWorld(...decoration.position)}
             onMouseDown={() => onDragChange(true)}

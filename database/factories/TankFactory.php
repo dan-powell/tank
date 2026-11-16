@@ -2,8 +2,11 @@
 
 namespace Database\Factories;
 
+use App\Enums\LightMode;
+use App\Enums\PauseReason;
 use App\Models\Tank;
 use App\Models\User;
+use App\Simulation\Gantry;
 use App\Simulation\SubstrateHeightmap;
 use App\Simulation\TankGeometry;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -44,7 +47,7 @@ class TankFactory extends Factory
             'humidity' => 70,
             'air_oxygen' => 20.9,
             'air_co2' => 420,
-            'light_on' => true,
+            'light_mode' => LightMode::Timer,
             'is_active' => true,
             'sim_tick' => 0,
             'sim_seconds' => 12 * 3600,
@@ -130,6 +133,18 @@ class TankFactory extends Factory
     }
 
     /**
+     * A tank its owner has paused.
+     */
+    public function paused(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'is_paused' => true,
+            'paused_at' => now(),
+            'pause_reason' => PauseReason::Manual,
+        ]);
+    }
+
+    /**
      * A tank with an auto-feeder installed and its hopper full.
      */
     public function withAutoFeeder(): static
@@ -140,5 +155,15 @@ class TankFactory extends Factory
             'auto_feeder_unlimited' => false,
             'auto_feeder_portions' => config('simulation.auto_feeder.hopper_capacity'),
         ]);
+    }
+
+    /**
+     * A tank lit like a new one: an LED tube along the gantry on the default timer.
+     */
+    public function lit(): static
+    {
+        return $this->afterCreating(function (Tank $tank): void {
+            $tank->lightFixtures()->create(Gantry::of($tank)->defaultFixture());
+        });
     }
 }
