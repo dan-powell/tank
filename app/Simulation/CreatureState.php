@@ -18,6 +18,9 @@ final class CreatureState
     /** The largest stressor from the most recent health update, if any. */
     public ?string $mainStressor = null;
 
+    /** Whether the tank pauses when this animal comes close to death. */
+    public bool $watched = false;
+
     /**
      * @param  array<string, int>  $moods  Active moods (CreatureMood values) => simulated seconds left; 0 = held while a condition lasts.
      */

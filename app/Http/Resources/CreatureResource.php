@@ -31,6 +31,7 @@ class CreatureResource extends JsonResource
             'generation' => $this->generation,
             'intent' => $this->intent,
             'moods' => array_keys($this->moods ?? []),
+            'pause_when_dying' => $this->pause_when_dying,
             'zone' => [
                 'center' => [round($this->zone_x, 3), round($this->zone_y, 3)],
                 'layer' => $this->layer,

@@ -28,6 +28,12 @@ final class TankState
     /** The tank's light field, built once per simulation run by the lighting system. */
     public ?LightField $lightField = null;
 
+    /** Health (0..1) below which a watched animal is close to death. */
+    public float $nearDeathHealth = AlertSettings::DEFAULT_NEAR_DEATH_HEALTH;
+
+    /** Set when something happened that should stop the simulation until the owner steps in. */
+    public bool $pauseRequested = false;
+
     /**
      * @param  array<int, SpeciesDefinition>  $species  Keyed by species id.
      * @param  list<PlantState>  $plants

@@ -37,13 +37,7 @@ export type PlantSnapshot = {
 
 /** What an animal is busy doing: one at a time, it decides where it heads. */
 export type CreatureIntent =
-    | 'wander'
-    | 'explore'
-    | 'hunt'
-    | 'rest'
-    | 'hide'
-    | 'shoal'
-    | 'patrol';
+    'wander' | 'explore' | 'hunt' | 'rest' | 'hide' | 'shoal' | 'patrol';
 
 /** Passing states stacked on top of an animal's intent. */
 export type CreatureMood = 'zoomies' | 'skittish' | 'sluggish';
@@ -62,6 +56,8 @@ export type CreatureSnapshot = {
     /** What it is busy doing (decided by the simulation). */
     intent: CreatureIntent;
     moods: CreatureMood[];
+    /** Whether the tank pauses when it is close to death; null follows its species. */
+    pause_when_dying: boolean | null;
     zone: {
         center: PlanePoint;
         /** Home depth layer, 0 = back glass. */
@@ -211,6 +207,12 @@ export type TankSnapshot = {
     is_lit: boolean;
     lighting: TankLighting;
     auto_feeder: AutoFeeder | null;
+    /** Whether the simulation is stopped; everything but feeding still works. */
+    is_paused: boolean;
+    pause_reason: PauseReason | null;
+    /** Healthy and harmful ranges for the water and air, keyed by parameter. */
+    limits: Record<BalanceParameter, BalanceLimit>;
+    alerts: AlertSettings;
     sim_tick: number;
     sim_seconds: number;
     /** Simulated seconds per real second. */
@@ -219,6 +221,64 @@ export type TankSnapshot = {
     plants: PlantSnapshot[];
     creatures: CreatureSnapshot[];
     decorations: DecorationSnapshot[];
+};
+
+export type PauseReason = 'manual' | 'near_death';
+
+export type BalanceParameter =
+    | 'temperature'
+    | 'ph'
+    | 'ammonia'
+    | 'nitrite'
+    | 'nitrate'
+    | 'oxygen'
+    | 'algae'
+    | 'detritus'
+    | 'humidity'
+    | 'air_oxygen'
+    | 'air_co2';
+
+/** A range as [min, max]; null is unbounded. */
+export type BalanceRange = [number | null, number | null];
+
+/** Where a parameter is fine (`ideal`), and where it turns harmful (outside `safe`). */
+export type BalanceLimit = {
+    label: string;
+    ideal: BalanceRange;
+    safe: BalanceRange;
+    /** What to do when it is too low or too high. */
+    hints: { low?: string; high?: string };
+};
+
+/** The owner's alert preferences for a tank. */
+export type AlertSettings = {
+    /** Health (0..1) below which a watched animal pauses the tank. */
+    near_death_health: number;
+    disabled_parameters: string[];
+    /** Species whose animals pause the tank when close to death. */
+    watched_species: number[];
+    mail: boolean;
+    browser: boolean;
+    /** Every parameter that can be warned about => readable name. */
+    parameters: Record<string, string>;
+};
+
+/** The data of a tank alert notification. */
+export type TankAlertData = {
+    tank_id: number;
+    tank_name: string;
+    type: 'warning' | 'near_death';
+    parameter: string | null;
+    title: string;
+    message: string;
+    url: string;
+};
+
+export type InboxNotification = {
+    id: string;
+    data: TankAlertData;
+    read_at: string | null;
+    created_at: string | null;
 };
 
 /** The master switch: each light on its own timer, or all held on or off. */
@@ -298,7 +358,9 @@ export type TankEventType =
     | 'livestock_added'
     | 'removed'
     | 'aquascaping'
-    | 'warning';
+    | 'warning'
+    | 'near_death'
+    | 'pause';
 
 export type TankEvent = {
     id: number;

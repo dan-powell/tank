@@ -22,4 +22,6 @@ enum TankEventType: string
     case Removed = 'removed';
     case Aquascaping = 'aquascaping';
     case Warning = 'warning';
+    case NearDeath = 'near_death';
+    case Pause = 'pause';
 }

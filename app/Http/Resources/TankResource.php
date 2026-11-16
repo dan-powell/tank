@@ -4,6 +4,8 @@ namespace App\Http\Resources;
 
 use App\Models\LightFixture;
 use App\Models\Tank;
+use App\Simulation\AlertSettings;
+use App\Simulation\BalanceLimits;
 use App\Simulation\Gantry;
 use App\Simulation\LightField;
 use App\Simulation\LightFixtureState;
@@ -68,6 +70,13 @@ class TankResource extends JsonResource
                 'portions' => $this->auto_feeder_portions,
                 'capacity' => config('simulation.auto_feeder.hopper_capacity'),
             ] : null,
+            'is_paused' => $this->is_paused,
+            'pause_reason' => $this->pause_reason,
+            'limits' => BalanceLimits::forTank($this->resource)->toArray(),
+            'alerts' => [
+                ...$this->alertSettings()->toArray(),
+                'parameters' => AlertSettings::parameters(),
+            ],
             'sim_tick' => $this->sim_tick,
             'sim_seconds' => $this->sim_seconds,
             'time_scale' => (float) config('simulation.time_scale'),

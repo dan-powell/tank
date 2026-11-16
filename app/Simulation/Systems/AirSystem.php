@@ -3,7 +3,6 @@
 namespace App\Simulation\Systems;
 
 use App\Enums\Habitat;
-use App\Enums\TankEventType;
 use App\Simulation\Air;
 use App\Simulation\PlantState;
 use App\Simulation\StepContext;
@@ -37,8 +36,6 @@ final class AirSystem implements SimulationSystem
             $state->airOxygen += (Air::ROOM_OXYGEN - $state->airOxygen) * $mix;
             $state->airCo2 += (Air::ROOM_CO2 - $state->airCo2) * $mix;
         }
-
-        $this->warn($state, $context);
     }
 
     /**
@@ -50,33 +47,5 @@ final class AirSystem implements SimulationSystem
             fn (PlantState $plant): float => $state->speciesOf($plant)->habitat() === Habitat::Aquatic ? 0.0 : $plant->biomass(),
             $state->livingPlants(),
         ));
-    }
-
-    private function warn(TankState $state, StepContext $context): void
-    {
-        $before = $context->before;
-
-        if ($before->airOxygen >= 17 && $state->airOxygen < 17) {
-            $context->emit(TankEventType::Warning, 'The air in the tank is running short of oxygen.', ['parameter' => 'air_oxygen']);
-        }
-
-        if ($before->airCo2 < 3000 && $state->airCo2 >= 3000) {
-            $context->emit(TankEventType::Warning, 'CO2 is building up in the air. Land animals may struggle to breathe.', ['parameter' => 'air_co2']);
-        }
-
-        if ($before->humidity >= 60 && $state->humidity < 60 && $this->hasLandLife($state)) {
-            $context->emit(TankEventType::Warning, 'The air is drying out. Land plants and animals need humidity.', ['parameter' => 'humidity']);
-        }
-    }
-
-    private function hasLandLife(TankState $state): bool
-    {
-        foreach ([...$state->livingPlants(), ...$state->livingCreatures()] as $entity) {
-            if ($state->speciesOf($entity)->habitat() !== Habitat::Aquatic) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

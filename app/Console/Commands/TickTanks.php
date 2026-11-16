@@ -9,7 +9,7 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 #[Signature('tank:tick')]
-#[Description('Queue a simulation step for every active tank')]
+#[Description('Queue a simulation step for every active, unpaused tank')]
 class TickTanks extends Command
 {
     /**
@@ -19,7 +19,7 @@ class TickTanks extends Command
     {
         $queued = 0;
 
-        Tank::query()->active()->chunkById(500, function ($tanks) use (&$queued): void {
+        Tank::query()->simulating()->chunkById(500, function ($tanks) use (&$queued): void {
             foreach ($tanks as $tank) {
                 SimulateTank::dispatch($tank);
                 $queued++;

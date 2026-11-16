@@ -12,11 +12,12 @@ class TickTanksTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_queues_a_simulation_for_each_active_tank_only(): void
+    public function test_queues_a_simulation_for_each_active_unpaused_tank_only(): void
     {
         Queue::fake();
         $active = Tank::factory()->count(2)->create();
         Tank::factory()->inactive()->create();
+        Tank::factory()->paused()->create();
 
         $this->artisan('tank:tick')->assertSuccessful();
 

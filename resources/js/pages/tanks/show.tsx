@@ -11,12 +11,15 @@ import {
     Lightbulb,
     Mountain,
     Navigation,
+    Play,
     Square,
     Wrench,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { NotificationBell } from '@/components/notification-bell';
+import { AlertsPanel } from '@/components/tank/alerts-panel';
 import { AutoFeederPanel } from '@/components/tank/auto-feeder-panel';
 import { BackgroundPanel } from '@/components/tank/background-panel';
 import { DecorCatalogue } from '@/components/tank/decor-catalogue';
@@ -35,6 +38,10 @@ import { PopulationPanel } from '@/components/tank/population-panel';
 import { TankHeading } from '@/components/tank/tank-heading';
 import { TankScene } from '@/components/tank/tank-scene';
 import { TankViewCube } from '@/components/tank/tank-view-cube';
+import {
+    SimulationPanel,
+    setTankPaused,
+} from '@/components/tank/simulation-panel';
 import { ToolsPanel } from '@/components/tank/tools-panel';
 import { WaterLevelPanel } from '@/components/tank/water-level-panel';
 import { AirPanel, WaterPanel } from '@/components/tank/water-panel';
@@ -257,7 +264,10 @@ export default function ShowTank({
     const [selectedFixtureId, setSelectedFixtureId] = useState<number | null>(
         null,
     );
-    const simClock = useSimClock(tank.sim_seconds, tank.time_scale);
+    const simClock = useSimClock(
+        tank.sim_seconds,
+        tank.is_paused ? 0 : tank.time_scale,
+    );
 
     /** Swing the camera round to `view`; in 2D it also becomes the side the flat view looks from. */
     const selectView = (view: TankView) => {
@@ -526,6 +536,12 @@ export default function ShowTank({
     });
 
     const feedAt = (worldX: number, worldZ: number) => {
+        if (tank.is_paused) {
+            toast.error('The tank is paused. Resume it before adding food.');
+
+            return;
+        }
+
         world.sprinkle(worldX, worldZ);
         const { x, z } = toNormalisedSurface(new Vector3(worldX, 0, worldZ));
         router.post(
@@ -574,6 +590,13 @@ export default function ShowTank({
                         }
                         onSelectFixture={selectFixture}
                     />
+
+                    {tank.is_paused && movingInhabitant === null && (
+                        <PausedBanner
+                            message={pausedMessage(tank, events)}
+                            onResume={() => setTankPaused(tank.id, false)}
+                        />
+                    )}
 
                     {movingInhabitant !== null && (
                         <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center px-16">
@@ -631,6 +654,9 @@ export default function ShowTank({
                                 Dashboard
                             </TooltipContent>
                         </Tooltip>
+                        <NotificationBell
+                            className={cn(hudButton, 'pointer-events-auto')}
+                        />
                     </div>
 
                     {viewMode === 'fly' && (
@@ -786,10 +812,14 @@ export default function ShowTank({
                                 className="flex flex-col"
                             >
                                 <TankHeading tank={tank} />
-                                <WaterPanel water={tank.water} />
+                                <WaterPanel
+                                    water={tank.water}
+                                    limits={tank.limits}
+                                />
                                 <AirPanel
                                     air={tank.air}
                                     isSealed={tank.is_sealed}
+                                    limits={tank.limits}
                                 />
                                 <PopulationPanel
                                     creatures={tank.creatures}
@@ -820,6 +850,7 @@ export default function ShowTank({
                                     creatures={tank.creatures}
                                     plants={tank.plants}
                                     species={species}
+                                    watchedSpecies={tank.alerts.watched_species}
                                     stockConditions={{
                                         hasWater: tank.has_water,
                                         hasLand: tank.land_area_cm2 > 0,
@@ -832,9 +863,14 @@ export default function ShowTank({
                                 value="management"
                                 direction={tabDirection}
                             >
+                                <SimulationPanel
+                                    tankId={tank.id}
+                                    isPaused={tank.is_paused}
+                                />
                                 <ToolsPanel
                                     tankId={tank.id}
                                     hasWater={tank.has_water}
+                                    isPaused={tank.is_paused}
                                     onFeedRandomly={feedRandomly}
                                 />
                                 <WaterLevelPanel
@@ -843,6 +879,10 @@ export default function ShowTank({
                                     grid={tank.grid}
                                     litres={tank.volume_litres}
                                     hasWater={tank.has_water}
+                                />
+                                <AlertsPanel
+                                    tankId={tank.id}
+                                    alerts={tank.alerts}
                                 />
                             </PanelTabContent>
 
@@ -910,6 +950,7 @@ export default function ShowTank({
                                 <InhabitantPanel
                                     tankId={tank.id}
                                     inhabitant={inhabitant}
+                                    watchedSpecies={tank.alerts.watched_species}
                                     world={world}
                                     onMove={() =>
                                         setMoving({
@@ -961,6 +1002,45 @@ export default function ShowTank({
                 </div>
             </div>
         </>
+    );
+}
+
+/** Why the tank is paused: the dying animal that paused it, or the owner. */
+function pausedMessage(tank: TankSnapshot, events: TankEvent[]): string {
+    if (tank.pause_reason === 'near_death') {
+        const nearDeath = events.find((event) => event.type === 'near_death');
+
+        return nearDeath?.message ?? 'An animal is close to death.';
+    }
+
+    return 'The tank is paused.';
+}
+
+/** Says the simulation is stopped, and why, with a way to start it again. */
+function PausedBanner({
+    message,
+    onResume,
+}: {
+    message: string;
+    onResume: () => void;
+}) {
+    return (
+        <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center px-28">
+            <div
+                role="status"
+                className={cn(
+                    hudSurface,
+                    'pointer-events-auto flex max-w-xl items-center gap-3 rounded-md px-3 py-2 text-sm',
+                )}
+            >
+                <span>
+                    <strong>Paused.</strong> {message}
+                </span>
+                <Button size="sm" className="h-7" onClick={onResume}>
+                    <Play /> Resume
+                </Button>
+            </div>
+        </div>
     );
 }
 

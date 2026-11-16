@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Enums\Habitat;
 use App\Enums\LightMode;
+use App\Enums\PauseReason;
 use App\Enums\TankEventType;
+use App\Simulation\AlertSettings;
 use Database\Factories\TankFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Scope;
@@ -56,6 +58,10 @@ use Illuminate\Support\Carbon;
  * @property bool $auto_feeder_unlimited
  * @property int $auto_feeder_portions
  * @property bool $is_active
+ * @property bool $is_paused Whether the owner (or a dying animal) has stopped the simulation.
+ * @property Carbon|null $paused_at
+ * @property PauseReason|null $pause_reason Why it is paused.
+ * @property array<string, mixed>|null $alert_settings Stored alert preferences (see alertSettings()).
  * @property int $sim_tick
  * @property int $sim_seconds
  * @property int $rng_seed
@@ -68,7 +74,7 @@ use Illuminate\Support\Carbon;
     'nitrate', 'oxygen', 'co2', 'detritus', 'uneaten_food', 'algae', 'bacteria', 'humidity', 'air_oxygen',
     'air_co2', 'light_mode', 'is_sealed', 'background_colour', 'background_gradient_colour',
     'auto_feeder_installed', 'auto_feeder_feeds_per_day', 'auto_feeder_unlimited', 'auto_feeder_portions',
-    'is_active', 'sim_tick', 'sim_seconds', 'rng_seed', 'last_simulated_at',
+    'is_active', 'is_paused', 'paused_at', 'pause_reason', 'alert_settings', 'sim_tick', 'sim_seconds', 'rng_seed', 'last_simulated_at',
 ])]
 class Tank extends Model
 {
@@ -148,7 +154,15 @@ class Tank extends Model
     }
 
     /**
-     * Scope to tanks that the simulation should keep processing.
+     * The owner's alert preferences, with defaults filled in.
+     */
+    public function alertSettings(): AlertSettings
+    {
+        return AlertSettings::fromArray($this->alert_settings ?? []);
+    }
+
+    /**
+     * Scope to tanks that have not been deactivated.
      *
      * @param  Builder<Tank>  $query
      */
@@ -156,6 +170,17 @@ class Tank extends Model
     protected function active(Builder $query): void
     {
         $query->where('is_active', true);
+    }
+
+    /**
+     * Scope to tanks the simulation should keep processing: active and not paused.
+     *
+     * @param  Builder<Tank>  $query
+     */
+    #[Scope]
+    protected function simulating(Builder $query): void
+    {
+        $query->where('is_active', true)->where('is_paused', false);
     }
 
     /**
@@ -195,6 +220,10 @@ class Tank extends Model
             'auto_feeder_unlimited' => 'boolean',
             'auto_feeder_portions' => 'integer',
             'is_active' => 'boolean',
+            'is_paused' => 'boolean',
+            'paused_at' => 'datetime',
+            'pause_reason' => PauseReason::class,
+            'alert_settings' => 'array',
             'sim_tick' => 'integer',
             'sim_seconds' => 'integer',
             'rng_seed' => 'integer',

@@ -27,30 +27,12 @@ final class TankStateRepository
         $plants = Plant::query()->whereBelongsTo($tank)->alive()->orderBy('id')->get()
             ->map(fn (Plant $plant): PlantState => $this->plantState($tank, $plant, $decorations->get($plant->decoration_id)))->all();
 
-        $creatures = Creature::query()->whereBelongsTo($tank)->alive()->orderBy('id')->get()
-            ->map(fn (Creature $creature): CreatureState => new CreatureState(
-                id: $creature->id,
-                speciesId: $creature->species_id,
-                motherId: $creature->mother_id,
-                fatherId: $creature->father_id,
-                nickname: $creature->nickname,
-                sex: $creature->sex,
-                size: $creature->size,
-                hunger: $creature->hunger,
-                health: $creature->health,
-                ageSeconds: $creature->age_seconds,
-                gestationSeconds: $creature->gestation_seconds,
-                zoneX: $creature->zone_x,
-                zoneY: $creature->zone_y,
-                layer: $creature->layer,
-                zoneRadius: $creature->zone_radius,
-                generation: $creature->generation,
-                intent: $creature->intent,
-                intentSeconds: $creature->intent_seconds,
-                moods: $creature->moods ?? [],
-            ))->all();
+        $alerts = $tank->alertSettings();
 
-        return new TankState(
+        $creatures = Creature::query()->whereBelongsTo($tank)->alive()->orderBy('id')->get()
+            ->map(fn (Creature $creature): CreatureState => $this->creatureState($creature, $alerts))->all();
+
+        $state = new TankState(
             volumeLitres: $tank->volume_litres,
             layerCount: $tank->layer_count,
             temperature: $tank->temperature,
@@ -100,6 +82,40 @@ final class TankStateRepository
                 ->all(),
             decorationBoxes: $decorations->map(fn (Decoration $decoration): GridBox => TankGeometry::footprint($decoration))->all(),
         );
+        $state->nearDeathHealth = $alerts->nearDeathHealth;
+
+        return $state;
+    }
+
+    /**
+     * An animal's working state, watched if it (or failing that, its species) pauses the tank when dying.
+     */
+    private function creatureState(Creature $creature, AlertSettings $alerts): CreatureState
+    {
+        $state = new CreatureState(
+            id: $creature->id,
+            speciesId: $creature->species_id,
+            motherId: $creature->mother_id,
+            fatherId: $creature->father_id,
+            nickname: $creature->nickname,
+            sex: $creature->sex,
+            size: $creature->size,
+            hunger: $creature->hunger,
+            health: $creature->health,
+            ageSeconds: $creature->age_seconds,
+            gestationSeconds: $creature->gestation_seconds,
+            zoneX: $creature->zone_x,
+            zoneY: $creature->zone_y,
+            layer: $creature->layer,
+            zoneRadius: $creature->zone_radius,
+            generation: $creature->generation,
+            intent: $creature->intent,
+            intentSeconds: $creature->intent_seconds,
+            moods: $creature->moods ?? [],
+        );
+        $state->watched = $creature->pause_when_dying ?? $alerts->watchesSpecies($creature->species_id);
+
+        return $state;
     }
 
     /**

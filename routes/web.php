@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\TankAutoFeederController;
 use App\Http\Controllers\TankController;
 use App\Http\Controllers\TankCreatureController;
@@ -18,6 +19,10 @@ Route::inertia('/', 'welcome')->name('home');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
 
+    Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('notifications/read', [NotificationController::class, 'readAll'])->name('notifications.read-all');
+    Route::post('notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');
+
     Route::post('tanks', [TankController::class, 'store'])->name('tanks.store');
     Route::get('tanks/{tank}', [TankController::class, 'show'])->can('view', 'tank')->name('tanks.show');
 
@@ -27,6 +32,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->scopeBindings()
         ->group(function () {
             Route::put('light', [TankMaintenanceController::class, 'setLightMode'])->name('light');
+            Route::put('pause', [TankMaintenanceController::class, 'setPaused'])->name('pause');
+            Route::put('alerts', [TankMaintenanceController::class, 'setAlerts'])->name('alerts');
+            Route::put('watched-species/{species}', [TankMaintenanceController::class, 'watchSpecies'])->withoutScopedBindings()->name('watched-species');
             Route::post('lid', [TankMaintenanceController::class, 'toggleLid'])->name('lid');
             Route::put('background', [TankMaintenanceController::class, 'setBackground'])->name('background');
             Route::patch('creatures/{creature}', [TankCreatureController::class, 'update'])->name('creatures.update');

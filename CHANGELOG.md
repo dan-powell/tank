@@ -56,6 +56,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The tank page remembers 2D/3D (fly mode as 3D) and the open side panel tab across reloads.
 - Tank load-in animation: a spinner while models load, then the glass panels fly together, the light gantry lands and switches on, the gravel and decor dissolve in, the water fills, plants grow and the inhabitants appear. Skipped when the system asks for reduced motion.
 - Creature behaviours: each animal has one intent (wandering, exploring, hunting, resting, hiding, shoaling, patrolling) plus moods (zoomies, skittish, sluggish), chosen by the simulation from species, age, hunger, health and the tank. They steer movement and colouring, change hunger, feeding, recovery and predation, and show live in the inhabitant panel.
+- Hint tooltips on water and air readings that are out of balance, saying what to do; temperature, pH and humidity ranges follow the tank's species.
+- Pause the whole tank (Management) to stop the simulation while you rebalance it; everything but feeding still works, and paused time is never caught up.
+- Auto-pause when a watched animal drops below a chosen health (Management); choose animals per species (Inhabitants, sorted by species) or one by one.
+- Warning notifications when the water or air turns harmfully high or low: an in-app inbox (bell), live toasts, and optional browser notifications and email, each warning switchable from Management.
 
 ### Changed
 

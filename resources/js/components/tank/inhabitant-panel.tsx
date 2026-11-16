@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { MOSS_SPACING } from '@/lib/tank/plant-assembly';
 import { CELLS_PER_CM, CM, PLANT_HEIGHT_UNIT } from '@/lib/tank/space';
 import type { TankWorld } from '@/lib/tank/world';
@@ -30,6 +31,7 @@ import type {
     CreatureSnapshot,
     PlantSnapshot,
     Species,
+    TankSnapshot,
 } from '@/types';
 import { SelectionPanelHeader } from './panel-section';
 
@@ -40,6 +42,8 @@ export type Inhabitant =
 type Props = {
     tankId: number;
     inhabitant: Inhabitant;
+    /** Species whose animals pause the tank when close to death. */
+    watchedSpecies: number[];
     world: TankWorld;
     /** Start choosing a new spot for it in the tank. */
     onMove: () => void;
@@ -59,6 +63,7 @@ const visitOptions = { preserveScroll: true, only: ['tank', 'events'] };
 export function InhabitantPanel({
     tankId,
     inhabitant,
+    watchedSpecies,
     world,
     onMove,
     onBack,
@@ -119,6 +124,15 @@ export function InhabitantPanel({
                 )}
             </dl>
 
+            {inhabitant.kind === 'creature' && (
+                <PauseWhenDying
+                    url={url.update}
+                    creature={inhabitant.entity}
+                    speciesName={species.name}
+                    isSpeciesWatched={watchedSpecies.includes(species.id)}
+                />
+            )}
+
             <NameForm
                 key={`${kind}-${entity.id}`}
                 url={url.update}
@@ -146,6 +160,87 @@ export function InhabitantPanel({
                 />
             </div>
         </section>
+    );
+}
+
+type PauseChoice = 'species' | 'on' | 'off';
+
+/** Whether this animal pauses the tank when close to death: as its species does, always, or never. */
+function PauseWhenDying({
+    url,
+    creature,
+    speciesName,
+    isSpeciesWatched,
+}: {
+    url: string;
+    creature: CreatureSnapshot;
+    speciesName: string;
+    isSpeciesWatched: boolean;
+}) {
+    const choice: PauseChoice =
+        creature.pause_when_dying === null
+            ? 'species'
+            : creature.pause_when_dying
+              ? 'on'
+              : 'off';
+
+    const choose = (value: string) => {
+        if (value === '' || value === choice) {
+            return;
+        }
+
+        const pauseWhenDying = value === 'species' ? null : value === 'on';
+
+        router.patch(
+            url,
+            { pause_when_dying: pauseWhenDying },
+            {
+                ...visitOptions,
+                optimistic: (props) => {
+                    const tank = props.tank as TankSnapshot;
+
+                    return {
+                        tank: {
+                            ...tank,
+                            creatures: tank.creatures.map((other) =>
+                                other.id === creature.id
+                                    ? {
+                                          ...other,
+                                          pause_when_dying: pauseWhenDying,
+                                      }
+                                    : other,
+                            ),
+                        },
+                    };
+                },
+            },
+        );
+    };
+
+    return (
+        <div className="space-y-1.5">
+            <Label id="pause-when-dying-label" className="text-xs">
+                Pause the tank if close to death
+            </Label>
+            <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={choice}
+                onValueChange={choose}
+                aria-labelledby="pause-when-dying-label"
+                className="w-full *:flex-1"
+            >
+                <ToggleGroupItem
+                    value="species"
+                    title={`Follow the ${speciesName} setting on the Inhabitants tab`}
+                >
+                    As species ({isSpeciesWatched ? 'on' : 'off'})
+                </ToggleGroupItem>
+                <ToggleGroupItem value="on">On</ToggleGroupItem>
+                <ToggleGroupItem value="off">Off</ToggleGroupItem>
+            </ToggleGroup>
+        </div>
     );
 }
 

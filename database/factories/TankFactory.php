@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\LightMode;
+use App\Enums\PauseReason;
 use App\Models\Tank;
 use App\Models\User;
 use App\Simulation\Gantry;
@@ -128,6 +129,18 @@ class TankFactory extends Factory
     {
         return $this->state(fn (array $attributes): array => [
             'is_active' => false,
+        ]);
+    }
+
+    /**
+     * A tank its owner has paused.
+     */
+    public function paused(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'is_paused' => true,
+            'paused_at' => now(),
+            'pause_reason' => PauseReason::Manual,
         ]);
     }
 
