@@ -33,7 +33,8 @@ export const sheenUniforms = {
 /**
  * A wet, scaly sheen in the colour of the lights above: a glint on faces
  * turned towards the lights, and a rim of light along the back and edges,
- * rippling with the caustics. Needs applyCaustics first (for tankCaustic).
+ * rippling with the caustics. Only underwater: animals out on land are dry.
+ * Needs applyCaustics first (for tankCaustic).
  */
 function applySheen(shader: WebGLProgramParametersWithUniforms): void {
     Object.assign(shader.uniforms, sheenUniforms);
@@ -48,7 +49,8 @@ ${shader.fragmentShader}`.replace(
         float sheenGlint = pow(max(dot(geometryNormal, normalize(sheenUp + geometryViewDir)), 0.0), 6.0);
         float sheenRim = pow(1.0 - sheenFacing, 3.0) * clamp(dot(geometryNormal, sheenUp) * 0.5 + 0.6, 0.0, 1.0);
         float sheenRipple = 0.5 + tankCaustic(vCausticWorld, uCausticWaterLine, uCausticTime);
-        reflectedLight.directSpecular += uSheenColour * uSheenStrength * sheenRipple
+        float sheenWet = smoothstep(uCausticWaterLine + 0.005, uCausticWaterLine - 0.03, vCausticWorld.y);
+        reflectedLight.directSpecular += uSheenColour * uSheenStrength * sheenRipple * sheenWet
             * (sheenGlint * 0.7 + sheenRim * 0.6);`,
     );
 }

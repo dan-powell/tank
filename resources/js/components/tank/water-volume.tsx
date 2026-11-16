@@ -14,7 +14,7 @@ import {
     Vector4,
     WebGLRenderTarget,
 } from 'three';
-import type { Mesh, PerspectiveCamera } from 'three';
+import type { Mesh, Object3D, PerspectiveCamera } from 'three';
 import { easeOutCubic, introProgress, introStarted } from '@/lib/tank/intro';
 import { liveLighting, MAX_LIGHTS } from '@/lib/tank/lighting';
 import { TANK } from '@/lib/tank/space';
@@ -102,6 +102,13 @@ function followLights(
 }
 
 const mixedColour = new Color();
+
+/**
+ * Objects left out of the water's view of the scene: glass-top things it
+ * never shows that would cost a pass of their own to draw (condensation's
+ * refraction).
+ */
+export const hiddenFromWater = new Set<Object3D>();
 
 /** Height of the water box's floor, just clear of the glass. */
 const WATER_FLOOR = 0.002;
@@ -618,6 +625,8 @@ export function WaterVolume({ water, isLit, world }: Props) {
         // Drawn before the intro begins too, so its shader is compiled in advance.
         const isShown = !introStarted() || fill > 0;
         mesh.current.visible = false;
+        const hidden = [...hiddenFromWater].filter((object) => object.visible);
+        hidden.forEach((object) => (object.visible = false));
         gl.setRenderTarget(target);
         // The composer turns autoClear off, and only a solid-colour backdrop
         // forces a clear, so clear explicitly or a texture backdrop leaves
@@ -625,6 +634,7 @@ export function WaterVolume({ water, isLit, world }: Props) {
         gl.clear();
         gl.render(scene, camera);
         gl.setRenderTarget(null);
+        hidden.forEach((object) => (object.visible = true));
         mesh.current.visible = isShown;
 
         const perspective = camera as PerspectiveCamera;

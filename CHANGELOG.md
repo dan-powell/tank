@@ -42,11 +42,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Light in the simulation: each plant gets the light at its crown (from the lights above, dimmed by water depth and shaded by decorations) and grows in proportion, up to its species' needs; plants short of daily light lose health (with a warning), and brighter light and days over 12 hours feed algae. Plant colour matters a little (green light is least useful). The plant panel shows whether it gets enough light.
 - Decoration LEDs on every decoration, each lighting up one of its voxels (on generated rocks, a voxel set in a small niche in the face) that casts its own light, up to 16 per tank: switch on, pick a colour, and choose glow-after-dark or always on; purely decorative.
 - Gantry lights and decoration LEDs fade in and out over a second and a half whenever they switch on or off, by timer or by hand (master switch, LED toggle or mode, brightness).
-- Glow (bloom) on lit lights and LEDs; the water's shafts, glints and tint follow the lights, and fish catch a sheen in the lights' colour. The glass is open at the top, so lights shine straight into the water.
+- Glow (bloom) on lit lights and LEDs; the water's shafts, glints and tint follow the lights, and animals underwater catch a sheen in the lights' colour. The glass is open at the top, so lights shine straight into the water.
 - Gravel sculpting (at 0.2 cm detail) in the Aquascaping tab: preset shapes (flat, slope, beaches, island, terraces) and a Raise / Lower / Smooth / Flatten brush in three sizes, with Undo; changes save in batches every 2 seconds (and when leaving the page). Raised gravel displaces water and becomes land above the waterline; decorations stay put.
 - Land and edge life: cushion moss and maidenhair fern grow above the water, pothos and dwarf rush at the waterline; springtails, dwarf white isopods and garlic glass-snails live on land, and the fire-bellied toad moves between water and land, hunting the small invertebrates.
 - Air above the water (humidity, oxygen, CO2) on the Summary tab: land plants and animals breathe it, open tanks share the room's air, and land plants feed on detritus.
-- Seal the tank from Equipment to make it a closed ecosystem: a glass lid, no air from the room (it mists up as humidity rises); feeding, maintenance, stocking, aquascaping and the auto-feeder all still work with the lid on.
+- Seal the tank from Equipment to make it a closed ecosystem: a glass lid, no air from the room (water beads and runs down the glass as humidity rises); feeding, maintenance, stocking, aquascaping and the auto-feeder all still work with the lid on.
 - The Add stock dialog groups species into water, edge and land, explaining why any can't go in yet.
 - Animals grow through stages (e.g. fry, juvenile, adult), each its own model, instead of being scaled up; a short squash-and-stretch marks each new stage.
 - Animals animate frame by frame from their models (swimming, crawling, hopping or idling), moving faster plays faster; the old whole-body wiggle is gone.
@@ -74,6 +74,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - New look from a shadcn preset: Lyra style, teal theme and Source Sans 3 font.
 - Feeding is done from the Care panel only; clicking the water no longer drops food.
 - A tank's litres now come from the water it holds (existing tanks: 60 L → 47 L) and its depth layers from its depth (about one per 5.6 cm).
+- Condensation shows as clear water droplets that bead and run down the glass, seen only by how they bend the view behind them, instead of a misty film.
+- Dwarf white isopods are bigger and more detailed: a domed, banded back, head, antennae and walking legs.
+
+### Removed
+
+- The rippling water sheen on animals above the water (and in dry tanks).
 
 ### Fixed
 
@@ -82,7 +88,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Assets blocked as mixed content behind an HTTPS reverse proxy (proxies are now trusted).
 - New plants no longer show beneath the tank as they appear.
 - Gradient backdrops no longer garble the tank behind the water.
-- Condensation in a sealed tank now mists only the glass above the water and under the lid, not the whole tank.
+- Condensation in a sealed tank now covers only the glass above the water and under the lid, not the whole tank.
 
 ## 2026-11-06: Initial commits
 

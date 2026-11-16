@@ -144,7 +144,10 @@ export function TankScene({
     const waterLevel = tank.grid.water_level;
 
     useEffect(() => {
-        causticUniforms.uCausticWaterLine.value = TANK.waterLine;
+        // A dry tank has no waterline: nothing in it is underwater (or wet).
+        causticUniforms.uCausticWaterLine.value = tank.has_water
+            ? TANK.waterLine
+            : -1;
 
         if (!tank.has_water) {
             causticUniforms.uCausticStrength.value = 0;

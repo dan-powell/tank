@@ -263,20 +263,57 @@ function springtail(length: number, body: string, hop: number): Grid {
     return grid;
 }
 
+/**
+ * A woodlouse: a domed, banded back over a fringe of legs (adults only; the
+ * young are too small), a darker head and a pair of antennae out front.
+ * The bands and legs shift with `ripple`, so two frames make it patter.
+ */
 function isopod(length: number, body: string, ripple: number): Grid {
-    const width = Math.max(1, Math.round(length * 0.6));
-    const grid = new Grid(length, 1, width);
+    const hasLegs = length >= 5;
+    const base = hasLegs ? 1 : 0;
+    const width = odd(Math.max(3, Math.round(length * 0.6)));
+    const grid = new Grid(length + 1, base + 2, width);
+    const head = length - 1;
 
     for (let x = 0; x < length; x++) {
+        const band = (x + ripple) % 2 === 0 ? body : shade(body, 0.85);
+
         for (let z = 0; z < width; z++) {
+            const isEdge = z === 0 || z === width - 1;
+
+            if (x === head && isEdge) {
+                continue;
+            }
+
             grid.set(
                 x,
-                0,
+                base,
                 z,
-                (x + ripple) % 2 === 0 ? body : shade(body, 0.85),
+                x === head
+                    ? shade(body, 0.75)
+                    : isEdge
+                      ? shade(band, 0.9)
+                      : band,
             );
+
+            if (x > 0 && x < head && !isEdge) {
+                grid.set(x, base + 1, z, mix(band, '#ffffff', 0.15));
+            }
+        }
+
+        if (hasLegs && x > 0 && x < head) {
+            const leg = shade(body, 0.7);
+
+            if ((x + ripple) % 2 === 0) {
+                grid.set(x, 0, 0, leg);
+            } else {
+                grid.set(x, 0, width - 1, leg);
+            }
         }
     }
+
+    grid.set(length, base, 0, shade(body, 0.6));
+    grid.set(length, base, width - 1, shade(body, 0.6));
 
     return grid;
 }
@@ -706,7 +743,7 @@ const SPECIES: Record<string, Species> = {
         }),
     },
     'dwarf-white-isopod': {
-        stages: { young: 2, adult: 3 },
+        stages: { young: 3, adult: 5 },
         clips: (length) => ({
             move: [0, 1].map((ripple) => isopod(length, '#f0ece0', ripple)),
             idle: [isopod(length, '#f0ece0', 0)],

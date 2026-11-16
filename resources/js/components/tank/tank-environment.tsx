@@ -2,7 +2,7 @@ import { Edges } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import type { ReactNode } from 'react';
-import { DoubleSide, MeshBasicMaterial, Object3D, Vector3 } from 'three';
+import { DoubleSide, Object3D, Vector2, Vector3 } from 'three';
 import type {
     Group,
     InstancedMesh,
@@ -23,7 +23,13 @@ import type { Heightmap } from '@/lib/tank/substrate-heightmap';
 import { substrateHeightAt } from '@/lib/tank/terrain-field';
 import type { TankGrid, WaterParameters } from '@/types';
 import { Bubbles } from './bubbles';
+import {
+    createCondensationMaterial,
+    createCondensationUniforms,
+} from './condensation-material';
+import type { CondensationUniforms } from './condensation-material';
 import { introUniforms } from './intro-material';
+import { hiddenFromWater } from './water-volume';
 
 type Props = {
     water: WaterParameters;
@@ -55,19 +61,7 @@ export function TankEnvironment({
     // Condensation beads on the glass once sealed air nears saturation.
     const mist = isSealed ? Math.min(1, Math.max(0, (humidity - 80) / 18)) : 0;
     const algaeMaterial = useRef<MeshStandardMaterial>(null);
-    const mistMaterial = useMemo(
-        () =>
-            new MeshBasicMaterial({
-                color: '#f2f8fb',
-                transparent: true,
-                opacity: 0,
-                depthWrite: false,
-                side: DoubleSide,
-            }),
-        [],
-    );
-
-    useEffect(() => () => mistMaterial.dispose(), [mistMaterial]);
+    const condensation = useMemo(() => createCondensationUniforms(), []);
 
     // The algae and mist arrive with what they grow on, not before.
     useFrame(() => {
@@ -76,7 +70,8 @@ export function TankEnvironment({
                 algae * 0.7 * introUniforms.landscape.value;
         }
 
-        mistMaterial.opacity = mist * 0.22 * introProgress('panels');
+        condensation.uMist.value = mist;
+        condensation.uFade.value = introProgress('panels');
     });
 
     return (
@@ -108,7 +103,7 @@ export function TankEnvironment({
 
             {mist > 0.01 && (
                 <Condensation
-                    material={mistMaterial}
+                    uniforms={condensation}
                     bottom={hasWater ? TANK.waterLine : 0}
                 />
             )}
@@ -141,15 +136,17 @@ export function TankEnvironment({
 const CONDENSATION_INSET = 0.002;
 
 /**
- * Condensation on the inside of a sealed tank: beads on the glass walls
- * above the water and under the lid. Glass below the waterline is wet, not
- * misted, so the water and everything in it stays clear.
+ * Condensation on the inside of a sealed tank: beads and running drops on
+ * the glass walls above the water, and beads under the lid, seen only as
+ * the way they bend the view and catch the light. Glass below the
+ * waterline is wet, not misted, so the water and everything in it stays
+ * clear.
  */
 function Condensation({
-    material,
+    uniforms,
     bottom,
 }: {
-    material: MeshBasicMaterial;
+    uniforms: CondensationUniforms;
     /** Where the misted glass starts: the water surface, or the floor when dry. */
     bottom: number;
 }) {
@@ -158,51 +155,94 @@ function Condensation({
     const middle = bottom + gap / 2;
     const halfWidth = TANK.width / 2 - CONDENSATION_INSET;
     const halfDepth = TANK.depth / 2 - CONDENSATION_INSET;
-    const walls: {
-        position: [number, number, number];
-        rotation: number;
-        width: number;
-    }[] = [
-        {
-            position: [0, middle, -halfDepth],
-            rotation: 0,
-            width: halfWidth * 2,
-        },
-        { position: [0, middle, halfDepth], rotation: 0, width: halfWidth * 2 },
-        {
-            position: [-halfWidth, middle, 0],
-            rotation: Math.PI / 2,
-            width: halfDepth * 2,
-        },
-        {
-            position: [halfWidth, middle, 0],
-            rotation: Math.PI / 2,
-            width: halfDepth * 2,
-        },
-    ];
+    const panes = useMemo(() => {
+        const wall = (
+            position: [number, number, number],
+            rotation: number,
+            width: number,
+            seed: number,
+        ) => {
+            const size = new Vector2(width, gap);
+
+            return {
+                position,
+                rotation: [0, rotation, 0] as [number, number, number],
+                size,
+                material: createCondensationMaterial(uniforms, size, {
+                    running: true,
+                    seed,
+                }),
+            };
+        };
+        const walls =
+            gap > 0.004
+                ? [
+                      wall([0, middle, -halfDepth], 0, halfWidth * 2, 0.11),
+                      wall([0, middle, halfDepth], 0, halfWidth * 2, 0.37),
+                      wall(
+                          [-halfWidth, middle, 0],
+                          Math.PI / 2,
+                          halfDepth * 2,
+                          0.59,
+                      ),
+                      wall(
+                          [halfWidth, middle, 0],
+                          Math.PI / 2,
+                          halfDepth * 2,
+                          0.83,
+                      ),
+                  ]
+                : [];
+        const lidSize = new Vector2(halfWidth * 2, halfDepth * 2);
+
+        return [
+            ...walls,
+            {
+                position: [0, top, 0] as [number, number, number],
+                rotation: [-Math.PI / 2, 0, 0] as [number, number, number],
+                size: lidSize,
+                material: createCondensationMaterial(uniforms, lidSize, {
+                    running: false,
+                    seed: 0.97,
+                }),
+            },
+        ];
+    }, [uniforms, gap, middle, top, halfWidth, halfDepth]);
+
+    useEffect(
+        () => () => panes.forEach((pane) => pane.material.dispose()),
+        [panes],
+    );
+
+    const group = useRef<Group>(null);
+
+    useEffect(() => {
+        const object = group.current;
+
+        if (object === null) {
+            return;
+        }
+
+        hiddenFromWater.add(object);
+
+        return () => {
+            hiddenFromWater.delete(object);
+        };
+    }, []);
 
     return (
-        <group>
-            {gap > 0.004 &&
-                walls.map((wall, index) => (
-                    <mesh
-                        key={index}
-                        position={wall.position}
-                        rotation={[0, wall.rotation, 0]}
-                        material={material}
-                        raycast={() => null}
-                    >
-                        <planeGeometry args={[wall.width, gap]} />
-                    </mesh>
-                ))}
-            <mesh
-                position={[0, top, 0]}
-                rotation={[-Math.PI / 2, 0, 0]}
-                material={material}
-                raycast={() => null}
-            >
-                <planeGeometry args={[halfWidth * 2, halfDepth * 2]} />
-            </mesh>
+        <group ref={group}>
+            {panes.map((pane, index) => (
+                <mesh
+                    key={index}
+                    position={pane.position}
+                    rotation={pane.rotation}
+                    material={pane.material}
+                    raycast={() => null}
+                >
+                    <planeGeometry args={[pane.size.x, pane.size.y]} />
+                </mesh>
+            ))}
         </group>
     );
 }
