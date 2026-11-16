@@ -75,6 +75,10 @@ task('artisan:octane:install', function () {
     run('{{bin/php}} {{release_path}}/artisan octane:install --server=frankenphp --no-interaction');
 });
 
+// Sync the built-in species catalogue so new species reach the database.
+task('artisan:species:sync', artisan('db:seed --class=SpeciesSeeder --force', ['skipIfNoEnv']));
+after('artisan:migrate', 'artisan:species:sync');
+
 // [Optional] if deploy fails automatically unlock.
 after('deploy:failed', 'deploy:unlock');
 

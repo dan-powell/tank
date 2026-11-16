@@ -88,6 +88,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Assets blocked as mixed content behind an HTTPS reverse proxy (proxies are now trusted).
 - New plants no longer show beneath the tank as they appear.
 - Gradient backdrops no longer garble the tank behind the water.
+- Deploys now sync the species catalogue, so land and water's-edge species appear on production.
 - Condensation in a sealed tank now covers only the glass above the water and under the lid, not the whole tank.
 
 ## 2026-11-06: Initial commits
